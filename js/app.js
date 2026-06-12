@@ -3909,6 +3909,13 @@ function configurarEventos() {
     await enviarGastosTPV(pendientes, false);
     renderConfig();
   });
+  $('#btn-historico-tpv').addEventListener('click', async () => {
+    if (datos.gastos.length === 0) return aviso('No hay ningún gasto que enviar.', true);
+    const seguro = confirm(`📜 Se enviarán al TPV los ${datos.gastos.length} gastos del sistema (todo el historial, también lo anterior a la conexión).\n\nReenviar NO duplica. Pero ⚠️ si todavía tienes datos de EJEMPLO cargados, cancela: enviarías gastos ficticios.\n\n¿Enviar todo el historial?`);
+    if (!seguro) return;
+    await enviarGastosTPV(datos.gastos, false);
+    renderConfig();
+  });
 
   $('#btn-borrar-todo').addEventListener('click', borrarTodo);
   $('#btn-cargar-ejemplo').addEventListener('click', () => {
