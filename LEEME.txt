@@ -1,0 +1,34 @@
+==========================================================
+ EL PARAÍSO BAR RESTAURANTE
+ Sistema de contabilidad, escandallos e impuestos (España)
+==========================================================
+
+CÓMO ABRIRLO:
+  Haz doble clic en el archivo "index.html".
+  Se abre en tu navegador y funciona sin internet.
+
+CÓMO SE USA (4 pasos):
+  1. Ingredientes  -> registra lo que compras, su precio y su IVA
+  2. Escandallos   -> arma tus platos; el costo se calcula solo
+  3. Ventas        -> cada noche usa "Cierre del día"
+                      Gastos -> anota compras, nómina, luz... con su IVA
+  4. Panel, Informes e Impuestos -> gráficos, ganancias y
+     tus modelos 303 (IVA) y 130 (IRPF) de cada trimestre
+
+IMPUESTOS:
+  - Las ventas de hostelería llevan IVA del 10% (incluido en el precio).
+  - El IVA de tus compras lo recuperas: el sistema calcula el
+    modelo 303 de cada trimestre y el modelo 130 de IRPF.
+  - Los tipos (IVA, IRPF...) se pueden editar en Configuración.
+  - Son cálculos ORIENTATIVOS: confírmalos con tu gestoría o la AEAT.
+
+MUY IMPORTANTE:
+  - Usa siempre el mismo navegador en este ordenador.
+  - Descarga una copia de seguridad cada semana desde
+    Configuración -> "Descargar copia de seguridad".
+  - El sistema trae datos de EJEMPLO. Cuando quieras empezar
+    de verdad: Configuración -> "Borrar TODOS los datos".
+
+Dentro de la aplicación hay una sección de Ayuda (❓)
+con la explicación completa.
+==========================================================
