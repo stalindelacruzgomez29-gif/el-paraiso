@@ -1,0 +1,1270 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>El Paraíso · Contabilidad y Escandallos</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌴</text></svg>">
+<link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+
+<!-- ===== MENÚ LATERAL ===== -->
+<aside class="menu-lateral">
+  <div class="marca">
+    <div class="marca-icono">🌴</div>
+    <div>
+      <div class="marca-nombre" id="marca-nombre">El Paraíso</div>
+      <div class="marca-sub">Bar · Restaurante</div>
+    </div>
+  </div>
+  <nav class="menu-nav">
+    <button class="nav-btn activo" data-vista="panel"><span class="nav-icono">📊</span> Panel</button>
+    <button class="nav-btn" data-vista="ingredientes"><span class="nav-icono">🥕</span> Ingredientes</button>
+    <button class="nav-btn" data-vista="escandallos"><span class="nav-icono">🍽️</span> Escandallos</button>
+    <button class="nav-btn" data-vista="ventas"><span class="nav-icono">💰</span> Ventas</button>
+    <button class="nav-btn" data-vista="gastos"><span class="nav-icono">🧾</span> Gastos</button>
+    <button class="nav-btn" data-vista="facturas"><span class="nav-icono">📑</span> Facturas</button>
+    <button class="nav-btn" data-vista="balance"><span class="nav-icono">📒</span> Balance</button>
+    <button class="nav-btn" data-vista="personal"><span class="nav-icono">👥</span> Personal</button>
+    <button class="nav-btn" data-vista="informes"><span class="nav-icono">📈</span> Informes</button>
+    <button class="nav-btn" data-vista="impuestos"><span class="nav-icono">🏛️</span> Impuestos</button>
+    <button class="nav-btn" data-vista="config"><span class="nav-icono">⚙️</span> Configuración</button>
+    <button class="nav-btn" data-vista="ayuda"><span class="nav-icono">❓</span> Ayuda</button>
+  </nav>
+  <div class="menu-pie">Hecho con ❤️ para tu negocio</div>
+</aside>
+
+<!-- ===== CONTENIDO PRINCIPAL ===== -->
+<main class="contenido">
+  <header class="barra-superior">
+    <h1 id="titulo-vista">Panel</h1>
+    <div class="fecha-hoy" id="fecha-hoy"></div>
+  </header>
+
+  <!-- ========== VISTA: PANEL ========== -->
+  <section id="vista-panel" class="vista activa">
+    <div class="rejilla-kpis">
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">💵 Ventas de hoy</div>
+        <div class="kpi-valor" id="kpi-ventas-hoy">—</div>
+      </div>
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">📈 Ventas del mes</div>
+        <div class="kpi-valor" id="kpi-ventas-mes">—</div>
+      </div>
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">📉 Gastos del mes</div>
+        <div class="kpi-valor" id="kpi-gastos-mes">—</div>
+      </div>
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">🏆 Resultado del mes</div>
+        <div class="kpi-valor" id="kpi-resultado-mes">—</div>
+      </div>
+    </div>
+
+    <div class="rejilla-kpis rejilla-kpis-2" id="fila-tpv" hidden>
+      <div class="tarjeta">
+        <h3>🍻 Hoy en el bar (en vivo, del TPV)</h3>
+        <div class="info-datos" id="tpv-vivo">Conectando...</div>
+      </div>
+      <div class="tarjeta">
+        <h3>📉 Stock bajo (avisos del TPV)</h3>
+        <div class="info-datos" id="tpv-stock">Conectando...</div>
+      </div>
+    </div>
+
+    <div class="rejilla-graficos">
+      <div class="tarjeta">
+        <h3>Ventas de los últimos 30 días</h3>
+        <div class="caja-grafico"><canvas id="graf-ventas-dias"></canvas></div>
+      </div>
+      <div class="tarjeta">
+        <h3>Gastos del mes por categoría</h3>
+        <div class="caja-grafico"><canvas id="graf-gastos-cat"></canvas></div>
+      </div>
+      <div class="tarjeta">
+        <h3>Ventas vs. Gastos (últimos 6 meses)</h3>
+        <div class="caja-grafico"><canvas id="graf-comparativo"></canvas></div>
+      </div>
+      <div class="tarjeta">
+        <h3>Lo más vendido este mes</h3>
+        <div class="caja-grafico"><canvas id="graf-top-platos"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== VISTA: INGREDIENTES ========== -->
+  <section id="vista-ingredientes" class="vista">
+    <div class="acciones-vista">
+      <input type="search" id="buscar-ingrediente" class="campo buscador" placeholder="🔍 Buscar ingrediente...">
+      <span class="separador-flexible"></span>
+      <button class="btn btn-secundario" id="btn-csv-ingredientes">⬇ Exportar CSV</button>
+      <button class="btn btn-primario" id="btn-nuevo-ingrediente">＋ Nuevo ingrediente</button>
+    </div>
+    <p class="nota-vista">Registra aquí lo que compras y a qué precio. El sistema calcula el precio por unidad
+    <strong>sin IVA</strong> (que es el costo real, porque el IVA soportado lo recuperas en la declaración).
+    Cuando actualices un precio, <strong>todos los escandallos se recalculan automáticamente</strong>.</p>
+    <div class="tarjeta">
+      <div class="tabla-envoltura">
+        <table class="tabla">
+          <thead>
+            <tr>
+              <th>Ingrediente</th>
+              <th>Categoría</th>
+              <th>Compra</th>
+              <th class="num">Precio de compra</th>
+              <th class="num">IVA</th>
+              <th class="num">Costo por unidad</th>
+              <th class="num">PVP recomendado</th>
+              <th class="acciones-col">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="cuerpo-ingredientes"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== VISTA: ESCANDALLOS ========== -->
+  <section id="vista-escandallos" class="vista">
+    <div class="acciones-vista">
+      <input type="search" id="buscar-plato" class="campo buscador" placeholder="🔍 Buscar plato...">
+      <span class="separador-flexible"></span>
+      <button class="btn btn-secundario" id="btn-csv-escandallos">⬇ Exportar escandallos</button>
+      <button class="btn btn-secundario" id="btn-subir-carta">📋 Subir la carta</button>
+      <input type="file" id="archivo-carta" accept="image/*,application/pdf" hidden>
+      <button class="btn btn-primario" id="btn-nuevo-plato">＋ Nuevo escandallo</button>
+    </div>
+    <p class="nota-vista">El <strong>escandallo</strong> es el costo real de cada plato según sus ingredientes (sin IVA).
+    El <strong>food cost %</strong> indica qué parte del precio de venta sin IVA se va en ingredientes
+    (objetivo: <span id="objetivo-texto">30</span>% o menos).</p>
+    <div class="tarjeta">
+      <h3>Food cost por plato (%)</h3>
+      <div class="caja-grafico caja-grafico-alta"><canvas id="graf-foodcost"></canvas></div>
+    </div>
+
+    <div class="tarjeta">
+      <h3>📦 Rendimientos: cuántas raciones salen de cada compra</h3>
+      <p class="nota-vista">Calculado con tus precios reales: cuántos cafés salen del kilo de café,
+      cuántas cañas del barril... Se actualiza solo cuando una factura cambia un precio.</p>
+      <div class="tabla-envoltura">
+        <table class="tabla tabla-compacta">
+          <thead>
+            <tr>
+              <th>Ingrediente</th>
+              <th>Cada compra</th>
+              <th>Usado en</th>
+              <th class="num">Ración</th>
+              <th class="num">Salen</th>
+              <th class="num">Costo por ración</th>
+            </tr>
+          </thead>
+          <tbody id="cuerpo-rendimientos"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="rejilla-platos" id="lista-platos"></div>
+  </section>
+
+  <!-- ========== VISTA: VENTAS ========== -->
+  <section id="vista-ventas" class="vista">
+    <div class="acciones-vista">
+      <label class="etiqueta-filtro">Mes:
+        <input type="month" id="mes-ventas" class="campo">
+      </label>
+      <span class="separador-flexible"></span>
+      <button class="btn btn-secundario" id="btn-csv-ventas">⬇ Exportar CSV</button>
+      <button class="btn btn-secundario" id="btn-nueva-venta">＋ Venta individual</button>
+      <button class="btn btn-secundario" id="btn-cargar-z">🧾 Cargar Z (foto del ticket)</button>
+      <input type="file" id="archivo-z" accept="image/*,application/pdf" hidden>
+      <button class="btn btn-primario" id="btn-cierre-dia">🌙 Cierre del día</button>
+    </div>
+    <div class="rejilla-kpis rejilla-kpis-3">
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">Total cobrado en el mes (IVA incl.)</div>
+        <div class="kpi-valor" id="total-ventas-mes">—</div>
+      </div>
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">Ingresos sin IVA</div>
+        <div class="kpi-valor" id="base-ventas-mes">—</div>
+      </div>
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">Operaciones registradas</div>
+        <div class="kpi-valor" id="num-ventas-mes">—</div>
+      </div>
+    </div>
+    <div class="tarjeta">
+      <div class="tabla-envoltura">
+        <table class="tabla">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Concepto</th>
+              <th class="num">Cantidad</th>
+              <th class="num">Precio unit.</th>
+              <th class="num">IVA</th>
+              <th class="num">Total</th>
+              <th class="acciones-col">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="cuerpo-ventas"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== VISTA: GASTOS ========== -->
+  <section id="vista-gastos" class="vista">
+    <div class="acciones-vista">
+      <label class="etiqueta-filtro">Mes:
+        <input type="month" id="mes-gastos" class="campo">
+      </label>
+      <span class="separador-flexible"></span>
+      <button class="btn btn-secundario" id="btn-csv-gastos">⬇ Exportar CSV</button>
+      <button class="btn btn-primario" id="btn-nuevo-gasto">＋ Nuevo gasto</button>
+    </div>
+    <div class="rejilla-kpis rejilla-kpis-3">
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">Total pagado en el mes</div>
+        <div class="kpi-valor" id="total-gastos-mes">—</div>
+      </div>
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">IVA soportado (recuperable)</div>
+        <div class="kpi-valor" id="iva-gastos-mes">—</div>
+      </div>
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">Registros del mes</div>
+        <div class="kpi-valor" id="num-gastos-mes">—</div>
+      </div>
+    </div>
+    <div class="tarjeta">
+      <div class="tabla-envoltura">
+        <table class="tabla">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Categoría</th>
+              <th>Descripción</th>
+              <th class="num">IVA</th>
+              <th class="num">Monto</th>
+              <th class="acciones-col">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="cuerpo-gastos"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== VISTA: FACTURAS ========== -->
+  <section id="vista-facturas" class="vista">
+    <div class="acciones-vista">
+      <label class="etiqueta-filtro">Mes:
+        <input type="month" id="mes-facturas" class="campo">
+      </label>
+      <span class="separador-flexible"></span>
+      <button class="btn btn-primario" id="btn-nueva-factura">＋ Nueva factura</button>
+    </div>
+    <p class="nota-vista">Registra aquí las facturas de tus proveedores con su desglose línea a línea.
+    Cada factura <strong>apunta el gasto automáticamente</strong> (separado por tipo de IVA) y, si vinculas
+    las líneas a tus ingredientes, <strong>actualiza sus precios reales</strong> y recalcula todos los
+    escandallos, márgenes y precios recomendados.</p>
+    <div class="rejilla-kpis rejilla-kpis-3">
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">Total facturado en el mes</div>
+        <div class="kpi-valor" id="total-facturas-mes">—</div>
+      </div>
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">Facturas del mes</div>
+        <div class="kpi-valor" id="num-facturas-mes">—</div>
+      </div>
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">💸 Gastado según TODAS las facturas</div>
+        <div class="kpi-valor negativo" id="total-facturas-historico">—</div>
+      </div>
+    </div>
+    <div class="tarjeta">
+      <div class="tabla-envoltura">
+        <table class="tabla">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Proveedor</th>
+              <th>Nº factura</th>
+              <th>Categoría</th>
+              <th class="num">Líneas</th>
+              <th class="num">Total</th>
+              <th class="acciones-col">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="cuerpo-facturas"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== VISTA: BALANCE ========== -->
+  <section id="vista-balance" class="vista">
+    <div class="acciones-vista">
+      <label class="etiqueta-filtro">Mes:
+        <input type="month" id="mes-balance" class="campo">
+      </label>
+      <span class="separador-flexible"></span>
+      <button class="btn btn-secundario" id="btn-csv-balance">⬇ Exportar CSV</button>
+      <button class="btn btn-secundario" id="btn-gasto-balance">－ Añadir gasto</button>
+      <button class="btn btn-primario" id="btn-venta-balance">＋ Añadir venta</button>
+    </div>
+    <p class="nota-vista">Todo lo que <strong>entra</strong> (ventas) y lo que <strong>sale</strong> (gastos y facturas)
+    en un solo lugar, en orden, con el saldo acumulado del mes. Como el extracto del banco, pero de tu negocio.</p>
+    <div class="rejilla-kpis rejilla-kpis-3">
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">💵 Entradas del mes</div>
+        <div class="kpi-valor positivo" id="bal-entradas">—</div>
+      </div>
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">🧾 Salidas del mes</div>
+        <div class="kpi-valor negativo" id="bal-salidas">—</div>
+      </div>
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">📒 Balance del mes</div>
+        <div class="kpi-valor" id="bal-saldo">—</div>
+      </div>
+    </div>
+    <div class="tarjeta">
+      <div class="tabla-envoltura">
+        <table class="tabla">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Concepto</th>
+              <th>Detalle</th>
+              <th class="num">Entra</th>
+              <th class="num">Sale</th>
+              <th class="num">Saldo del mes</th>
+            </tr>
+          </thead>
+          <tbody id="cuerpo-balance"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== VISTA: PERSONAL Y HORARIOS ========== -->
+  <section id="vista-personal" class="vista">
+    <div class="acciones-vista">
+      <span class="separador-flexible"></span>
+      <button class="btn btn-secundario" id="btn-csv-personal">⬇ Exportar horario</button>
+      <button class="btn btn-secundario" id="btn-imprimir-personal">🖨 Imprimir</button>
+      <button class="btn btn-primario" id="btn-nuevo-empleado">＋ Añadir empleado</button>
+    </div>
+    <p class="nota-vista">Apunta el turno de cada persona en cada día (ej: "12-16 y 20-24").
+    El gráfico te dice qué días vendes más, <strong>según tus ventas reales</strong>, para que refuerces
+    el personal justo donde más se necesita.</p>
+
+    <div class="tarjeta">
+      <h3>Días punta según tus ventas (promedio por día de la semana)</h3>
+      <div class="caja-grafico"><canvas id="graf-dias-semana"></canvas></div>
+      <p class="nota-vista" id="consejo-dias-punta"></p>
+    </div>
+
+    <div class="tarjeta">
+      <h3>🗓 Horario semanal del equipo</h3>
+      <div class="tabla-envoltura">
+        <table class="tabla tabla-compacta tabla-horario">
+          <thead>
+            <tr>
+              <th>Empleado</th>
+              <th>Lun</th><th>Mar</th><th>Mié</th><th>Jue</th>
+              <th class="dia-punta-col">Vie</th><th class="dia-punta-col">Sáb</th><th class="dia-punta-col">Dom</th>
+              <th class="acciones-col"></th>
+            </tr>
+          </thead>
+          <tbody id="cuerpo-horario"></tbody>
+        </table>
+      </div>
+      <p class="nota-vista">Escribe el turno en cada casilla y se guarda solo. Deja en blanco el día libre.</p>
+    </div>
+  </section>
+
+  <!-- ========== VISTA: INFORMES ========== -->
+  <section id="vista-informes" class="vista">
+    <div class="acciones-vista">
+      <label class="etiqueta-filtro">Mes del informe:
+        <input type="month" id="mes-informe" class="campo">
+      </label>
+      <span class="separador-flexible"></span>
+      <button class="btn btn-secundario" id="btn-csv-informe">⬇ Exportar informe (CSV)</button>
+      <button class="btn btn-secundario" id="btn-imprimir">🖨 Imprimir informe</button>
+    </div>
+
+    <div id="area-imprimible">
+      <div class="encabezado-informe solo-imprimir">
+        <h2 id="informe-titulo-impresion"></h2>
+        <p id="informe-sub-impresion"></p>
+      </div>
+
+      <div class="rejilla-kpis rejilla-kpis-3">
+        <div class="tarjeta kpi">
+          <div class="kpi-etiqueta">💵 Ingresos del mes (IVA incl.)</div>
+          <div class="kpi-valor" id="inf-ingresos">—</div>
+        </div>
+        <div class="tarjeta kpi">
+          <div class="kpi-etiqueta">🧾 Gastos del mes (IVA incl.)</div>
+          <div class="kpi-valor" id="inf-gastos">—</div>
+        </div>
+        <div class="tarjeta kpi">
+          <div class="kpi-etiqueta">🏆 Resultado de caja del mes</div>
+          <div class="kpi-valor" id="inf-resultado">—</div>
+        </div>
+      </div>
+
+      <div class="rejilla-2col">
+        <div class="tarjeta">
+          <h3>Resumen fiscal del mes (orientativo)</h3>
+          <div class="tabla-envoltura">
+            <table class="tabla">
+              <tbody id="cuerpo-inf-fiscal"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="tarjeta">
+          <h3>Gastos por categoría</h3>
+          <div class="tabla-envoltura">
+            <table class="tabla">
+              <thead><tr><th>Categoría</th><th class="num">Monto</th><th class="num">% del total</th></tr></thead>
+              <tbody id="cuerpo-inf-categorias"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="tarjeta">
+        <div class="fila-titulo">
+          <h3>Cuenta de Pérdidas y Ganancias del mes (sin IVA)</h3>
+          <button class="btn btn-secundario btn-pequeno" id="btn-csv-pyg">⬇ Exportar P&G</button>
+        </div>
+        <p class="nota-vista">El estado que usa tu gestoría: ingresos menos compras (margen bruto), menos personal
+        y demás gastos, hasta el resultado. Los porcentajes son sobre los ingresos.</p>
+        <div class="tabla-envoltura">
+          <table class="tabla">
+            <tbody id="cuerpo-pyg"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tarjeta">
+        <h3>🗂 Documentos del mes en el TPV</h3>
+        <p class="nota-vista">Cierres Z y facturas archivados en el TPV del bar. Los enlaces son temporales
+        (caducan en 1 hora): si uno no abre, vuelve a entrar a Informes para renovarlos.</p>
+        <div class="info-datos" id="tpv-documentos">—</div>
+      </div>
+
+      <div class="tarjeta">
+        <h3>Evolución de los últimos 12 meses</h3>
+        <div class="caja-grafico caja-grafico-alta"><canvas id="graf-evolucion"></canvas></div>
+      </div>
+
+      <div class="tarjeta">
+        <h3>Rentabilidad por plato (ventas del mes)</h3>
+        <p class="nota-vista">El costo se calcula con el escandallo vigente en el momento de cada venta. La ganancia compara ingresos sin IVA contra el costo de los ingredientes.</p>
+        <div class="tabla-envoltura">
+          <table class="tabla">
+            <thead>
+              <tr>
+                <th>Plato</th>
+                <th class="num">Unidades</th>
+                <th class="num">Cobrado (IVA incl.)</th>
+                <th class="num">Ingresos sin IVA</th>
+                <th class="num">Costo ingredientes</th>
+                <th class="num">Ganancia bruta</th>
+                <th class="num">Margen %</th>
+              </tr>
+            </thead>
+            <tbody id="cuerpo-inf-platos"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== VISTA: IMPUESTOS ========== -->
+  <section id="vista-impuestos" class="vista">
+    <div class="acciones-vista">
+      <label class="etiqueta-filtro">Trimestre:
+        <select id="trimestre-imp" class="campo">
+          <option value="1">1º trimestre (ene–mar)</option>
+          <option value="2">2º trimestre (abr–jun)</option>
+          <option value="3">3º trimestre (jul–sep)</option>
+          <option value="4">4º trimestre (oct–dic)</option>
+        </select>
+      </label>
+      <label class="etiqueta-filtro">Año:
+        <select id="anio-imp" class="campo"></select>
+      </label>
+      <span class="separador-flexible"></span>
+      <button class="btn btn-secundario" id="btn-csv-impuestos">⬇ Exportar para la gestoría</button>
+      <button class="btn btn-secundario" id="btn-imprimir-imp">🖨 Imprimir</button>
+    </div>
+
+    <div class="caja-aviso-legal">
+      ⚠️ <strong>Cálculo orientativo.</strong> Estas cifras se basan en lo que has registrado y en los tipos
+      configurados (editables en cada registro y en Configuración). No sustituyen a tu gestoría ni a la AEAT:
+      confirma siempre los importes antes de presentar una declaración.
+    </div>
+
+    <div class="rejilla-kpis">
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">IVA repercutido (cobrado en ventas)</div>
+        <div class="kpi-valor" id="imp-repercutido">—</div>
+      </div>
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">IVA soportado (pagado en gastos)</div>
+        <div class="kpi-valor" id="imp-soportado">—</div>
+      </div>
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">Modelo 303 · IVA del trimestre</div>
+        <div class="kpi-valor" id="imp-303">—</div>
+      </div>
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">Modelo 130 · IRPF del trimestre</div>
+        <div class="kpi-valor" id="imp-130">—</div>
+      </div>
+    </div>
+
+    <div class="rejilla-2col">
+      <div class="tarjeta">
+        <h3>📄 Modelo 303 — IVA trimestral</h3>
+        <h4>IVA devengado (tus ventas)</h4>
+        <div class="tabla-envoltura">
+          <table class="tabla tabla-compacta">
+            <thead><tr><th>Tipo</th><th class="num">Base imponible</th><th class="num">Cuota IVA</th></tr></thead>
+            <tbody id="cuerpo-303-ventas"></tbody>
+          </table>
+        </div>
+        <h4>IVA deducible (tus gastos)</h4>
+        <div class="tabla-envoltura">
+          <table class="tabla tabla-compacta">
+            <thead><tr><th>Tipo</th><th class="num">Base imponible</th><th class="num">Cuota IVA</th></tr></thead>
+            <tbody id="cuerpo-303-gastos"></tbody>
+          </table>
+        </div>
+        <div class="caja-resaltada" id="resultado-303-texto">—</div>
+      </div>
+
+      <div class="tarjeta">
+        <h3>📄 Modelo 130 — Pago fraccionado IRPF (autónomos)</h3>
+        <p class="nota-vista">Para autónomos en estimación directa. Se calcula sobre lo acumulado
+        desde el 1 de enero hasta el final del trimestre elegido.</p>
+        <div class="tabla-envoltura">
+          <table class="tabla tabla-compacta">
+            <tbody id="cuerpo-130"></tbody>
+          </table>
+        </div>
+        <div class="caja-resaltada" id="resultado-130-texto">—</div>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h3>📅 Calendario fiscal (plazos de presentación)</h3>
+      <div id="lista-plazos"></div>
+      <p class="nota-vista">Si el último día cae en fin de semana o festivo, el plazo pasa al siguiente día hábil.
+      Con domiciliación bancaria, el plazo suele acabar 5 días antes.</p>
+    </div>
+  </section>
+
+  <!-- ========== VISTA: CONFIGURACIÓN ========== -->
+  <section id="vista-config" class="vista">
+    <div class="rejilla-2col">
+      <div class="tarjeta">
+        <h3>🏪 Datos del negocio</h3>
+        <div class="formulario">
+          <label>Nombre del negocio
+            <input type="text" id="conf-nombre" class="campo">
+          </label>
+          <label>Símbolo de moneda
+            <input type="text" id="conf-moneda" class="campo" placeholder="€">
+            <small>Con "€" los importes se muestran al estilo español: 1.234,56 €</small>
+          </label>
+          <label>Objetivo de food cost (%)
+            <input type="number" id="conf-objetivo" class="campo" min="1" max="99" step="1">
+            <small>Lo habitual en hostelería es entre 28% y 35%.</small>
+          </label>
+          <button class="btn btn-primario" id="btn-guardar-config">Guardar configuración</button>
+        </div>
+      </div>
+
+      <div class="tarjeta">
+        <h3>🏛️ Impuestos (editable según la ley vigente)</h3>
+        <div class="formulario">
+          <label>IVA de venta por defecto (%)
+            <input type="number" id="conf-iva-venta" class="campo" min="0" max="50" step="any">
+            <small>En hostelería (comidas y bebidas servidas en el local) es el 10%.</small>
+          </label>
+          <label>Pago fraccionado IRPF — Modelo 130 (%)
+            <input type="number" id="conf-irpf" class="campo" min="0" max="60" step="any">
+            <small>El tipo general es el 20% del rendimiento neto acumulado.</small>
+          </label>
+          <label class="etiqueta-linea">
+            <input type="checkbox" id="conf-dificil">
+            Aplicar gastos de difícil justificación (estimación directa simplificada)
+          </label>
+          <label>Porcentaje de difícil justificación (%)
+            <input type="number" id="conf-dificil-pct" class="campo" min="0" max="20" step="any">
+            <small>El 5% del rendimiento, con tope de 2.000 € al año.</small>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h3>🤖 Lectura de facturas con inteligencia artificial</h3>
+      <p class="nota-vista">Para leer facturas y cartas, el sistema usa la IA de Claude (Anthropic).
+      <strong>Si la clave ya está puesta en el servidor de la aplicación, no necesitas hacer nada aquí</strong> —
+      funciona sola en todos tus dispositivos (pulsa "Probar conexión" para comprobarlo).
+      Este campo es solo por si prefieres usar una clave propia de este navegador: se consigue en
+      <strong>console.anthropic.com</strong> → <em>API Keys → Create Key</em> (empieza por <em>sk-ant-</em>).
+      Cada lectura cuesta unos céntimos. La clave nunca viaja en las copias de seguridad.</p>
+      <div class="formulario">
+        <div class="fila-campos">
+          <label>Clave API de Anthropic
+            <input type="password" id="conf-api-key" class="campo" placeholder="sk-ant-...">
+          </label>
+          <label>Modelo de IA
+            <input type="text" id="conf-modelo-ia" class="campo" placeholder="claude-opus-4-8">
+            <small>Si no sabes qué es esto, déjalo como está.</small>
+          </label>
+        </div>
+        <div class="fila-campos">
+          <button class="btn btn-primario" id="btn-guardar-ia">Guardar clave</button>
+          <button class="btn btn-secundario" id="btn-probar-ia">🔌 Probar conexión</button>
+        </div>
+        <div class="info-datos" id="estado-ia"></div>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h3>📡 Conexión con el TPV del bar (Universo Bistro)</h3>
+      <p class="nota-vista">El sistema lee del TPV las <strong>ventas en vivo</strong>, los <strong>cierres Z</strong>,
+      sus <strong>facturas</strong> y los avisos de <strong>stock bajo</strong>; y le envía tus
+      <strong>gastos</strong> para que el bar calcule su beneficio real (reenviar no duplica).
+      Esta dirección se guarda solo en este navegador y <strong>no viaja en las copias de seguridad</strong>.
+      Si el TPV no responde, la aplicación sigue funcionando normal.</p>
+      <div class="formulario">
+        <label>Dirección del feed del TPV
+          <input type="password" id="conf-tpv-url" class="campo" placeholder="https://universo-bistro.vercel.app/api/feed/...">
+          <small>Incluye el identificador y la clave del bar: trátala como una contraseña.</small>
+        </label>
+        <div class="fila-campos">
+          <button class="btn btn-primario" id="btn-guardar-tpv">Guardar conexión</button>
+          <button class="btn btn-secundario" id="btn-probar-tpv">🔌 Probar conexión</button>
+          <button class="btn btn-secundario" id="btn-pendientes-tpv">📤 Subir gastos pendientes</button>
+        </div>
+        <div class="info-datos" id="estado-tpv"></div>
+      </div>
+    </div>
+
+    <div class="rejilla-2col">
+      <div class="tarjeta">
+        <h3>💾 Copia de seguridad</h3>
+        <p class="nota-vista">Tus datos se guardan en este navegador. Descarga una copia de seguridad
+        <strong>al menos una vez por semana</strong> y guárdala en un lugar seguro (USB, correo, nube).</p>
+        <div class="formulario">
+          <button class="btn btn-primario" id="btn-exportar">⬇ Descargar copia de seguridad</button>
+          <button class="btn btn-secundario" id="btn-importar">⬆ Restaurar desde una copia</button>
+          <input type="file" id="archivo-importar" accept=".json" hidden>
+          <div class="info-datos" id="conf-num-datos"></div>
+        </div>
+      </div>
+
+      <div class="tarjeta">
+        <h3 class="texto-peligro">⚠️ Zona de peligro</h3>
+        <p class="nota-vista">Borra los datos de ejemplo cuando quieras empezar a usar el sistema de verdad.
+        La configuración (nombre, impuestos...) se conserva.</p>
+        <button class="btn btn-peligro" id="btn-borrar-todo">🗑 Borrar TODOS los datos</button>
+        <hr class="division">
+        <p class="nota-vista">¿Quieres volver a ver el sistema con datos ficticios para practicar?</p>
+        <button class="btn btn-secundario" id="btn-cargar-ejemplo">🧪 Cargar datos de ejemplo</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== VISTA: AYUDA ========== -->
+  <section id="vista-ayuda" class="vista">
+    <div class="tarjeta tarjeta-ayuda">
+      <h3>👋 Bienvenido a tu sistema de gestión</h3>
+      <p>Este sistema te ayuda a controlar el dinero de tu restaurante, a saber cuánto te cuesta de verdad
+      cada plato y a preparar tus impuestos en España. Todo se calcula automáticamente: tú solo registras la información.</p>
+
+      <h3>🧭 ¿Cómo se usa? (en 4 pasos)</h3>
+      <ol class="lista-pasos">
+        <li><strong>1. Registra tus ingredientes</strong> — En <em>Ingredientes</em>, anota lo que compras:
+        nombre, cuánto compras, a qué precio y con qué IVA. Ejemplo: "Aceite de oliva, garrafa de 5 L, 32,50 €, IVA 4%".
+        El sistema calcula solo el costo por litro sin IVA.</li>
+        <li><strong>2. Crea tus escandallos</strong> — En <em>Escandallos</em>, arma cada plato con sus
+        ingredientes y cantidades. El sistema te dice cuánto cuesta el plato, el food cost y te sugiere
+        un precio de venta (IVA incluido) para alcanzar tu objetivo.</li>
+        <li><strong>3. Registra ventas y gastos cada día</strong> — Lo más rápido: haz una foto al
+        <strong>ticket Z de tu caja</strong> y súbela con <em>🧾 Cargar Z</em> en Ventas — la IA registra
+        la entrada real del día (con su desglose de efectivo y tarjeta si lo trae). O usa
+        <em>🌙 Cierre del día</em> para anotar plato a plato. Los gastos entran solos con las facturas,
+        o a mano en <em>Gastos</em>.</li>
+        <li><strong>4. Mira tus números</strong> — El <em>Panel</em>, el <em>Balance</em> (todo lo que entra
+        y sale, con saldo, como el extracto del banco), los <em>Informes</em> y la sección <em>Impuestos</em>
+        se actualizan solos con gráficos y cálculos.</li>
+      </ol>
+
+      <h3>🍳 ¿Qué es un escandallo?</h3>
+      <p>Es la "receta con precios" de un plato: la lista de ingredientes con sus cantidades y lo que
+      cuesta cada uno. Sirve para saber cuánto ganas con cada plato y ponerle el precio correcto.
+      La <strong>merma</strong> es el porcentaje que se pierde al limpiar, pelar o cocinar
+      (un 5–15% es normal).</p>
+
+      <h3>📋 Subir tu carta</h3>
+      <p>En <em>Escandallos → "📋 Subir la carta"</em>, elige una foto o PDF de tu carta y la IA crea
+      <strong>todos tus platos con sus precios reales de venta</strong> (sin duplicar los que ya existan).
+      Después, entra en cada plato y añade sus ingredientes — o escribe directamente su
+      <strong>precio de coste a mano</strong> — y tendrás márgenes y precios recomendados de toda tu carta.</p>
+
+      <h3>💶 Precio de coste a mano y piezas por unidad</h3>
+      <ul>
+        <li><strong>Coste a mano:</strong> en cada escandallo puedes escribir directamente el precio de coste
+        (campo "💶 Precio de coste a mano") sin necesidad de detallar ingredientes. Si lo escribes, manda
+        sobre el cálculo automático.</li>
+        <li><strong>Piezas por unidad:</strong> en un ingrediente comprado por unidades puedes indicar en
+        cuántas piezas se divide cada una (un pollo → 8 piezas). El sistema calcula el costo por pieza,
+        y en las recetas cada "ud" es una pieza. Cuando una factura actualice el precio del pollo,
+        el costo por pieza se recalcula solo.</li>
+        <li><strong>Cajas y packs:</strong> registra la compra en unidades totales (caja de 24 latas →
+        24 ud) y verás el costo por lata <strong>sin y con IVA</strong>, más el <strong>PVP recomendado</strong>
+        para venderla — esa columna aparece ahora para todos los productos en Ingredientes.</li>
+      </ul>
+
+      <h3>🍺 ¿Cuántas cañas salen de un barril? (rendimiento)</h3>
+      <p>Dentro de cada escandallo, bajo el resumen, verás el <strong>rendimiento por compra</strong>:
+      cuántas raciones salen de cada barril, saco o garrafa, y cuánto te cuesta cada una.
+      Ejemplo con el barril de 35 litros y la caña de 0,25 L: <strong>35 ÷ 0,25 = 140 cañas teóricas</strong>;
+      descontando una merma del 5% (espuma y purgas), <strong>unas 133 cañas reales</strong>.
+      Si el barril te cuesta 67,90 € (56,12 € sin IVA), cada caña te sale a unos 0,42 €.
+      El cálculo se actualiza solo si cambian el tamaño del barril, su precio o la merma.</p>
+
+      <h3>📅 ¿No ves un gasto o una venta que registraste?</h3>
+      <p>Las pantallas de Ventas, Gastos, Facturas y Balance muestran <strong>un mes a la vez</strong>
+      (el selector de arriba). Si registras algo con fecha de otro mes, el filtro salta solo a ese mes;
+      y si un mes está vacío pero hay datos en otros, verás botones 📌 para ir directo a ellos.
+      Nada se pierde: todo queda guardado en su fecha.</p>
+
+      <h3>📊 ¿Qué es el food cost?</h3>
+      <p>Es el porcentaje del precio de venta (sin IVA) que se va en ingredientes. Si una ración cuesta
+      2,50 € en ingredientes y la vendes a 10 € + IVA... el precio sin IVA son 9,09 € y el food cost es 27,5%.
+      La regla general:
+      <span class="badge badge-ok">30% o menos = bien</span>
+      <span class="badge badge-medio">30–40% = revisar</span>
+      <span class="badge badge-alto">más de 40% = pierdes dinero</span></p>
+
+      <h3>🏛️ Impuestos en España: lo que calcula el sistema</h3>
+      <ul>
+        <li><strong>IVA de tus ventas (repercutido):</strong> en hostelería, las comidas y bebidas servidas
+        en el local llevan un <strong>10%</strong> de IVA, que va incluido en el precio que cobras al cliente.</li>
+        <li><strong>IVA de tus compras (soportado):</strong> el que pagas en alimentos (muchos al 4% o 10%),
+        bebidas alcohólicas, luz o alquiler (21%). Ese IVA lo recuperas al declarar.</li>
+        <li><strong>Modelo 303 (trimestral):</strong> IVA repercutido − IVA soportado = lo que ingresas a
+        Hacienda (o a compensar si sale negativo).</li>
+        <li><strong>Modelo 130 (trimestral, autónomos):</strong> el 20% del rendimiento neto acumulado del año
+        (ingresos − gastos, sin IVA), descontando lo ya pagado en trimestres anteriores.</li>
+        <li><strong>Plazos:</strong> del 1 al 20 de abril, julio y octubre; y del 1 al 30 de enero el cuarto
+        trimestre (junto con el resumen anual del IVA, modelo 390). La declaración de la Renta se presenta
+        entre abril y junio del año siguiente.</li>
+      </ul>
+      <p><strong>Importante:</strong> registra cada compra también en <em>Gastos</em> (la sección
+      <em>Ingredientes</em> sirve para calcular escandallos, no suma a la contabilidad). Y recuerda que estos
+      cálculos son <strong>orientativos</strong>: confírmalos con tu gestoría o con la AEAT, sobre todo si
+      tienes empleados (modelo 111), local alquilado con retención (modelo 115) u otras situaciones especiales.</p>
+
+      <h3>📑 Facturas de tus proveedores</h3>
+      <p>En <em>Facturas</em> registras cada factura o tique de compra con su desglose línea a línea. Al guardarla:</p>
+      <ul>
+        <li>El gasto se apunta solo en tu contabilidad, separado por tipo de IVA (perfecto para el modelo 303).</li>
+        <li>Si vinculas una línea a un ingrediente, su <strong>precio real se actualiza</strong> y todos los
+        escandallos, márgenes y precios recomendados se recalculan al instante. Así tus costes siempre
+        reflejan lo último que pagaste.</li>
+        <li>Al guardar, te enseña el <strong>📊 informe de impacto</strong>: el gasto apuntado, cada precio
+        que subió o bajó (con su porcentaje), los escandallos afectados con su food cost antes y después,
+        y los rendimientos ("cada kilo de café te da 111 cafés a 0,12 € cada uno").</li>
+      </ul>
+
+      <h3>📷 Leer facturas desde foto o PDF (con IA)</h3>
+      <p>Dentro de <em>Facturas → Nueva factura</em> está el botón <strong>"Elegir fotos o PDF"</strong>.
+      Puedes elegir <strong>uno o varios documentos a la vez</strong>: van pasando en cola, uno tras otro,
+      y de cada uno la inteligencia artificial coloca cada cosa en su lugar:</p>
+      <ul>
+        <li>Extrae proveedor, fecha, número y cada línea con su importe e IVA.</li>
+        <li><strong>Elige sola la categoría del gasto</strong> (comida, bebidas, luz, gas...) según el
+        proveedor y el contenido. Si ya conoces al proveedor, usa su categoría habitual.</li>
+        <li><strong>Vincula los artículos con tus ingredientes</strong> y, si un artículo de comida o bebida
+        no existe todavía, lo marca con ✨ para <strong>crearlo automáticamente</strong> con su precio real al guardar.</li>
+      </ul>
+      <p><strong>Y si subes varias fotos o una carpeta entera</strong> (botón "📁 Subir carpeta", o arrastrándola),
+      el sistema las registra <strong>solas, una tras otra</strong>: crea cada factura, apunta su gasto, actualiza
+      precios e ingredientes, salta las que ya estaban registradas (no duplica) y te enseña el resultado de cada
+      una en un panel. Los números de toda la aplicación se actualizan en tiempo real mientras trabaja.</p>
+      <p>Con una sola foto, tú revisas antes de guardar. Para activar la función:</p>
+      <ol class="lista-pasos">
+        <li>Entra en <strong>console.anthropic.com</strong> y crea una cuenta (pide una tarjeta; cada factura leída cuesta unos céntimos).</li>
+        <li>Ve a <em>API Keys → Create Key</em> y copia la clave (empieza por <em>sk-ant-</em>).</li>
+        <li>Pégala en <em>Configuración → Lectura de facturas con IA</em> y pulsa <em>Probar conexión</em>.</li>
+      </ol>
+      <p>La foto se envía a Anthropic solo para leerla; el sistema no la almacena. Necesitas internet
+      para esta función (el resto del sistema funciona sin conexión).</p>
+
+      <h3>📱 Facturas desde WhatsApp</h3>
+      <p>Si te mandan las facturas por WhatsApp (o les haces foto con el móvil y te la envías a ti mismo),
+      pásalas al sistema así:</p>
+      <ol class="lista-pasos">
+        <li>Abre <strong>WhatsApp Web</strong> (web.whatsapp.com) o la app de WhatsApp en este ordenador.</li>
+        <li>Abre la conversación con la foto de la factura.</li>
+        <li><strong>Arrastra la foto</strong> hasta la ventana del sistema (se abrirá la factura sola),
+        o haz clic en la foto, cópiala y <strong>pégala con ⌘V</strong> estando en la sección Facturas.</li>
+        <li>La IA leerá los datos y tú solo revisas y guardas. 🪄</li>
+      </ol>
+      <p><em>Consejo:</em> crea un grupo de WhatsApp contigo mismo llamado "Facturas El Paraíso" y manda ahí
+      todas las fotos de tiques y facturas. Así las tienes siempre a mano para arrastrarlas aquí.</p>
+
+      <h3>👥 Personal y horarios</h3>
+      <p>En <em>Personal</em> apuntas a tu equipo y el turno de cada día (ej: "12-16 y 20-24").
+      El gráfico de <strong>días punta</strong> se calcula con tus ventas reales: te dice qué días de la
+      semana entra más dinero para que pongas más manos justo ahí. El horario se puede imprimir
+      (para colgarlo en cocina) o exportar.</p>
+
+      <h3>📊 Pérdidas y Ganancias, y papeles para la gestoría</h3>
+      <ul>
+        <li>En <em>Informes</em> tienes la <strong>cuenta de Pérdidas y Ganancias</strong> del mes (sin IVA),
+        tal y como la entiende cualquier gestoría: ingresos − compras = margen bruto; menos personal y
+        demás gastos = resultado. Con su botón de exportar.</li>
+        <li>En <em>Impuestos</em>, el botón <strong>"Exportar para la gestoría"</strong> descarga el trimestre
+        completo (modelo 303 desglosado por tipos y modelo 130) en un archivo que puedes mandar por correo.</li>
+        <li>El <strong>calendario fiscal</strong> de la misma sección te marca cuándo se presenta cada
+        declaración, con el próximo plazo resaltado.</li>
+      </ul>
+
+      <h3>📡 Conexión con el TPV del bar</h3>
+      <p>Si tu TPV (Universo Bistro) está conectado en Configuración, el sistema y el bar hablan solos:</p>
+      <ul>
+        <li><strong>Panel:</strong> ves las ventas de hoy del bar en vivo (efectivo, tarjeta, Bizum, tickets) y los avisos de stock bajo, sin entrar al TPV.</li>
+        <li><strong>Cierre del día:</strong> el botón <em>📡 Traer del TPV</em> rellena las ventas por método de pago — tú revisas y guardas.</li>
+        <li><strong>Informes:</strong> los cierres Z y las facturas archivadas en el TPV, con sus enlaces (caducan en 1 hora).</li>
+        <li><strong>Gastos:</strong> cada gasto que guardes aquí viaja también al TPV para su cálculo de beneficio real. Si no hay conexión, queda pendiente y puedes subirlos todos desde Configuración (no se duplican).</li>
+      </ul>
+      <p>Si el TPV se cae o cambia la clave, la aplicación sigue funcionando igual: solo verás un aviso.</p>
+
+      <h3>💾 Tus datos y las copias de seguridad</h3>
+      <ul>
+        <li>Usa siempre <strong>el mismo navegador</strong> en <strong>este ordenador</strong>.</li>
+        <li>Descarga una <strong>copia de seguridad</strong> cada semana desde <em>Configuración</em>.</li>
+        <li>No borres el historial/datos del navegador sin antes descargar una copia.</li>
+      </ul>
+
+      <h3>🧪 Datos de ejemplo</h3>
+      <p>El sistema viene con ingredientes, platos, ventas y gastos de ejemplo (un bar restaurante español)
+      para que veas cómo funciona. Cuando quieras empezar con tus datos reales, ve a
+      <em>Configuración → Borrar TODOS los datos</em>.</p>
+    </div>
+  </section>
+</main>
+
+<!-- ===== MODAL: INGREDIENTE ===== -->
+<div class="modal-fondo" id="modal-ingrediente" hidden>
+  <div class="modal">
+    <div class="modal-cabecera">
+      <h3 id="titulo-modal-ingrediente">Nuevo ingrediente</h3>
+      <button class="btn-cerrar" data-cerrar>✕</button>
+    </div>
+    <div class="modal-cuerpo formulario">
+      <input type="hidden" id="ing-id">
+      <label>Nombre del ingrediente *
+        <input type="text" id="ing-nombre" class="campo" placeholder="Ej: Aceite de oliva">
+      </label>
+      <label>Categoría
+        <input type="text" id="ing-categoria" class="campo" placeholder="Ej: Despensa, Carnes, Bebidas..." list="lista-cat-ing">
+        <datalist id="lista-cat-ing"></datalist>
+      </label>
+      <div class="fila-campos">
+        <label>Unidad de medida *
+          <select id="ing-unidad" class="campo">
+            <option value="kg">Kilogramos (kg)</option>
+            <option value="g">Gramos (g)</option>
+            <option value="L">Litros (L)</option>
+            <option value="ml">Mililitros (ml)</option>
+            <option value="ud">Unidades (ud)</option>
+          </select>
+        </label>
+        <label>Cantidad que compras *
+          <input type="number" id="ing-cantidad-compra" class="campo" min="0" step="any" placeholder="Ej: 5">
+        </label>
+        <label>Precio de esa compra *
+          <input type="number" id="ing-precio-compra" class="campo" min="0" step="any" placeholder="Ej: 32,50">
+        </label>
+      </div>
+      <div class="fila-campos">
+        <label>IVA de la compra (%)
+          <select id="ing-iva" class="campo">
+            <option value="0">0% (exento)</option>
+            <option value="4">4% (superreducido)</option>
+            <option value="10">10% (reducido)</option>
+            <option value="21">21% (general)</option>
+          </select>
+          <small>Alimentos básicos 4% · carne, pescado... 10% · alcohol 21%</small>
+        </label>
+        <label class="etiqueta-linea etiqueta-linea-alta">
+          <input type="checkbox" id="ing-iva-incluido" checked>
+          El precio que escribí ya incluye el IVA
+        </label>
+      </div>
+      <label id="grupo-ing-piezas" hidden>🔪 ¿Cada unidad se divide en piezas? (opcional)
+        <input type="number" id="ing-piezas" class="campo" min="1" step="1" placeholder="Ej: un pollo → 8 piezas">
+        <small>Ejemplo: compras pollos enteros y cada uno da 8 piezas. En las recetas, cada "ud" será una pieza.
+        Deja vacío si no aplica.</small>
+      </label>
+      <div class="caja-resaltada" id="ing-precio-unitario">Completa los datos para ver el costo por unidad.</div>
+    </div>
+    <div class="modal-pie">
+      <button class="btn btn-secundario" data-cerrar>Cancelar</button>
+      <button class="btn btn-primario" id="btn-guardar-ingrediente">Guardar ingrediente</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: PLATO / ESCANDALLO ===== -->
+<div class="modal-fondo" id="modal-plato" hidden>
+  <div class="modal modal-grande">
+    <div class="modal-cabecera">
+      <h3 id="titulo-modal-plato">Nuevo escandallo</h3>
+      <button class="btn-cerrar" data-cerrar>✕</button>
+    </div>
+    <div class="modal-cuerpo formulario">
+      <input type="hidden" id="plato-id">
+      <div class="fila-campos">
+        <label>Nombre del plato *
+          <input type="text" id="plato-nombre" class="campo" placeholder="Ej: Tortilla de patatas">
+        </label>
+        <label>Categoría
+          <input type="text" id="plato-categoria" class="campo" placeholder="Ej: Raciones, Bebidas..." list="lista-cat-plato">
+          <datalist id="lista-cat-plato"></datalist>
+        </label>
+      </div>
+      <div class="fila-campos">
+        <label>Merma (%)
+          <input type="number" id="plato-merma" class="campo" min="0" max="100" step="any" value="10">
+          <small>Lo que se pierde al limpiar/cocinar. 5–15% es normal.</small>
+        </label>
+        <label>Precio de venta al cliente (IVA incl.) *
+          <input type="number" id="plato-precio" class="campo" min="0" step="any" placeholder="Ej: 9,50">
+        </label>
+        <label>IVA de venta (%)
+          <select id="plato-iva" class="campo">
+            <option value="0">0%</option>
+            <option value="4">4%</option>
+            <option value="10" selected>10% (hostelería)</option>
+            <option value="21">21%</option>
+          </select>
+        </label>
+        <label>💶 Precio de coste a mano (sin IVA)
+          <input type="number" id="plato-costo-manual" class="campo" min="0" step="any" placeholder="Vacío = se calcula solo">
+          <small>Si lo escribes, manda sobre el cálculo con ingredientes.</small>
+        </label>
+      </div>
+
+      <h4>Ingredientes de la receta (por ración)</h4>
+      <div class="lineas-receta" id="lineas-receta"></div>
+      <button class="btn btn-secundario btn-pequeno" id="btn-agregar-linea">＋ Añadir ingrediente</button>
+
+      <div class="resumen-escandallo">
+        <div class="resumen-item"><span>Costo del plato (sin IVA)</span><strong id="plato-costo">—</strong></div>
+        <div class="resumen-item"><span>Precio sin IVA</span><strong id="plato-base">—</strong></div>
+        <div class="resumen-item"><span>Food cost</span><strong id="plato-foodcost">—</strong></div>
+        <div class="resumen-item"><span>Ganancia por plato</span><strong id="plato-margen">—</strong></div>
+        <div class="resumen-item resumen-sugerido">
+          <span>PVP sugerido (<span class="objetivo-texto">30</span>% food cost, IVA incl.)</span>
+          <strong id="plato-sugerido">—</strong>
+          <button class="btn btn-secundario btn-pequeno" id="btn-aplicar-sugerido">Usar este precio</button>
+        </div>
+      </div>
+      <p class="nota-vista" id="plato-rendimiento"></p>
+    </div>
+    <div class="modal-pie">
+      <button class="btn btn-secundario" data-cerrar>Cancelar</button>
+      <button class="btn btn-primario" id="btn-guardar-plato">Guardar escandallo</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: VENTA INDIVIDUAL ===== -->
+<div class="modal-fondo" id="modal-venta" hidden>
+  <div class="modal">
+    <div class="modal-cabecera">
+      <h3 id="titulo-modal-venta">Registrar venta</h3>
+      <button class="btn-cerrar" data-cerrar>✕</button>
+    </div>
+    <div class="modal-cuerpo formulario">
+      <input type="hidden" id="venta-id">
+      <label>Fecha *
+        <input type="date" id="venta-fecha" class="campo">
+      </label>
+      <label>¿Qué se vendió? *
+        <select id="venta-plato" class="campo"></select>
+      </label>
+      <label id="grupo-venta-descripcion" hidden>Descripción *
+        <input type="text" id="venta-descripcion" class="campo" placeholder="Ej: Botella de vino, evento privado...">
+      </label>
+      <div class="fila-campos">
+        <label>Cantidad *
+          <input type="number" id="venta-cantidad" class="campo" min="0" step="any" value="1">
+        </label>
+        <label>Precio unitario (IVA incl.) *
+          <input type="number" id="venta-precio" class="campo" min="0" step="any">
+        </label>
+        <label id="grupo-venta-iva" hidden>IVA (%)
+          <select id="venta-iva" class="campo">
+            <option value="0">0%</option>
+            <option value="4">4%</option>
+            <option value="10" selected>10%</option>
+            <option value="21">21%</option>
+          </select>
+        </label>
+      </div>
+      <div class="caja-resaltada">Total: <strong id="venta-total">—</strong></div>
+    </div>
+    <div class="modal-pie">
+      <button class="btn btn-secundario" data-cerrar>Cancelar</button>
+      <button class="btn btn-primario" id="btn-guardar-venta">Guardar venta</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: CIERRE DEL DÍA ===== -->
+<div class="modal-fondo" id="modal-cierre" hidden>
+  <div class="modal modal-grande">
+    <div class="modal-cabecera">
+      <h3>🌙 Cierre del día</h3>
+      <button class="btn-cerrar" data-cerrar>✕</button>
+    </div>
+    <div class="modal-cuerpo formulario">
+      <div class="fila-campos">
+        <label>Fecha del cierre *
+          <input type="date" id="cierre-fecha" class="campo">
+        </label>
+        <label class="etiqueta-linea etiqueta-linea-alta">
+          <button type="button" class="btn btn-secundario" id="btn-traer-tpv">📡 Traer del TPV (ventas de hoy)</button>
+        </label>
+      </div>
+      <div id="cierre-tpv" hidden>
+        <h4>📡 Ventas del TPV por método de pago</h4>
+        <div class="tabla-envoltura">
+          <table class="tabla tabla-compacta"><tbody id="cuerpo-cierre-tpv"></tbody></table>
+        </div>
+        <p class="nota-vista" id="cierre-tpv-nota"></p>
+      </div>
+      <p class="nota-vista">Anota cuántas unidades vendiste hoy de cada plato. Deja en 0 los que no se vendieron.</p>
+      <div class="tabla-envoltura">
+        <table class="tabla tabla-compacta">
+          <thead><tr><th>Plato</th><th class="num">PVP</th><th class="num">Cantidad vendida</th><th class="num">Subtotal</th></tr></thead>
+          <tbody id="cuerpo-cierre"></tbody>
+        </table>
+      </div>
+      <h4>Otras ventas del día (opcional)</h4>
+      <div class="fila-campos">
+        <label>Descripción
+          <input type="text" id="cierre-extra-desc" class="campo" placeholder="Ej: Menús especiales, raciones fuera de carta...">
+        </label>
+        <label>Monto total (IVA incl.)
+          <input type="number" id="cierre-extra-monto" class="campo" min="0" step="any">
+        </label>
+        <label>IVA (%)
+          <select id="cierre-extra-iva" class="campo">
+            <option value="0">0%</option>
+            <option value="4">4%</option>
+            <option value="10" selected>10%</option>
+            <option value="21">21%</option>
+          </select>
+        </label>
+      </div>
+      <div class="caja-resaltada">Total del día: <strong id="cierre-total">—</strong></div>
+    </div>
+    <div class="modal-pie">
+      <button class="btn btn-secundario" data-cerrar>Cancelar</button>
+      <button class="btn btn-primario" id="btn-guardar-cierre">Guardar cierre del día</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: FACTURA DE COMPRA ===== -->
+<div class="modal-fondo" id="modal-factura" hidden>
+  <div class="modal modal-grande">
+    <div class="modal-cabecera">
+      <h3 id="titulo-modal-factura">Nueva factura de compra</h3>
+      <button class="btn-cerrar" data-cerrar>✕</button>
+    </div>
+    <div class="modal-cuerpo formulario">
+      <input type="hidden" id="factura-id">
+
+      <div class="caja-ia">
+        <div class="caja-ia-texto">
+          <strong>📷 Leer facturas con inteligencia artificial</strong><br>
+          <small><strong>Una</strong>: se rellena aquí y tú revisas antes de guardar.
+          <strong>Varias o una carpeta</strong>: se registran solas, una tras otra, con todo desglosado
+          (gastos, IVA, precios e ingredientes) y sin duplicar las que ya existan.</small>
+        </div>
+        <button class="btn btn-primario" id="btn-leer-factura" type="button">Elegir fotos o PDF</button>
+        <button class="btn btn-secundario" id="btn-subir-carpeta" type="button">📁 Subir carpeta</button>
+        <input type="file" id="archivo-factura" accept="image/*,application/pdf" multiple hidden>
+        <input type="file" id="carpeta-facturas" webkitdirectory multiple hidden>
+        <div class="estado-lectura" id="estado-lectura" hidden></div>
+      </div>
+
+      <div class="fila-campos">
+        <label>Fecha *
+          <input type="date" id="factura-fecha" class="campo">
+        </label>
+        <label>Proveedor *
+          <input type="text" id="factura-proveedor" class="campo" placeholder="Ej: Makro, frutería..." list="lista-proveedores">
+          <datalist id="lista-proveedores"></datalist>
+        </label>
+        <label>Nº de factura
+          <input type="text" id="factura-numero" class="campo" placeholder="Ej: A-2417">
+        </label>
+      </div>
+      <div class="fila-campos">
+        <label>Categoría del gasto
+          <select id="factura-categoria" class="campo"></select>
+        </label>
+        <label class="etiqueta-linea etiqueta-linea-alta">
+          <input type="checkbox" id="factura-iva-incluido" checked>
+          Los importes que escribo ya incluyen el IVA
+        </label>
+      </div>
+
+      <h4>Líneas de la factura (el desglose)</h4>
+      <p class="nota-vista">El importe de cada línea es el total de esa línea (lo que pone la factura).
+      Si la vinculas a un ingrediente, al guardar se <strong>actualizará su precio real automáticamente</strong>
+      y todos los escandallos se recalcularán.</p>
+      <div class="lineas-factura" id="lineas-factura"></div>
+      <button class="btn btn-secundario btn-pequeno" id="btn-agregar-linea-factura">＋ Añadir línea</button>
+
+      <div class="caja-resaltada" id="resumen-factura">—</div>
+    </div>
+    <div class="modal-pie">
+      <button class="btn btn-secundario" data-cerrar>Cancelar</button>
+      <button class="btn btn-primario" id="btn-guardar-factura">Guardar factura</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: EMPLEADO ===== -->
+<div class="modal-fondo" id="modal-empleado" hidden>
+  <div class="modal">
+    <div class="modal-cabecera">
+      <h3 id="titulo-modal-empleado">Añadir empleado</h3>
+      <button class="btn-cerrar" data-cerrar>✕</button>
+    </div>
+    <div class="modal-cuerpo formulario">
+      <input type="hidden" id="emp-id">
+      <label>Nombre *
+        <input type="text" id="emp-nombre" class="campo" placeholder="Ej: María López">
+      </label>
+      <label>Puesto
+        <input type="text" id="emp-puesto" class="campo" placeholder="Ej: Cocina, Sala, Barra...">
+      </label>
+    </div>
+    <div class="modal-pie">
+      <button class="btn btn-secundario" data-cerrar>Cancelar</button>
+      <button class="btn btn-primario" id="btn-guardar-empleado">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: GASTO ===== -->
+<div class="modal-fondo" id="modal-gasto" hidden>
+  <div class="modal">
+    <div class="modal-cabecera">
+      <h3 id="titulo-modal-gasto">Nuevo gasto</h3>
+      <button class="btn-cerrar" data-cerrar>✕</button>
+    </div>
+    <div class="modal-cuerpo formulario">
+      <input type="hidden" id="gasto-id">
+      <div class="fila-campos">
+        <label>Fecha *
+          <input type="date" id="gasto-fecha" class="campo">
+        </label>
+        <label>Categoría *
+          <select id="gasto-categoria" class="campo"></select>
+        </label>
+      </div>
+      <label>Descripción *
+        <input type="text" id="gasto-descripcion" class="campo" placeholder="Ej: Compra en Makro">
+      </label>
+      <div class="fila-campos">
+        <label>Monto pagado (IVA incl.) *
+          <input type="number" id="gasto-monto" class="campo" min="0" step="any">
+        </label>
+        <label>IVA incluido (%)
+          <select id="gasto-iva" class="campo">
+            <option value="0">0% (sin IVA: nómina, SS, tasas...)</option>
+            <option value="4">4%</option>
+            <option value="10">10%</option>
+            <option value="21">21%</option>
+          </select>
+        </label>
+      </div>
+    </div>
+    <div class="modal-pie">
+      <button class="btn btn-secundario" data-cerrar>Cancelar</button>
+      <button class="btn btn-primario" id="btn-guardar-gasto">Guardar gasto</button>
+    </div>
+  </div>
+</div>
+
+<!-- Zona que aparece al arrastrar facturas sobre la ventana -->
+<div class="zona-soltar" id="zona-soltar" hidden>
+  <div class="zona-soltar-caja">📑 Suelta aquí tus facturas<br><small>fotos, PDF o una carpeta entera</small></div>
+</div>
+
+<!-- ===== BIENVENIDA (primera apertura en este navegador) ===== -->
+<div class="modal-fondo" id="modal-bienvenida" hidden>
+  <div class="modal">
+    <div class="modal-cabecera">
+      <h3>🌴 ¡Bienvenido a El Paraíso!</h3>
+    </div>
+    <div class="modal-cuerpo formulario">
+      <p style="margin:0">Tu sistema de gestión está listo. ¿Cómo quieres empezar?</p>
+      <button class="btn btn-primario" id="btn-bienvenida-vacio">🚀 Empezar de cero con MIS datos</button>
+      <button class="btn btn-secundario" id="btn-bienvenida-ejemplo">🧪 Ver primero datos de ejemplo para practicar</button>
+      <p class="nota-vista" style="margin:0">💡 Si ya usabas el sistema en otro navegador o computadora,
+      ve a <strong>Configuración → Restaurar desde una copia</strong> y sube tu copia de seguridad.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PANEL DE PROGRESO DEL LOTE AUTOMÁTICO ===== -->
+<div class="modal-fondo" id="modal-progreso" hidden>
+  <div class="modal">
+    <div class="modal-cabecera">
+      <h3 id="titulo-progreso">🤖 Registrando facturas automáticamente</h3>
+    </div>
+    <div class="modal-cuerpo">
+      <div class="estado-lectura" id="progreso-texto">Preparando...</div>
+      <div class="lista-progreso" id="lista-progreso"></div>
+      <div class="caja-resaltada" id="resumen-progreso" hidden></div>
+    </div>
+    <div class="modal-pie">
+      <button class="btn btn-primario" id="btn-cerrar-progreso">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="avisos" id="avisos"></div>
+
+<script src="lib/chart.umd.min.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
