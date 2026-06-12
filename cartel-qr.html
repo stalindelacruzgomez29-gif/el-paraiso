@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>QR · El Paraíso Bar Restaurante</title>
+<style>
+  body {
+    font-family: Georgia, serif;
+    background: #f7f4ec;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+  }
+  .cartel {
+    text-align: center;
+    background: #fff;
+    border: 3px solid #0e3d22;
+    border-radius: 24px;
+    padding: 40px 60px;
+    max-width: 480px;
+  }
+  h1 { color: #0e3d22; margin: 0 0 4px; font-size: 30px; }
+  .sub { color: #d9a426; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; font-size: 13px; margin-bottom: 24px; }
+  img { width: 320px; height: 320px; }
+  .url { font-family: monospace; font-size: 15px; color: #0e3d22; margin-top: 18px; }
+  .nota { color: #666; font-size: 14px; margin-top: 12px; font-family: sans-serif; }
+  @media print { body { background: #fff; } .cartel { border-width: 2px; } }
+</style>
+</head>
+<body>
+  <div class="cartel">
+    <h1>🌴 El Paraíso</h1>
+    <div class="sub">Sistema de gestión</div>
+    <img src="qr-el-paraiso.png" alt="Código QR del sistema">
+    <div class="url">el-paraiso-eight.vercel.app</div>
+    <div class="nota">Escanea con la cámara del móvil para abrir<br>el sistema: facturas, ventas, la Z y el balance.</div>
+  </div>
+</body>
+</html>
