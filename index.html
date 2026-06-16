@@ -133,7 +133,7 @@
       <span class="separador-flexible"></span>
       <button class="btn btn-secundario" id="btn-csv-escandallos">⬇ Exportar escandallos</button>
       <button class="btn btn-secundario" id="btn-subir-carta">📋 Subir la carta</button>
-      <input type="file" id="archivo-carta" accept="image/*,application/pdf" hidden>
+      <input type="file" id="archivo-carta" accept="image/*,.heic,.heif,.pdf,application/pdf" hidden>
       <button class="btn btn-primario" id="btn-nuevo-plato">＋ Nuevo escandallo</button>
     </div>
     <p class="nota-vista">El <strong>escandallo</strong> es el costo real de cada plato según sus ingredientes (sin IVA).
@@ -178,7 +178,7 @@
       <button class="btn btn-secundario" id="btn-csv-ventas">⬇ Exportar CSV</button>
       <button class="btn btn-secundario" id="btn-nueva-venta">＋ Venta individual</button>
       <button class="btn btn-secundario" id="btn-cargar-z">🧾 Cargar Z (foto del ticket)</button>
-      <input type="file" id="archivo-z" accept="image/*,application/pdf" hidden>
+      <input type="file" id="archivo-z" accept="image/*,.heic,.heif,.pdf,application/pdf" hidden>
       <button class="btn btn-primario" id="btn-cierre-dia">🌙 Cierre del día</button>
     </div>
     <div class="rejilla-kpis rejilla-kpis-3">
@@ -308,8 +308,21 @@
   <!-- ========== VISTA: BALANCE ========== -->
   <section id="vista-balance" class="vista">
     <div class="acciones-vista">
-      <label class="etiqueta-filtro">Mes:
+      <label class="etiqueta-filtro">Ver por:
+        <select id="bal-tipo" class="campo">
+          <option value="dia">Día</option>
+          <option value="mes" selected>Mes</option>
+          <option value="anio">Año</option>
+        </select>
+      </label>
+      <label class="etiqueta-filtro" id="grupo-bal-dia" hidden>Día:
+        <input type="date" id="bal-dia" class="campo">
+      </label>
+      <label class="etiqueta-filtro" id="grupo-bal-mes">Mes:
         <input type="month" id="mes-balance" class="campo">
+      </label>
+      <label class="etiqueta-filtro" id="grupo-bal-anio" hidden>Año:
+        <input type="number" id="bal-anio" class="campo" min="2000" max="2100" step="1" style="width:110px">
       </label>
       <span class="separador-flexible"></span>
       <button class="btn btn-secundario" id="btn-csv-balance">⬇ Exportar CSV</button>
@@ -317,18 +330,18 @@
       <button class="btn btn-primario" id="btn-venta-balance">＋ Añadir venta</button>
     </div>
     <p class="nota-vista">Todo lo que <strong>entra</strong> (ventas) y lo que <strong>sale</strong> (gastos y facturas)
-    en un solo lugar, en orden, con el saldo acumulado del mes. Como el extracto del banco, pero de tu negocio.</p>
+    en un solo lugar. Mira el balance por <strong>día, mes o año</strong> para ver beneficios y gastos reales en cualquier plano.</p>
     <div class="rejilla-kpis rejilla-kpis-3">
       <div class="tarjeta kpi">
-        <div class="kpi-etiqueta">💵 Entradas del mes</div>
+        <div class="kpi-etiqueta">💵 Entradas <span id="bal-periodo-1">del mes</span></div>
         <div class="kpi-valor positivo" id="bal-entradas">—</div>
       </div>
       <div class="tarjeta kpi">
-        <div class="kpi-etiqueta">🧾 Salidas del mes</div>
+        <div class="kpi-etiqueta">🧾 Salidas <span id="bal-periodo-2">del mes</span></div>
         <div class="kpi-valor negativo" id="bal-salidas">—</div>
       </div>
       <div class="tarjeta kpi">
-        <div class="kpi-etiqueta">📒 Balance del mes</div>
+        <div class="kpi-etiqueta">📒 Beneficio <span id="bal-periodo-3">del mes</span></div>
         <div class="kpi-valor" id="bal-saldo">—</div>
       </div>
     </div>
@@ -342,7 +355,7 @@
               <th>Detalle</th>
               <th class="num">Entra</th>
               <th class="num">Sale</th>
-              <th class="num">Saldo del mes</th>
+              <th class="num">Saldo</th>
             </tr>
           </thead>
           <tbody id="cuerpo-balance"></tbody>
@@ -1121,7 +1134,7 @@
         </div>
         <button class="btn btn-primario" id="btn-leer-factura" type="button">Elegir fotos o PDF</button>
         <button class="btn btn-secundario" id="btn-subir-carpeta" type="button">📁 Subir carpeta</button>
-        <input type="file" id="archivo-factura" accept="image/*,application/pdf" multiple hidden>
+        <input type="file" id="archivo-factura" accept="image/*,.heic,.heif,.pdf,application/pdf" multiple hidden>
         <input type="file" id="carpeta-facturas" webkitdirectory multiple hidden>
         <div class="estado-lectura" id="estado-lectura" hidden></div>
       </div>
