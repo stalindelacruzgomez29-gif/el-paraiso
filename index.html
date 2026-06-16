@@ -333,6 +333,13 @@
       <label class="etiqueta-filtro" id="grupo-bal-anio" hidden>Año:
         <input type="number" id="bal-anio" class="campo" min="2000" max="2100" step="1" style="width:110px">
       </label>
+      <label class="etiqueta-filtro">Caja:
+        <select id="bal-caja" class="campo">
+          <option value="todas">Las dos (real)</option>
+          <option value="oficial">🏛️ Oficial</option>
+          <option value="privada">🔒 Privada</option>
+        </select>
+      </label>
       <span class="separador-flexible"></span>
       <button class="btn btn-secundario" id="btn-csv-balance">⬇ Exportar CSV</button>
       <button class="btn btn-secundario" id="btn-imprimir-balance">🖨 PDF</button>
@@ -522,6 +529,13 @@
       <label class="etiqueta-filtro">Mes:
         <input type="month" id="mes-conta" class="campo">
       </label>
+      <label class="etiqueta-filtro">Caja:
+        <select id="conta-caja" class="campo">
+          <option value="todas">Las dos (real)</option>
+          <option value="oficial">🏛️ Oficial</option>
+          <option value="privada">🔒 Privada</option>
+        </select>
+      </label>
       <span class="separador-flexible"></span>
       <button class="btn btn-secundario" id="btn-csv-conta">⬇ Exportar contabilidad</button>
       <button class="btn btn-secundario" id="btn-imprimir-conta">🖨 Imprimir / PDF</button>
@@ -578,6 +592,13 @@
     <div class="acciones-vista">
       <label class="etiqueta-filtro">Año:
         <input type="number" id="analisis-anio" class="campo" min="2000" max="2100" step="1" style="width:110px">
+      </label>
+      <label class="etiqueta-filtro">Caja:
+        <select id="analisis-caja" class="campo">
+          <option value="todas">Las dos (real)</option>
+          <option value="oficial">🏛️ Oficial</option>
+          <option value="privada">🔒 Privada</option>
+        </select>
       </label>
       <span class="separador-flexible"></span>
       <button class="btn btn-secundario" id="btn-csv-analisis">⬇ Exportar análisis</button>
@@ -1278,6 +1299,12 @@
           </select>
         </label>
       </div>
+      <label>📒 Caja
+        <select id="venta-caja" class="campo">
+          <option value="oficial">🏛️ Oficial (declarada)</option>
+          <option value="privada">🔒 Privada (interna)</option>
+        </select>
+      </label>
       <div class="caja-resaltada">Total: <strong id="venta-total">—</strong></div>
     </div>
     <div class="modal-pie">
@@ -1491,6 +1518,12 @@
           </select>
         </label>
       </div>
+      <label>📒 Caja
+        <select id="gasto-caja" class="campo">
+          <option value="oficial">🏛️ Oficial (declarada)</option>
+          <option value="privada">🔒 Privada (interna)</option>
+        </select>
+      </label>
     </div>
     <div class="modal-pie">
       <button class="btn btn-secundario" data-cerrar>Cancelar</button>
@@ -1577,6 +1610,12 @@
           </select>
         </label>
       </div>
+      <label>📒 ¿A qué caja va?
+        <select id="vd-caja" class="campo">
+          <option value="oficial">🏛️ Caja oficial (declarada, Z)</option>
+          <option value="privada">🔒 Caja privada (control interno)</option>
+        </select>
+      </label>
       <div class="caja-resaltada">Total del día: <strong id="vd-total">—</strong></div>
     </div>
     <div class="modal-pie">
