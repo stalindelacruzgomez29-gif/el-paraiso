@@ -1347,7 +1347,7 @@ function guardarVentaDia() {
 
   const metodos = [
     ['Ventas en efectivo', num($('#vd-efectivo').value)],
-    ['Ventas con tarjeta', num($('#vd-tarjeta').value)],
+    ['Ventas con tarjeta (TPV)', num($('#vd-tarjeta').value)],
     ['Ventas por Bizum', num($('#vd-bizum').value)]
   ];
   const otrosDesc = $('#vd-otros-desc').value.trim();
