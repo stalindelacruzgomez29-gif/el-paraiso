@@ -178,9 +178,9 @@
       </label>
       <span class="separador-flexible"></span>
       <button class="btn btn-secundario" id="btn-csv-ventas">⬇ Exportar CSV</button>
-      <button class="btn btn-primario" id="btn-venta-dia">💶 Venta del día (a mano)</button>
+      <button class="btn btn-primario" id="btn-venta-dia">💶 Venta del día (efectivo y TPV)</button>
+      <button class="btn btn-secundario" id="btn-cargar-z">📷 Añadir Z por foto</button>
       <button class="btn btn-secundario" id="btn-nueva-venta">✍️ Venta suelta</button>
-      <button class="btn btn-secundario" id="btn-cargar-z">🧾 Cargar Z del día (foto)</button>
       <input type="file" id="archivo-z" accept="image/*,.heic,.heif,.pdf,application/pdf" hidden>
       <button class="btn btn-secundario" id="btn-cargar-informe">📅 Informe del mes (foto)</button>
       <input type="file" id="archivo-informe" accept="image/*,.heic,.heif,.pdf,application/pdf" hidden>
@@ -1493,7 +1493,7 @@
         <label>🪙 Efectivo
           <input type="number" id="vd-efectivo" class="campo" min="0" step="any" value="0">
         </label>
-        <label>💳 Tarjeta
+        <label>💳 Tarjeta (TPV)
           <input type="number" id="vd-tarjeta" class="campo" min="0" step="any" value="0">
         </label>
         <label>📱 Bizum
