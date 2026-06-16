@@ -4557,6 +4557,12 @@ function renderConfig() {
   $('#conf-nombre').value = datos.config.nombre;
   $('#conf-moneda').value = datos.config.moneda;
   $('#conf-objetivo').value = datos.config.objetivoFoodCost;
+  $('#conf-direccion').value = datos.config.direccion || '';
+  $('#conf-cif').value = datos.config.cif || '';
+  $('#conf-telefono').value = datos.config.telefono || '';
+  $('#conf-logo-previo').innerHTML = datos.config.logo
+    ? `<img src="${datos.config.logo}" alt="logo" style="max-height:70px;border:1px solid var(--borde);border-radius:8px;padding:4px;background:#fff">`
+    : '<small style="color:var(--tinta-suave)">Sin logo todavía.</small>';
   $('#conf-iva-venta').value = datos.config.ivaVentaDefecto;
   $('#conf-irpf').value = datos.config.irpfPct;
   $('#conf-dificil').checked = !!datos.config.aplicarDificil;
@@ -4596,7 +4602,14 @@ function guardarConfig() {
   if (ivaVenta < 0 || ivaVenta > 50) return aviso('El IVA de venta debe estar entre 0 y 50.', true);
   if (irpf < 0 || irpf > 60) return aviso('El porcentaje de IRPF debe estar entre 0 y 60.', true);
 
-  datos.config = { nombre, moneda, objetivoFoodCost: objetivo, ivaVentaDefecto: ivaVenta, irpfPct: irpf, aplicarDificil, dificilPct };
+  // Merge: conservamos logo, modeloIA y todo lo demás que ya hubiera
+  datos.config = Object.assign({}, datos.config, {
+    nombre, moneda, objetivoFoodCost: objetivo, ivaVentaDefecto: ivaVenta, irpfPct: irpf,
+    aplicarDificil, dificilPct,
+    direccion: $('#conf-direccion').value.trim(),
+    cif: $('#conf-cif').value.trim(),
+    telefono: $('#conf-telefono').value.trim()
+  });
   guardar();
   aplicarMarca();
   refrescar();
@@ -4607,6 +4620,51 @@ function aplicarMarca() {
   const nombre = datos.config.nombre;
   $('#marca-nombre').textContent = nombre.length > 22 ? nombre.split(' ').slice(0, 2).join(' ') : nombre;
   document.title = `${nombre} · Contabilidad y Escandallos`;
+  // Logo en el menú lateral (si hay)
+  const icono = document.querySelector('.marca-icono');
+  if (icono) {
+    icono.innerHTML = datos.config.logo
+      ? `<img src="${datos.config.logo}" alt="logo" style="width:38px;height:38px;object-fit:contain;border-radius:8px">`
+      : '🌴';
+  }
+}
+
+// Convierte una imagen de logo a dataURL pequeño (sin FileReader, conserva PNG)
+async function logoADataURL(archivo) {
+  let bitmap;
+  if (typeof createImageBitmap === 'function') {
+    try { bitmap = await createImageBitmap(archivo); } catch (e) { /* fallback abajo */ }
+  }
+  if (!bitmap) {
+    const b64 = await prepararImagen(archivo); // JPEG sobre blanco como respaldo
+    return 'data:image/jpeg;base64,' + b64;
+  }
+  const escala = Math.min(1, 400 / Math.max(bitmap.width, bitmap.height));
+  const lienzo = document.createElement('canvas');
+  lienzo.width = Math.round(bitmap.width * escala);
+  lienzo.height = Math.round(bitmap.height * escala);
+  lienzo.getContext('2d').drawImage(bitmap, 0, 0, lienzo.width, lienzo.height);
+  bitmap.close && bitmap.close();
+  return lienzo.toDataURL('image/png');
+}
+
+// Rellena la cabecera que sale al imprimir/guardar en PDF
+function prepararCabeceraImpresion() {
+  const c = datos.config;
+  const datosEmpresa = [c.direccion, c.cif ? 'CIF: ' + c.cif : '', c.telefono ? 'Tel: ' + c.telefono : '']
+    .filter(Boolean).join(' · ');
+  $('#cabecera-impresion').innerHTML =
+    `${c.logo ? `<img src="${c.logo}" alt="logo" class="logo-impresion">` : ''}
+     <div class="empresa-impresion">
+       <div class="empresa-nombre">${esc(c.nombre)}</div>
+       ${datosEmpresa ? `<div class="empresa-datos">${esc(datosEmpresa)}</div>` : ''}
+       <div class="empresa-datos">${esc(TITULOS[vistaActual] || '')} · Generado el ${fechaCorta(hoyISO())}</div>
+     </div>`;
+}
+
+function imprimirVista() {
+  prepararCabeceraImpresion();
+  window.print();
 }
 
 function exportarCopia() {
@@ -4795,12 +4853,13 @@ function configurarEventos() {
   $('#btn-venta-balance').addEventListener('click', () => abrirModalVenta());
   $('#btn-gasto-balance').addEventListener('click', () => abrirModalGasto());
   $('#btn-csv-balance').addEventListener('click', exportarBalanceCSV);
+  $('#btn-imprimir-balance').addEventListener('click', imprimirVista);
 
   // Personal y horarios
   $('#btn-nuevo-empleado').addEventListener('click', () => abrirModalEmpleado());
   $('#btn-guardar-empleado').addEventListener('click', guardarEmpleado);
   $('#btn-csv-personal').addEventListener('click', exportarHorarioCSV);
-  $('#btn-imprimir-personal').addEventListener('click', () => window.print());
+  $('#btn-imprimir-personal').addEventListener('click', () => imprimirVista());
   $('#cuerpo-horario').addEventListener('click', e => {
     const editar = e.target.closest('.btn-editar-empleado');
     const borrar = e.target.closest('.btn-borrar-empleado');
@@ -4820,17 +4879,17 @@ function configurarEventos() {
   $('#mes-informe').addEventListener('change', renderInformes);
   $('#btn-csv-informe').addEventListener('click', exportarInformeCSV);
   $('#btn-csv-pyg').addEventListener('click', exportarPyGCSV);
-  $('#btn-imprimir').addEventListener('click', () => window.print());
+  $('#btn-imprimir').addEventListener('click', () => imprimirVista());
 
   // Análisis del negocio
   $('#analisis-anio').addEventListener('change', renderAnalisis);
   $('#btn-csv-analisis').addEventListener('click', exportarAnalisisCSV);
-  $('#btn-imprimir-analisis').addEventListener('click', () => window.print());
+  $('#btn-imprimir-analisis').addEventListener('click', () => imprimirVista());
 
   // Contabilidad (cada línea es editable)
   $('#mes-conta').addEventListener('change', renderContabilidad);
   $('#btn-csv-conta').addEventListener('click', exportarContabilidadCSV);
-  $('#btn-imprimir-conta').addEventListener('click', () => window.print());
+  $('#btn-imprimir-conta').addEventListener('click', () => imprimirVista());
   $('#vista-contabilidad').addEventListener('click', e => {
     const venta = e.target.closest('.conta-venta');
     const factura = e.target.closest('.conta-factura');
@@ -4844,7 +4903,7 @@ function configurarEventos() {
   $('#trimestre-imp').addEventListener('change', renderImpuestos);
   $('#anio-imp').addEventListener('change', renderImpuestos);
   $('#btn-csv-impuestos').addEventListener('click', exportarImpuestosCSV);
-  $('#btn-imprimir-imp').addEventListener('click', () => window.print());
+  $('#btn-imprimir-imp').addEventListener('click', () => imprimirVista());
 
   // Lectura de facturas con IA (uno: revisas tú; varios o carpeta: automático)
   $('#btn-leer-factura').addEventListener('click', () => $('#archivo-factura').click());
@@ -4899,6 +4958,24 @@ function configurarEventos() {
 
   // Configuración
   $('#btn-guardar-config').addEventListener('click', guardarConfig);
+  $('#conf-logo-archivo').addEventListener('change', async e => {
+    if (!e.target.files[0]) return;
+    try {
+      datos.config.logo = await logoADataURL(e.target.files[0]);
+      guardar();
+      aplicarMarca();
+      renderConfig();
+      aviso('Logo añadido. Sale en el menú y en los informes impresos. 🎨✅');
+    } catch (err) { aviso('No se pudo cargar el logo: ' + err.message, true); }
+    e.target.value = '';
+  });
+  $('#btn-quitar-logo').addEventListener('click', () => {
+    datos.config.logo = null;
+    guardar();
+    aplicarMarca();
+    renderConfig();
+    aviso('Logo quitado.');
+  });
   $('#btn-exportar').addEventListener('click', exportarCopia);
   $('#btn-importar').addEventListener('click', () => $('#archivo-importar').click());
   $('#archivo-importar').addEventListener('change', e => {
