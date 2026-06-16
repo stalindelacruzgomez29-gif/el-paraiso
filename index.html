@@ -179,9 +179,9 @@
       <span class="separador-flexible"></span>
       <button class="btn btn-secundario" id="btn-csv-ventas">⬇ Exportar CSV</button>
       <button class="btn btn-primario" id="btn-venta-dia">💶 Venta del día (efectivo y TPV)</button>
-      <button class="btn btn-secundario" id="btn-cargar-z">📷 Añadir Z por foto</button>
+      <button class="btn btn-secundario" id="btn-cargar-z">📷 Añadir Z por foto (varias)</button>
       <button class="btn btn-secundario" id="btn-nueva-venta">✍️ Venta suelta</button>
-      <input type="file" id="archivo-z" accept="image/*,.heic,.heif,.pdf,application/pdf" hidden>
+      <input type="file" id="archivo-z" accept="image/*,.heic,.heif,.pdf,application/pdf" multiple hidden>
       <button class="btn btn-secundario" id="btn-cargar-informe">📅 Informe del mes (foto)</button>
       <input type="file" id="archivo-informe" accept="image/*,.heic,.heif,.pdf,application/pdf" hidden>
       <button class="btn btn-primario" id="btn-cierre-dia">🌙 Cierre del día</button>
@@ -598,6 +598,15 @@
       <div class="tarjeta kpi">
         <div class="kpi-etiqueta">📊 Margen de beneficio</div>
         <div class="kpi-valor" id="an-margen">—</div>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h3>🧮 Beneficio real del año (paso a paso)</h3>
+      <p class="nota-vista">De lo que vendes hasta lo que de verdad te queda en el bolsillo, restando IVA,
+      gastos (incluida la Seguridad Social y el personal) y el IRPF estimado.</p>
+      <div class="tabla-envoltura">
+        <table class="tabla"><tbody id="cuerpo-an-cascada"></tbody></table>
       </div>
     </div>
 
