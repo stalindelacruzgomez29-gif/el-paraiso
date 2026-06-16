@@ -39,6 +39,9 @@
 
 <!-- ===== CONTENIDO PRINCIPAL ===== -->
 <main class="contenido">
+  <!-- Cabecera que sale SOLO al imprimir / guardar en PDF (logo + datos de empresa) -->
+  <div class="cabecera-impresion solo-imprimir" id="cabecera-impresion"></div>
+
   <header class="barra-superior">
     <h1 id="titulo-vista">Panel</h1>
     <div class="fecha-hoy" id="fecha-hoy"></div>
@@ -332,6 +335,7 @@
       </label>
       <span class="separador-flexible"></span>
       <button class="btn btn-secundario" id="btn-csv-balance">⬇ Exportar CSV</button>
+      <button class="btn btn-secundario" id="btn-imprimir-balance">🖨 PDF</button>
       <button class="btn btn-secundario" id="btn-gasto-balance">－ Añadir gasto</button>
       <button class="btn btn-primario" id="btn-venta-balance">＋ Añadir venta</button>
     </div>
@@ -520,7 +524,7 @@
       </label>
       <span class="separador-flexible"></span>
       <button class="btn btn-secundario" id="btn-csv-conta">⬇ Exportar contabilidad</button>
-      <button class="btn btn-secundario" id="btn-imprimir-conta">🖨 Imprimir</button>
+      <button class="btn btn-secundario" id="btn-imprimir-conta">🖨 Imprimir / PDF</button>
     </div>
     <p class="nota-vista">El libro de cuentas: <strong>cada venta, cada gasto y cada factura con su desglose</strong>,
     con base, IVA y total reales. Pulsa cualquier línea para <strong>editarla</strong>. Todo lo que subes
@@ -790,7 +794,24 @@
             <input type="number" id="conf-objetivo" class="campo" min="1" max="99" step="1">
             <small>Lo habitual en hostelería es entre 28% y 35%.</small>
           </label>
+          <label>Dirección (sale en los informes impresos)
+            <input type="text" id="conf-direccion" class="campo" placeholder="Calle, número, ciudad">
+          </label>
+          <div class="fila-campos">
+            <label>CIF / NIF
+              <input type="text" id="conf-cif" class="campo" placeholder="B-12345678">
+            </label>
+            <label>Teléfono
+              <input type="text" id="conf-telefono" class="campo" placeholder="600 000 000">
+            </label>
+          </div>
+          <label>🎨 Logo del negocio (sale en el menú y en los informes)
+            <input type="file" id="conf-logo-archivo" class="campo" accept="image/*,.heic,.heif">
+            <small>Sube una imagen (PNG o foto). Se guarda en este aparato.</small>
+          </label>
+          <div id="conf-logo-previo"></div>
           <button class="btn btn-primario" id="btn-guardar-config">Guardar configuración</button>
+          <button class="btn btn-secundario" id="btn-quitar-logo">Quitar logo</button>
         </div>
       </div>
 
