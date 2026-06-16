@@ -564,8 +564,8 @@ function pintarGrafico(idCanvas, configuracion) {
 const TITULOS = {
   panel: 'Panel', ingredientes: 'Ingredientes', escandallos: 'Escandallos',
   ventas: 'Ventas', gastos: 'Gastos', facturas: 'Facturas de compra',
-  balance: 'Balance de caja', personal: 'Personal y horarios', informes: 'Informes',
-  analisis: 'Análisis del negocio',
+  balance: 'Balance de caja', personal: 'Personal y horarios',
+  contabilidad: 'Contabilidad', informes: 'Informes', analisis: 'Análisis del negocio',
   impuestos: 'Impuestos y declaraciones', config: 'Configuración', ayuda: 'Ayuda'
 };
 
@@ -586,6 +586,7 @@ function renderVista(nombre) {
   else if (nombre === 'facturas') renderFacturas();
   else if (nombre === 'balance') renderBalance();
   else if (nombre === 'personal') renderPersonal();
+  else if (nombre === 'contabilidad') renderContabilidad();
   else if (nombre === 'informes') renderInformes();
   else if (nombre === 'analisis') renderAnalisis();
   else if (nombre === 'impuestos') renderImpuestos();
@@ -3583,6 +3584,146 @@ function exportarInformeCSV() {
   aviso(`Informe completo de ${nombreMes(mes)} descargado. 📄`);
 }
 
+/* ============ 13j. CUADRO DE CONTABILIDAD (libro detallado) ============ */
+
+// Base, cuota e importe total (con IVA) de una línea de factura
+function desgloseLineaFactura(linea, ivaIncluido) {
+  const total = ivaIncluido ? linea.precio : linea.precio * (1 + (linea.ivaPct || 0) / 100);
+  return { total, base: baseDesdeTotal(total, linea.ivaPct), cuota: cuotaDesdeTotal(total, linea.ivaPct) };
+}
+
+function renderContabilidad() {
+  const mes = $('#mes-conta').value || mesActual();
+  const ventas = ventasDelMes(mes).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
+  const gastos = gastosDelMes(mes);
+  const facturas = facturasDelMes(mes).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
+
+  // --- KPIs ---
+  const totalIngresos = sumaVentas(ventas);
+  const totalGastos = sumaGastos(gastos);
+  const resultado = totalIngresos - totalGastos;
+  $('#conta-ingresos').textContent = dinero(totalIngresos);
+  $('#conta-gastos').textContent = dinero(totalGastos);
+  const cajaR = $('#conta-resultado');
+  cajaR.textContent = dinero(resultado);
+  cajaR.classList.toggle('positivo', resultado >= 0);
+  cajaR.classList.toggle('negativo', resultado < 0);
+
+  // --- INGRESOS: cada venta, editable ---
+  const cuerpoIng = $('#cuerpo-conta-ingresos');
+  if (ventas.length === 0) {
+    cuerpoIng.innerHTML = `<tr class="fila-vacia"><td colspan="6">Sin ingresos en ${nombreMes(mes)}. Sube una Z o un informe, o añade ventas a mano.${chipsDeMeses(datos.ventas, 'mes-conta', mes)}</td></tr>`;
+  } else {
+    cuerpoIng.innerHTML = ventas.map(v => `
+      <tr class="fila-clic conta-venta" data-id="${v.id}" title="Pulsa para editar esta venta">
+        <td>${fechaCorta(v.fecha)}</td>
+        <td>${esc(v.descripcion)}${v.platoId ? '' : ' <span class="badge badge-neutro">libre</span>'} ✏️</td>
+        <td class="num">${dinero(baseDesdeTotal(v.total, v.ivaPct))}</td>
+        <td class="num">${v.ivaPct || 0}%</td>
+        <td class="num">${dinero(cuotaDesdeTotal(v.total, v.ivaPct))}</td>
+        <td class="num"><strong>${dinero(v.total)}</strong></td>
+      </tr>`).join('') +
+      `<tr><td><strong>TOTAL INGRESOS</strong></td><td></td>
+        <td class="num"><strong>${dinero(baseVentas(ventas))}</strong></td><td></td>
+        <td class="num"><strong>${dinero(ivaRepercutido(ventas))}</strong></td>
+        <td class="num"><strong>${dinero(totalIngresos)}</strong></td></tr>`;
+  }
+
+  // --- GASTOS: facturas con su desglose (separadas) + gastos sueltos ---
+  const cuerpoGas = $('#cuerpo-conta-gastos');
+  const sueltos = gastos.filter(g => !g.facturaId).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
+  let html = '';
+
+  facturas.forEach(f => {
+    html += `
+      <tr class="fila-clic conta-factura conta-cabecera" data-id="${f.id}" title="Pulsa para editar esta factura">
+        <td>${fechaCorta(f.fecha)}</td>
+        <td>📑 <strong>Factura ${esc(f.proveedor)}${f.numero ? ' nº ' + esc(f.numero) : ''}</strong> · ${esc(f.categoria)} ✏️</td>
+        <td class="num"></td><td class="num"></td><td class="num"></td>
+        <td class="num"><strong>${dinero(totalFactura(f))}</strong></td>
+      </tr>`;
+    f.lineas.forEach(l => {
+      const dl = desgloseLineaFactura(l, f.ivaIncluido);
+      html += `
+      <tr class="conta-sublinea">
+        <td></td>
+        <td><small>${esc(l.descripcion)}</small></td>
+        <td class="num"><small>${dinero(dl.base)}</small></td>
+        <td class="num"><small>${l.ivaPct || 0}%</small></td>
+        <td class="num"><small>${dinero(dl.cuota)}</small></td>
+        <td class="num"><small>${dinero(dl.total)}</small></td>
+      </tr>`;
+    });
+  });
+
+  sueltos.forEach(g => {
+    html += `
+      <tr class="fila-clic conta-gasto" data-id="${g.id}" title="Pulsa para editar este gasto">
+        <td>${fechaCorta(g.fecha)}</td>
+        <td>${esc(g.descripcion)} · <span class="badge badge-neutro">${esc(g.categoria)}</span> ✏️</td>
+        <td class="num">${dinero(baseDesdeTotal(g.monto, g.ivaPct))}</td>
+        <td class="num">${g.ivaPct || 0}%</td>
+        <td class="num">${dinero(cuotaDesdeTotal(g.monto, g.ivaPct))}</td>
+        <td class="num"><strong>${dinero(g.monto)}</strong></td>
+      </tr>`;
+  });
+
+  cuerpoGas.innerHTML = (html || `<tr class="fila-vacia"><td colspan="6">Sin gastos en ${nombreMes(mes)}.</td></tr>`) +
+    (gastos.length > 0
+      ? `<tr><td><strong>TOTAL GASTOS</strong></td><td></td>
+          <td class="num"><strong>${dinero(baseGastos(gastos))}</strong></td><td></td>
+          <td class="num"><strong>${dinero(ivaSoportado(gastos))}</strong></td>
+          <td class="num"><strong>${dinero(totalGastos)}</strong></td></tr>`
+      : '');
+
+  // --- Resumen de IVA del mes (lo que se liquida en el 303) ---
+  const repercutido = ivaRepercutido(ventas);
+  const soportado = ivaSoportado(gastos);
+  const ivaResultado = repercutido - soportado;
+  $('#cuerpo-conta-iva').innerHTML = `
+    <tr><td>IVA repercutido (cobrado en tus ventas)</td><td class="num">${dinero(repercutido)}</td></tr>
+    <tr><td>IVA soportado (pagado en gastos y facturas)</td><td class="num">− ${dinero(soportado)}</td></tr>
+    <tr><td><strong>${ivaResultado >= 0 ? 'IVA a ingresar a Hacienda' : 'IVA a tu favor (a compensar)'}</strong></td>
+        <td class="num"><strong>${dinero(Math.abs(ivaResultado))}</strong></td></tr>`;
+}
+
+function exportarContabilidadCSV() {
+  const mes = $('#mes-conta').value || mesActual();
+  const ventas = ventasDelMes(mes).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
+  const gastos = gastosDelMes(mes);
+  const facturas = facturasDelMes(mes).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
+  if (ventas.length === 0 && gastos.length === 0) return aviso('No hay movimientos en este mes para exportar.', true);
+
+  const filas = [
+    [`CONTABILIDAD — ${nombreMes(mes)} — ${datos.config.nombre}`, '', '', '', '', `Generado el ${fechaCorta(hoyISO())}`],
+    [],
+    ['INGRESOS'],
+    ['Fecha', 'Concepto', 'Base sin IVA', 'IVA %', 'Cuota IVA', 'Total']
+  ];
+  ventas.forEach(v => filas.push([v.fecha, `"${v.descripcion.replace(/"/g, '""')}"`, numCSV(baseDesdeTotal(v.total, v.ivaPct)), v.ivaPct || 0, numCSV(cuotaDesdeTotal(v.total, v.ivaPct)), numCSV(v.total)]));
+  filas.push(['', 'TOTAL INGRESOS', numCSV(baseVentas(ventas)), '', numCSV(ivaRepercutido(ventas)), numCSV(sumaVentas(ventas))]);
+
+  filas.push([], ['GASTOS Y FACTURAS'], ['Fecha', 'Concepto', 'Base sin IVA', 'IVA %', 'Cuota IVA', 'Total']);
+  facturas.forEach(f => {
+    filas.push([f.fecha, `"Factura ${f.proveedor}${f.numero ? ' nº ' + f.numero : ''} (${f.categoria})"`, '', '', '', numCSV(totalFactura(f))]);
+    f.lineas.forEach(l => {
+      const dl = desgloseLineaFactura(l, f.ivaIncluido);
+      filas.push(['', `"  · ${l.descripcion.replace(/"/g, '""')}"`, numCSV(dl.base), l.ivaPct || 0, numCSV(dl.cuota), numCSV(dl.total)]);
+    });
+  });
+  gastos.filter(g => !g.facturaId).forEach(g => filas.push([g.fecha, `"${g.descripcion.replace(/"/g, '""')} (${g.categoria})"`, numCSV(baseDesdeTotal(g.monto, g.ivaPct)), g.ivaPct || 0, numCSV(cuotaDesdeTotal(g.monto, g.ivaPct)), numCSV(g.monto)]));
+  filas.push(['', 'TOTAL GASTOS', numCSV(baseGastos(gastos)), '', numCSV(ivaSoportado(gastos)), numCSV(sumaGastos(gastos))]);
+
+  filas.push([], ['RESULTADO DEL MES', '', '', '', '', numCSV(sumaVentas(ventas) - sumaGastos(gastos))]);
+  filas.push([], ['IVA del mes (303)'],
+    ['IVA repercutido', numCSV(ivaRepercutido(ventas))],
+    ['IVA soportado', numCSV(ivaSoportado(gastos))],
+    ['Resultado IVA', numCSV(ivaRepercutido(ventas) - ivaSoportado(gastos))]);
+
+  descargarCSV(`contabilidad-${mes}.csv`, filas);
+  aviso(`Contabilidad de ${nombreMes(mes)} descargada. 📄`);
+}
+
 /* ============ 13i. ANÁLISIS DEL NEGOCIO ============ */
 
 // Rentabilidad por producto a partir de una lista de ventas (reutilizable mes o año)
@@ -4264,6 +4405,19 @@ function configurarEventos() {
   $('#btn-csv-analisis').addEventListener('click', exportarAnalisisCSV);
   $('#btn-imprimir-analisis').addEventListener('click', () => window.print());
 
+  // Contabilidad (cada línea es editable)
+  $('#mes-conta').addEventListener('change', renderContabilidad);
+  $('#btn-csv-conta').addEventListener('click', exportarContabilidadCSV);
+  $('#btn-imprimir-conta').addEventListener('click', () => window.print());
+  $('#vista-contabilidad').addEventListener('click', e => {
+    const venta = e.target.closest('.conta-venta');
+    const factura = e.target.closest('.conta-factura');
+    const gasto = e.target.closest('.conta-gasto');
+    if (venta) abrirModalVenta(parseInt(venta.dataset.id, 10));
+    else if (factura) abrirModalFactura(parseInt(factura.dataset.id, 10));
+    else if (gasto) abrirModalGasto(parseInt(gasto.dataset.id, 10));
+  });
+
   // Impuestos
   $('#trimestre-imp').addEventListener('change', renderImpuestos);
   $('#anio-imp').addEventListener('change', renderImpuestos);
@@ -4397,6 +4551,7 @@ function iniciar() {
   $('#mes-gastos').value = mesActual();
   $('#mes-facturas').value = mesActual();
   $('#mes-balance').value = mesActual();
+  $('#mes-conta').value = mesActual();
   $('#mes-informe').value = mesActual();
   $('#trimestre-imp').value = String(Math.floor(new Date().getMonth() / 3) + 1);
 
