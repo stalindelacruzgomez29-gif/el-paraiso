@@ -2990,6 +2990,22 @@ function ventasPorDiaSemana() {
   return totales.map((total, i) => fechasPorDia[i].size > 0 ? total / fechasPorDia[i].size : 0);
 }
 
+// Calcula las horas de un turno escrito a mano: "12-16 y 20-24", "10:30-15", "20-2"...
+function horasDeTurno(texto) {
+  if (!texto) return 0;
+  const tramos = String(texto).split(/\s*(?:y|,|\+|&|\/|;)\s*/i);
+  let minutos = 0;
+  tramos.forEach(tramo => {
+    const m = tramo.match(/(\d{1,2})(?::(\d{2}))?\s*[-aà]\s*(\d{1,2})(?::(\d{2}))?/i);
+    if (!m) return;
+    let ini = parseInt(m[1], 10) * 60 + (m[2] ? parseInt(m[2], 10) : 0);
+    let fin = parseInt(m[3], 10) * 60 + (m[4] ? parseInt(m[4], 10) : 0);
+    if (fin <= ini) fin += 24 * 60; // cruza medianoche (ej: 20-2 o 20-00)
+    if (fin - ini > 0 && fin - ini <= 24 * 60) minutos += fin - ini;
+  });
+  return Math.round(minutos / 6) / 10; // horas con 1 decimal
+}
+
 function renderPersonal() {
   // --- Gráfico de días punta ---
   const promedios = ventasPorDiaSemana();
@@ -3024,12 +3040,16 @@ function renderPersonal() {
 
   // --- Tabla de horarios ---
   const cuerpo = $('#cuerpo-horario');
+  const pie = $('#pie-horario');
   if (datos.empleados.length === 0) {
-    cuerpo.innerHTML = '<tr class="fila-vacia"><td colspan="9">Todavía no hay empleados. Añade el primero con el botón "＋ Añadir empleado".</td></tr>';
+    cuerpo.innerHTML = '<tr class="fila-vacia"><td colspan="10">Todavía no hay empleados. Añade el primero con el botón "＋ Añadir empleado".</td></tr>';
+    pie.innerHTML = '';
     return;
   }
 
-  cuerpo.innerHTML = datos.empleados.map(emp => `
+  cuerpo.innerHTML = datos.empleados.map(emp => {
+    const horasSem = DIAS_CLAVES.reduce((s, d) => s + horasDeTurno((emp.turnos || {})[d] || ''), 0);
+    return `
     <tr>
       <td>
         <div class="empleado-nombre">${esc(emp.nombre)}</div>
@@ -3037,12 +3057,31 @@ function renderPersonal() {
       </td>
       ${DIAS_CLAVES.map(dia => `
         <td><input type="text" class="turno-celda" data-id="${emp.id}" data-dia="${dia}"
-             value="${esc((emp.turnos || {})[dia] || '')}" placeholder="—"></td>`).join('')}
+             value="${esc((emp.turnos || {})[dia] || '')}" placeholder="—" title="Entrada-salida, ej: 12-16 y 20-24"></td>`).join('')}
+      <td class="num"><strong>${horasSem > 0 ? horasSem.toLocaleString('es-ES', { maximumFractionDigits: 1 }) + ' h' : '—'}</strong></td>
       <td class="num">
         <button class="btn-icono btn-editar-empleado" data-id="${emp.id}" title="Editar">✏️</button>
         <button class="btn-icono btn-borrar-empleado" data-id="${emp.id}" title="Eliminar">🗑</button>
       </td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
+
+  // Pie: cobertura por día (cuánta gente y cuántas horas). Rojo si un día no tiene a nadie.
+  const personasDia = DIAS_CLAVES.map(d => datos.empleados.filter(e => ((e.turnos || {})[d] || '').trim()).length);
+  const horasDia = DIAS_CLAVES.map(d => datos.empleados.reduce((s, e) => s + horasDeTurno((e.turnos || {})[d] || ''), 0));
+  const totalSemana = horasDia.reduce((a, b) => a + b, 0);
+  pie.innerHTML = `
+    <tr>
+      <td><strong>👥 En turno</strong></td>
+      ${personasDia.map(n => `<td class="num ${n === 0 ? 'dia-sin-personal' : ''}"><strong>${n === 0 ? '⚠️ 0' : n}</strong></td>`).join('')}
+      <td></td><td></td>
+    </tr>
+    <tr>
+      <td><strong>⏱ Horas/día</strong></td>
+      ${horasDia.map(h => `<td class="num">${h > 0 ? h.toLocaleString('es-ES', { maximumFractionDigits: 1 }) : '—'}</td>`).join('')}
+      <td class="num"><strong>${totalSemana.toLocaleString('es-ES', { maximumFractionDigits: 1 })} h</strong></td>
+      <td></td>
+    </tr>`;
 }
 
 function abrirModalEmpleado(id = null) {
