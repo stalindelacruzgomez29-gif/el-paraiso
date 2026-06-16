@@ -2258,6 +2258,112 @@ async function procesarArchivoZ(archivo) {
   }
 }
 
+/* --- Lectura del INFORME MENSUAL de ventas (resumen del mes del TPV/caja) --- */
+
+const ESQUEMA_INFORME = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['mes', 'total', 'por_dia'],
+  properties: {
+    mes: { type: 'string', description: 'Mes del informe en formato AAAA-MM. Cadena vacía si no se lee.' },
+    total: { type: 'number', description: 'Total de ventas del mes, IVA incluido' },
+    por_dia: {
+      type: 'array',
+      description: 'Ventas día a día si el informe las desglosa; vacío si solo da el total',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['fecha', 'importe'],
+        properties: {
+          fecha: { type: 'string', description: 'Día en formato AAAA-MM-DD' },
+          importe: { type: 'number', description: 'Total vendido ese día, IVA incluido' }
+        }
+      }
+    }
+  }
+};
+
+const INSTRUCCIONES_INFORME = `Esto es un informe MENSUAL de ventas (resumen del mes) del TPV o la caja de un bar restaurante en España.
+Extrae el mes al que se refiere (AAAA-MM) y el TOTAL de ventas del mes (IVA incluido).
+Si el informe desglosa las ventas día a día, rellena "por_dia" con una entrada por cada día (fecha AAAA-MM-DD e importe). Si solo aparece el total del mes, deja "por_dia" vacío.
+No confundas el total del mes con totales de otros periodos. No inventes cifras: si algo no se lee, usa 0 o cadena vacía.`;
+
+function ultimoDiaDelMes(mes) {
+  const [a, m] = mes.split('-').map(Number);
+  return `${mes}-${String(new Date(a, m, 0).getDate()).padStart(2, '0')}`;
+}
+
+// Convierte el informe en líneas de venta (una por día si hay desglose; si no, una por el total)
+function construirVentasDesdeInforme(extraido) {
+  const mes = /^\d{4}-\d{2}$/.test(extraido.mes) ? extraido.mes : mesActual();
+  const porDia = (extraido.por_dia || []).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d.fecha) && d.importe > 0);
+  const sumaDias = porDia.reduce((s, d) => s + d.importe, 0);
+  const lineas = [];
+
+  if (porDia.length > 0 && (extraido.total <= 0 || Math.abs(sumaDias - extraido.total) <= Math.max(1, extraido.total * 0.05))) {
+    // Desglose diario fiable → una venta por día (ideal para el balance por día)
+    porDia.forEach(d => lineas.push({ fecha: d.fecha, descripcion: 'Ventas del día (informe mensual)', total: d.importe }));
+  } else if (extraido.total > 0) {
+    // Solo el total → una entrada el último día del mes
+    lineas.push({ fecha: ultimoDiaDelMes(mes), descripcion: 'Ventas del mes (informe mensual)', total: extraido.total });
+  }
+
+  return { mes, lineas, total: lineas.reduce((s, l) => s + l.total, 0), conDesglose: porDia.length > 0 };
+}
+
+async function procesarArchivoInforme(archivo) {
+  if (!archivo) return;
+
+  $('#titulo-progreso').textContent = '📅 Leyendo el informe mensual';
+  $('#lista-progreso').innerHTML = '';
+  $('#resumen-progreso').hidden = true;
+  $('#btn-cerrar-progreso').textContent = 'Cerrar';
+  $('#modal-progreso').hidden = false;
+  pintarProgresoLote(`Leyendo el informe: ${archivo.name}...`, true);
+
+  try {
+    const extraido = await extraerConIA(archivo, INSTRUCCIONES_INFORME, ESQUEMA_INFORME,
+      '{"mes":"AAAA-MM","total":0,"por_dia":[{"fecha":"AAAA-MM-DD","importe":0}]}');
+    const inf = construirVentasDesdeInforme(extraido);
+    if (inf.lineas.length === 0) throw new Error('No se pudo leer el total del mes en este informe. Prueba con una foto más nítida.');
+
+    // Anti-duplicados: ¿ese mes ya tiene ventas registradas?
+    const existentes = ventasDelMes(inf.mes);
+    if (existentes.length > 0) {
+      const seguir = confirm(`${nombreMes(inf.mes)} ya tiene ${existentes.length} venta(s) registradas por ${dinero(sumaVentas(existentes))}.\n\n¿Añadir igualmente este informe de ${dinero(inf.total)}?\n(Cuidado: podrías duplicar las ventas del mes. Si ya cargaste las Z de esos días, NO lo añadas.)`);
+      if (!seguir) { pintarProgresoLote('Informe descartado para no duplicar.', false); return; }
+    }
+
+    inf.lineas.forEach(l => {
+      datos.ventas.push({
+        id: nuevoId(), fecha: l.fecha, platoId: null, descripcion: l.descripcion,
+        cantidad: 1, precioUnit: l.total, total: l.total,
+        ivaPct: datos.config.ivaVentaDefecto, costoUnit: null
+      });
+    });
+    anotarResultadoLote('progreso-ok',
+      inf.conDesglose
+        ? `✅ ${inf.lineas.length} días cargados de ${nombreMes(inf.mes)} · total <strong>${dinero(inf.total)}</strong>`
+        : `✅ Total de ${nombreMes(inf.mes)}: <strong>${dinero(inf.total)}</strong>`);
+
+    guardar();
+    $('#mes-ventas').value = inf.mes;
+    $('#mes-balance').value = inf.mes;
+    refrescar();
+
+    pintarProgresoLote('¡Informe mensual cargado!', false);
+    const resumen = $('#resumen-progreso');
+    resumen.hidden = false;
+    resumen.innerHTML = `<strong>Ventas de ${nombreMes(inf.mes)}: ${dinero(inf.total)}</strong>` +
+      (inf.conDesglose ? ` (${inf.lineas.length} días)` : '') +
+      '<br><br>Ya están en Ventas, Balance e Informes. Mira el 📒 Balance por mes o por año para ver el beneficio real.';
+    aviso(`Informe de ${nombreMes(inf.mes)} cargado: ${dinero(inf.total)}. 📅✅`);
+  } catch (e) {
+    pintarProgresoLote('No se pudo leer el informe mensual.', false);
+    anotarResultadoLote('progreso-error', `❌ ${esc(e.message || 'error')}`);
+  }
+}
+
 // Sube la carta → crea todos los platos que falten, con su precio real de venta
 async function procesarArchivoCarta(archivo) {
   if (!archivo) return;
@@ -3835,6 +3941,11 @@ function configurarEventos() {
   $('#mes-ventas').addEventListener('change', renderVentas);
   $('#btn-nueva-venta').addEventListener('click', () => abrirModalVenta());
   $('#btn-cierre-dia').addEventListener('click', abrirModalCierre);
+  $('#btn-cargar-informe').addEventListener('click', () => $('#archivo-informe').click());
+  $('#archivo-informe').addEventListener('change', e => {
+    if (e.target.files[0]) procesarArchivoInforme(e.target.files[0]);
+    e.target.value = '';
+  });
   $('#btn-cargar-z').addEventListener('click', () => $('#archivo-z').click());
   $('#archivo-z').addEventListener('change', e => {
     if (e.target.files[0]) procesarArchivoZ(e.target.files[0]);
