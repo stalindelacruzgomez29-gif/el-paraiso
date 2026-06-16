@@ -2317,6 +2317,58 @@ async function procesarArchivoZ(archivo) {
   }
 }
 
+// Subir VARIAS Z de golpe (una pila de cierres diarios): cada una a su día, sin duplicar
+async function procesarLoteZ(archivos) {
+  if (loteEnMarcha) return aviso('Ya hay un proceso en marcha. Espera a que termine.', true);
+  loteEnMarcha = true;
+  loteCancelado = false;
+  $('#titulo-progreso').textContent = '🧾 Cargando varias Z';
+  $('#lista-progreso').innerHTML = '';
+  $('#resumen-progreso').hidden = true;
+  $('#btn-cerrar-progreso').textContent = 'Cancelar';
+  $('#modal-progreso').hidden = false;
+
+  let ok = 0, saltadas = 0, errores = 0, totalEuros = 0, ultimoMes = null;
+  for (let i = 0; i < archivos.length; i++) {
+    if (loteCancelado) break;
+    const archivo = archivos[i];
+    pintarProgresoLote(`Leyendo Z ${i + 1} de ${archivos.length}: ${archivo.name}`, true);
+    try {
+      const extraido = await extraerConIA(archivo, INSTRUCCIONES_Z, ESQUEMA_Z,
+        '{"fecha":"AAAA-MM-DD","total":0,"operaciones":0,"desglose":[{"concepto":"","importe":0}]}');
+      const z = construirVentasDesdeZ(extraido);
+      if (z.lineas.length === 0) { errores++; anotarResultadoLote('progreso-error', `❌ ${esc(archivo.name)}: no se leyó el total`); continue; }
+      if (datos.ventas.some(v => v.fecha === z.fecha)) {
+        saltadas++;
+        anotarResultadoLote('progreso-aviso', `⚠️ ${fechaCorta(z.fecha)}: ese día ya tiene ventas — no se duplica.`);
+        continue;
+      }
+      z.lineas.forEach(l => datos.ventas.push({
+        id: nuevoId(), fecha: z.fecha, platoId: null, descripcion: l.descripcion,
+        cantidad: 1, precioUnit: l.total, total: l.total, ivaPct: datos.config.ivaVentaDefecto, costoUnit: null
+      }));
+      guardar();
+      ok++; totalEuros += z.total; ultimoMes = mesDe(z.fecha);
+      anotarResultadoLote('progreso-ok', `✅ ${fechaCorta(z.fecha)}: <strong>${dinero(z.total)}</strong>`);
+      refrescar();
+    } catch (e) {
+      errores++;
+      anotarResultadoLote('progreso-error', `❌ ${esc(archivo.name)}: ${esc(e.message || 'error')}`);
+    }
+  }
+
+  if (ultimoMes) { $('#mes-ventas').value = ultimoMes; $('#mes-balance').value = ultimoMes; }
+  pintarProgresoLote(loteCancelado ? 'Cancelado.' : '¡Z cargadas!', false);
+  const resumen = $('#resumen-progreso');
+  resumen.hidden = false;
+  resumen.innerHTML = `<strong>${ok} día(s) cargados</strong> por un total de <strong>${dinero(totalEuros)}</strong>` +
+    ` · ⚠️ ${saltadas} ya estaban · ❌ ${errores} con error<br><br>Ya están en Ventas, Balance, Contabilidad y Análisis.`;
+  $('#btn-cerrar-progreso').textContent = 'Cerrar';
+  loteEnMarcha = false;
+  refrescar();
+  aviso(loteCancelado ? 'Carga cancelada.' : `${ok} Z cargadas: ${dinero(totalEuros)}. 🧾✅`);
+}
+
 /* --- Lectura del INFORME MENSUAL de ventas (resumen del mes del TPV/caja) --- */
 
 const ESQUEMA_INFORME = {
@@ -4072,6 +4124,30 @@ function renderAnalisis() {
     $('#an-ventas-proy').textContent = '';
   }
 
+  // Cascada del beneficio real del año (ventas → sin IVA → gastos → IRPF → neto)
+  const baseV = d.baseVentasAnio;
+  const repercutido = d.ventasAnioLista.reduce((s, v) => s + cuotaDesdeTotal(v.total, v.ivaPct), 0);
+  const baseG = baseGastos(d.gastosAnioLista);
+  const soportado = ivaSoportado(d.gastosAnioLista);
+  const ssAnio = baseGastos(d.gastosAnioLista.filter(g => g.categoria === 'Seguridad Social'));
+  const personalAnio = baseGastos(d.gastosAnioLista.filter(g => g.categoria === 'Nómina' || g.categoria === 'Seguridad Social'));
+  const beneficioAntes = baseV - baseG;
+  const dificil = datos.config.aplicarDificil ? Math.min(Math.max(beneficioAntes, 0) * datos.config.dificilPct / 100, 2000) : 0;
+  const irpf = Math.max(0, beneficioAntes - dificil) * datos.config.irpfPct / 100;
+  const ivaLiquidar = repercutido - soportado;
+  const beneficioNeto = beneficioAntes - irpf;
+  $('#cuerpo-an-cascada').innerHTML = `
+    <tr><td>💵 Ventas cobradas (con IVA)</td><td class="num">${dinero(d.ventasAnio)}</td></tr>
+    <tr><td>− IVA de las ventas (no es tuyo, va a Hacienda)</td><td class="num">− ${dinero(repercutido)}</td></tr>
+    <tr><td><strong>= Ingresos reales (sin IVA)</strong></td><td class="num"><strong>${dinero(baseV)}</strong></td></tr>
+    <tr><td>− Gastos sin IVA (materia prima, alquiler, suministros, personal…)</td><td class="num">− ${dinero(baseG)}</td></tr>
+    <tr><td><small>de los cuales, personal (nómina + Seg. Social): ${dinero(personalAnio)}</small></td><td class="num"><small>${dinero(ssAnio)} solo Seg. Social</small></td></tr>
+    <tr><td><strong>= Beneficio antes de impuestos</strong></td><td class="num"><strong>${dinero(beneficioAntes)}</strong></td></tr>
+    <tr><td>− IRPF estimado (modelo 130, ${datos.config.irpfPct}%)</td><td class="num">− ${dinero(irpf)}</td></tr>
+    <tr><td><strong>= 🏆 BENEFICIO NETO ESTIMADO (lo que te queda)</strong></td>
+        <td class="num"><strong class="${beneficioNeto >= 0 ? 'monto-entrada' : 'monto-salida'}">${dinero(beneficioNeto)}</strong></td></tr>
+    <tr><td colspan="2"><small>ℹ️ Aparte, el IVA del año (lo que cobras menos lo que pagas) que se liquida con Hacienda: ${dinero(ivaLiquidar)} ${ivaLiquidar >= 0 ? 'a ingresar' : 'a tu favor'}. No es un gasto tuyo: es dinero de paso.</small></td></tr>`;
+
   // Recomendaciones
   const colores = { ok: 'progreso-ok', aviso: 'progreso-aviso', alerta: 'progreso-error' };
   const recs = recomendacionesNegocio(d);
@@ -4569,7 +4645,8 @@ function configurarEventos() {
   });
   $('#btn-cargar-z').addEventListener('click', () => $('#archivo-z').click());
   $('#archivo-z').addEventListener('change', e => {
-    if (e.target.files[0]) procesarArchivoZ(e.target.files[0]);
+    if (e.target.files.length === 1) procesarArchivoZ(e.target.files[0]);
+    else if (e.target.files.length > 1) procesarLoteZ(Array.from(e.target.files));
     e.target.value = '';
   });
   $('#btn-csv-ventas').addEventListener('click', exportarVentasCSV);
