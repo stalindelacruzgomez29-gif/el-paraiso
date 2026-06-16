@@ -49,6 +49,7 @@ function nuevoId() { return datos.sigId++; }
 
 function guardar() {
   localStorage.setItem(CLAVE_DATOS, JSON.stringify(datos));
+  programarSubidaNube(); // si la sincronización está activa, sube los cambios a la nube
 }
 
 function num(valor) {
@@ -3584,6 +3585,125 @@ function exportarInformeCSV() {
   aviso(`Informe completo de ${nombreMes(mes)} descargado. 📄`);
 }
 
+/* ============ 13k. SINCRONIZACIÓN EN LA NUBE ============ */
+
+const CLAVE_SYNC = 'paraiso_sync_codigo';   // el código se guarda APARTE, como la clave de la IA
+const URL_SYNC = 'https://el-paraiso-eight.vercel.app/api/datos';
+let temporizadorSync = null;
+let bajandoDeNube = false;  // evita re-subir mientras estamos bajando
+
+function codigoSync() { return localStorage.getItem(CLAVE_SYNC) || ''; }
+
+function asegurarEstructura() {
+  if (!datos.config) datos.config = {};
+  ['ingredientes', 'platos', 'ventas', 'gastos', 'facturas', 'empleados'].forEach(k => {
+    if (!Array.isArray(datos[k])) datos[k] = [];
+  });
+  if (!datos.sigId || datos.sigId < 1) {
+    const maxId = [...datos.ingredientes, ...datos.platos, ...datos.ventas, ...datos.gastos, ...datos.facturas, ...datos.empleados]
+      .reduce((m, x) => Math.max(m, x.id || 0), 0);
+    datos.sigId = maxId + 1;
+  }
+}
+
+function negocioTieneDatos() {
+  return datos.ventas.length || datos.gastos.length || datos.platos.length ||
+         datos.ingredientes.length || datos.facturas.length;
+}
+
+// Sube los datos a la nube (con retardo, para no saturar al guardar muchas veces seguidas)
+function programarSubidaNube() {
+  if (!codigoSync() || bajandoDeNube) return;
+  clearTimeout(temporizadorSync);
+  temporizadorSync = setTimeout(() => subirDatosNube(true), 1500);
+}
+
+async function subirDatosNube(silencioso) {
+  const codigo = codigoSync();
+  if (!codigo) return;
+  try {
+    const r = await fetch(URL_SYNC, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigo, datos })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || ('código ' + r.status));
+    localStorage.setItem('paraiso_sync_fecha', j.actualizado || hoyISO());
+    if (!silencioso) aviso('Datos guardados en la nube. ☁️✅');
+    if (vistaActual === 'config') actualizarEstadoSync();
+  } catch (e) {
+    if (!silencioso) aviso('No se pudo sincronizar: ' + e.message, true);
+  }
+}
+
+async function bajarDatosNube(silencioso) {
+  const codigo = codigoSync();
+  if (!codigo) return false;
+  try {
+    const r = await fetch(URL_SYNC + '?codigo=' + encodeURIComponent(codigo));
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || ('código ' + r.status));
+    if (!j.existe || !j.datos) return false;
+    bajandoDeNube = true;
+    datos = j.datos;
+    asegurarEstructura();
+    guardar();
+    bajandoDeNube = false;
+    aplicarMarca();
+    refrescar();
+    if (!silencioso) aviso('Datos traídos de la nube. ☁️⬇️');
+    return true;
+  } catch (e) {
+    bajandoDeNube = false;
+    if (!silencioso) aviso('No se pudo traer de la nube: ' + e.message, true);
+    return false;
+  }
+}
+
+// Activar la sincronización con un código, resolviendo qué datos conservar
+async function activarSync(codigo) {
+  codigo = (codigo || '').trim();
+  if (codigo.length < 4) return aviso('El código debe tener al menos 4 caracteres.', true);
+
+  let enNube = null;
+  try {
+    const r = await fetch(URL_SYNC + '?codigo=' + encodeURIComponent(codigo));
+    const j = await r.json();
+    if (r.ok && j.existe && j.datos) enNube = j.datos;
+  } catch (e) { /* sin conexión: lo tratamos como nube vacía */ }
+
+  localStorage.setItem(CLAVE_SYNC, codigo);
+
+  if (enNube) {
+    const c = enNube;
+    const resumen = `${(c.ventas || []).length} ventas, ${(c.gastos || []).length} gastos, ${(c.facturas || []).length} facturas`;
+    if (negocioTieneDatos()) {
+      const usarNube = confirm(
+        `En la nube YA hay datos (${resumen}).\n\n` +
+        `• Aceptar = TRAER los de la nube a este aparato (se reemplaza lo de aquí).\n` +
+        `• Cancelar = SUBIR los de este aparato a la nube (se reemplaza lo de la nube).`);
+      if (usarNube) { bajandoDeNube = true; datos = c; asegurarEstructura(); guardar(); bajandoDeNube = false; aplicarMarca(); refrescar(); aviso('Sincronizado: traídos los datos de la nube. ☁️✅'); }
+      else { await subirDatosNube(false); aviso('Sincronizado: subidos los datos de este aparato. ☁️✅'); }
+    } else {
+      bajandoDeNube = true; datos = c; asegurarEstructura(); guardar(); bajandoDeNube = false; aplicarMarca(); refrescar();
+      aviso('Sincronizado: traídos los datos de la nube. ☁️✅');
+    }
+  } else {
+    await subirDatosNube(false);
+    aviso('Sincronización activada. Tus datos ya están en la nube. ☁️✅');
+  }
+  if (vistaActual === 'config') actualizarEstadoSync();
+}
+
+function actualizarEstadoSync() {
+  const codigo = codigoSync();
+  $('#conf-sync-codigo').value = codigo;
+  const fecha = localStorage.getItem('paraiso_sync_fecha');
+  $('#estado-sync').innerHTML = codigo
+    ? `🟢 Sincronización ACTIVA. Todo lo que cambies aquí se guarda en la nube y aparece en tus otros aparatos con el mismo código.${fecha ? '<br>Última subida: ' + fechaCorta(fecha.slice(0, 10)) : ''}`
+    : '⚪ Sin sincronizar. Pon un código para ver los mismos datos en el móvil y el ordenador.';
+}
+
 /* ============ 13j. CUADRO DE CONTABILIDAD (libro detallado) ============ */
 
 // Base, cuota e importe total (con IVA) de una línea de factura
@@ -4163,6 +4283,7 @@ function renderConfig() {
   $('#estado-ia').textContent = obtenerClaveAPI()
     ? '🔑 Hay una clave guardada en este navegador. Usa "Probar conexión" para comprobarla.'
     : '🌐 Sin clave en este navegador: se usará la del servidor de la aplicación (si está puesta). Pulsa "Probar conexión" para comprobarlo.';
+  actualizarEstadoSync();
   $('#conf-num-datos').innerHTML = `
     📦 Información guardada en este navegador:<br>
     · ${datos.ingredientes.length} ingredientes · ${datos.platos.length} escandallos<br>
@@ -4476,6 +4597,22 @@ function configurarEventos() {
     if (e.target.files[0]) importarCopia(e.target.files[0]);
     e.target.value = '';
   });
+  // Sincronización en la nube
+  $('#btn-activar-sync').addEventListener('click', () => activarSync($('#conf-sync-codigo').value));
+  $('#btn-subir-sync').addEventListener('click', () => {
+    if (!codigoSync()) return aviso('Primero activa un código de sincronización.', true);
+    subirDatosNube(false);
+  });
+  $('#btn-bajar-sync').addEventListener('click', () => {
+    if (!codigoSync()) return aviso('Primero activa un código de sincronización.', true);
+    if (confirm('Esto REEMPLAZA los datos de este aparato por los de la nube. ¿Continuar?')) bajarDatosNube(false);
+  });
+  $('#btn-desactivar-sync').addEventListener('click', () => {
+    localStorage.removeItem(CLAVE_SYNC);
+    actualizarEstadoSync();
+    aviso('Sincronización desactivada en este aparato (los datos siguen guardados aquí).');
+  });
+
   // Conexión con el TPV
   $('#btn-guardar-tpv').addEventListener('click', () => {
     const url = $('#conf-tpv-url').value.trim();
@@ -4565,8 +4702,13 @@ function iniciar() {
     localStorage.setItem(CLAVE_TPV, TPV_URL_DEFECTO);
   }
 
-  // Primera vez en este navegador: elegir entre empezar de cero o ver el ejemplo
-  if (primeraVez) $('#modal-bienvenida').hidden = false;
+  // Si la sincronización está activa, traemos los últimos datos de la nube al arrancar
+  if (codigoSync()) {
+    setTimeout(() => bajarDatosNube(true), 300);
+  } else if (primeraVez) {
+    // Primera vez en este navegador: elegir entre empezar de cero o ver el ejemplo
+    $('#modal-bienvenida').hidden = false;
+  }
 
   // ¿Quedaron gastos sin enviar al TPV? Ofrecer subirlos de una vez
   if (!primeraVez && urlTPV()) {
