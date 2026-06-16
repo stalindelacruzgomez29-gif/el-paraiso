@@ -801,6 +801,27 @@
     </div>
 
     <div class="tarjeta">
+      <h3>☁️ Sincronización en la nube (mismos datos en todos tus aparatos)</h3>
+      <p class="nota-vista">Pon un <strong>código secreto</strong> (invéntalo tú, ej: <em>paraiso-stalin-2026</em>)
+      y guárdalo. Todo lo que cambies se guardará en la nube. En el móvil, el ordenador o para tu socio,
+      <strong>poned el mismo código</strong> y veréis exactamente los mismos datos, siempre al día.
+      El código se guarda solo en este aparato y no viaja en las copias de seguridad. Trátalo como una contraseña:
+      quien lo tenga, ve tus datos.</p>
+      <div class="formulario">
+        <label>Código de sincronización
+          <input type="text" id="conf-sync-codigo" class="campo" placeholder="inventa un código secreto (mín. 4 letras)">
+        </label>
+        <div class="fila-campos">
+          <button class="btn btn-primario" id="btn-activar-sync">Activar / Guardar código</button>
+          <button class="btn btn-secundario" id="btn-subir-sync">☁️ Subir ahora</button>
+          <button class="btn btn-secundario" id="btn-bajar-sync">⬇️ Traer de la nube</button>
+          <button class="btn btn-secundario" id="btn-desactivar-sync">Desactivar</button>
+        </div>
+        <div class="info-datos" id="estado-sync"></div>
+      </div>
+    </div>
+
+    <div class="tarjeta">
       <h3>📡 Conexión con el TPV del bar (Universo Bistro)</h3>
       <p class="nota-vista">El sistema lee del TPV las <strong>ventas en vivo</strong>, los <strong>cierres Z</strong>,
       sus <strong>facturas</strong> y los avisos de <strong>stock bajo</strong>; y le envía tus
