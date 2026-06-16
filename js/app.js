@@ -2412,6 +2412,9 @@ async function procesarLoteZ(archivos) {
   if (loteEnMarcha) return aviso('Ya hay un proceso en marcha. Espera a que termine.', true);
   loteEnMarcha = true;
   loteCancelado = false;
+  archivosFallidos = [];
+  reintentarLoteCon = procesarLoteZ;
+  $('#btn-reintentar-fallidos').hidden = true;
   $('#titulo-progreso').textContent = '🧾 Cargando varias Z';
   $('#lista-progreso').innerHTML = '';
   $('#resumen-progreso').hidden = true;
@@ -2427,7 +2430,7 @@ async function procesarLoteZ(archivos) {
       const extraido = await extraerConIA(archivo, INSTRUCCIONES_Z, ESQUEMA_Z,
         '{"fecha":"AAAA-MM-DD","total":0,"operaciones":0,"desglose":[{"concepto":"","importe":0}]}');
       const z = construirVentasDesdeZ(extraido);
-      if (z.lineas.length === 0) { errores++; anotarResultadoLote('progreso-error', `❌ ${esc(archivo.name)}: no se leyó el total`); continue; }
+      if (z.lineas.length === 0) { errores++; archivosFallidos.push(archivo); anotarResultadoLote('progreso-error', `❌ <strong>${esc(archivo.name)}</strong>: no se leyó el total — reinténtala.`); continue; }
       if (datos.ventas.some(v => v.fecha === z.fecha)) {
         saltadas++;
         anotarResultadoLote('progreso-aviso', `⚠️ ${fechaCorta(z.fecha)}: ese día ya tiene ventas — no se duplica.`);
@@ -2443,7 +2446,8 @@ async function procesarLoteZ(archivos) {
       refrescar();
     } catch (e) {
       errores++;
-      anotarResultadoLote('progreso-error', `❌ ${esc(archivo.name)}: ${esc(e.message || 'error')}`);
+      archivosFallidos.push(archivo);
+      anotarResultadoLote('progreso-error', `❌ <strong>${esc(archivo.name)}</strong>: ${esc(e.message || 'error')} — reinténtala.`);
     }
   }
 
@@ -2452,8 +2456,11 @@ async function procesarLoteZ(archivos) {
   const resumen = $('#resumen-progreso');
   resumen.hidden = false;
   resumen.innerHTML = `<strong>${ok} día(s) cargados</strong> por un total de <strong>${dinero(totalEuros)}</strong>` +
-    ` · ⚠️ ${saltadas} ya estaban · ❌ ${errores} con error<br><br>Ya están en Ventas, Balance, Contabilidad y Análisis.`;
+    ` · ⚠️ ${saltadas} ya estaban · ❌ ${errores} con error` +
+    (archivosFallidos.length ? `<br><br>📋 No se leyeron: <strong>${archivosFallidos.map(a => esc(a.name)).join(', ')}</strong>.` : '') +
+    '<br><br>Ya están en Ventas, Balance, Contabilidad y Análisis.';
   $('#btn-cerrar-progreso').textContent = 'Cerrar';
+  mostrarBotonReintentar();
   loteEnMarcha = false;
   refrescar();
   aviso(loteCancelado ? 'Carga cancelada.' : `${ok} Z cargadas: ${dinero(totalEuros)}. 🧾✅`);
@@ -2779,6 +2786,18 @@ function categoriaDeProveedor(nombre) {
 
 let loteEnMarcha = false;
 let loteCancelado = false;
+let archivosFallidos = [];   // archivos que no se pudieron leer (para reintentar por nombre)
+let reintentarLoteCon = null; // función a llamar para reintentar (facturas o Z)
+
+function mostrarBotonReintentar() {
+  const btn = $('#btn-reintentar-fallidos');
+  if (archivosFallidos.length > 0 && reintentarLoteCon) {
+    btn.hidden = false;
+    btn.textContent = `🔄 Reintentar los ${archivosFallidos.length} que fallaron`;
+  } else {
+    btn.hidden = true;
+  }
+}
 
 function recibirArchivosFactura(lista) {
   const validos = Array.from(lista).filter(archivoDeFacturaValido);
@@ -2813,6 +2832,9 @@ async function procesarLoteAutomatico(archivos) {
 
   loteEnMarcha = true;
   loteCancelado = false;
+  archivosFallidos = [];
+  reintentarLoteCon = procesarLoteAutomatico;
+  $('#btn-reintentar-fallidos').hidden = true;
   $('#titulo-progreso').textContent = '🤖 Registrando facturas automáticamente';
   $('#lista-progreso').innerHTML = '';
   $('#resumen-progreso').hidden = true;
@@ -2855,7 +2877,8 @@ async function procesarLoteAutomatico(archivos) {
       refrescar(); // los números de toda la app se actualizan en tiempo real
     } catch (e) {
       errores++;
-      anotarResultadoLote('progreso-error', `❌ ${esc(archivo.name)}: ${esc(e.message || 'no se pudo leer')}`);
+      archivosFallidos.push(archivo);
+      anotarResultadoLote('progreso-error', `❌ <strong>${esc(archivo.name)}</strong>: ${esc(e.message || 'no se pudo leer')} — usa "Reintentar" abajo.`);
     }
   }
 
@@ -2888,8 +2911,10 @@ async function procesarLoteAutomatico(archivos) {
     `<strong>${ok} factura(s) registradas</strong> por un total de <strong>${dinero(eurosTotal)}</strong><br>` +
     `🔄 ${actualizados} precio(s) de ingredientes actualizados · ✨ ${nuevos} ingrediente(s) creados<br>` +
     `⚠️ ${duplicadas} duplicada(s) saltadas · ❌ ${errores} con error` +
+    (archivosFallidos.length ? `<br><br>📋 No se pudieron leer: <strong>${archivosFallidos.map(a => esc(a.name)).join(', ')}</strong>. Pulsa "Reintentar" o súbelas otra vez con mejor foto.` : '') +
     (ok > 0 ? '<br><br>Sus gastos ya están reflejados en Gastos, Balance, Informes e Impuestos.' : '');
   $('#btn-cerrar-progreso').textContent = 'Cerrar';
+  mostrarBotonReintentar();
   loteEnMarcha = false;
   refrescar();
   aviso(loteCancelado ? 'Lote cancelado.' : `Lote terminado: ${ok} factura(s) registradas. ✅`);
@@ -4948,6 +4973,11 @@ function configurarEventos() {
     } else {
       $('#modal-progreso').hidden = true;
     }
+  });
+  $('#btn-reintentar-fallidos').addEventListener('click', () => {
+    if (loteEnMarcha || archivosFallidos.length === 0 || !reintentarLoteCon) return;
+    const reintentar = archivosFallidos.slice();
+    reintentarLoteCon(reintentar);
   });
 
   // Botón flotante "📎 Subir documento" (disponible en todas las secciones)
