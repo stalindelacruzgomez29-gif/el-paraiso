@@ -228,6 +228,7 @@
       </label>
       <span class="separador-flexible"></span>
       <button class="btn btn-secundario" id="btn-csv-gastos">⬇ Exportar CSV</button>
+      <button class="btn btn-secundario" id="btn-gastos-fijos">📌 Gastos fijos del mes</button>
       <button class="btn btn-primario" id="btn-nuevo-gasto">＋ Nuevo gasto</button>
     </div>
     <div class="rejilla-kpis rejilla-kpis-3">
@@ -1402,6 +1403,36 @@
     <div class="modal-pie">
       <button class="btn btn-secundario" data-cerrar>Cancelar</button>
       <button class="btn btn-primario" id="btn-guardar-empleado">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: GASTOS FIJOS MENSUALES ===== -->
+<div class="modal-fondo" id="modal-fijos" hidden>
+  <div class="modal modal-grande">
+    <div class="modal-cabecera">
+      <h3>📌 Gastos fijos del mes</h3>
+      <button class="btn-cerrar" data-cerrar>✕</button>
+    </div>
+    <div class="modal-cuerpo formulario">
+      <p class="nota-vista">Pon aquí lo que pagas todos los meses (alquiler, luz, gas, gestoría, nómina,
+      Seguridad Social…) con su importe. Lo guardas una vez y, cada mes, pulsas <strong>"Registrar en el mes"</strong>
+      y se apuntan solos en Gastos. Editable siempre.</p>
+      <div class="tabla-envoltura">
+        <table class="tabla tabla-compacta">
+          <thead><tr><th>Concepto</th><th>Categoría</th><th class="num">Importe (IVA incl.)</th><th>IVA</th><th></th></tr></thead>
+          <tbody id="cuerpo-fijos"></tbody>
+        </table>
+      </div>
+      <div class="fila-campos">
+        <button class="btn btn-secundario btn-pequeno" id="btn-fijo-linea">＋ Añadir concepto</button>
+        <button class="btn btn-secundario btn-pequeno" id="btn-fijo-tipicos">🧩 Rellenar con los típicos</button>
+      </div>
+      <div class="caja-resaltada">Total fijo al mes: <strong id="fijos-total">—</strong></div>
+    </div>
+    <div class="modal-pie">
+      <button class="btn btn-secundario" id="btn-fijo-guardar">💾 Guardar plantilla</button>
+      <button class="btn btn-primario" id="btn-fijo-aplicar">📌 Registrar en el mes</button>
     </div>
   </div>
 </div>
