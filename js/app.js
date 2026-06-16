@@ -1322,9 +1322,6 @@ function borrarVenta(id) {
 // --- Cierre del día ---
 
 function abrirModalCierre() {
-  if (datos.platos.length === 0) {
-    return aviso('Primero crea tus escandallos para poder registrar el cierre del día.', true);
-  }
   $('#cierre-fecha').value = hoyISO();
   $('#cierre-extra-desc').value = '';
   $('#cierre-extra-monto').value = '';
@@ -1335,13 +1332,16 @@ function abrirModalCierre() {
   $('#btn-traer-tpv').hidden = !urlTPV();
 
   const platos = datos.platos.slice().sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-  $('#cuerpo-cierre').innerHTML = platos.map(p => `
-    <tr>
-      <td>${esc(p.nombre)}</td>
-      <td class="num">${dinero(p.precioVenta)}</td>
-      <td class="num"><input type="number" class="campo cierre-cantidad" data-id="${p.id}" min="0" step="1" value="0" style="width:90px; text-align:right;"></td>
-      <td class="num cierre-subtotal" data-id="${p.id}">—</td>
-    </tr>`).join('');
+  // Si no hay escandallos, igual se puede registrar el total del día abajo, a mano
+  $('#cuerpo-cierre').innerHTML = platos.length === 0
+    ? '<tr class="fila-vacia"><td colspan="4">Aún no tienes platos creados. Escribe directamente el total del día abajo, en "Otras ventas del día".</td></tr>'
+    : platos.map(p => `
+      <tr>
+        <td>${esc(p.nombre)}</td>
+        <td class="num">${dinero(p.precioVenta)}</td>
+        <td class="num"><input type="number" class="campo cierre-cantidad" data-id="${p.id}" min="0" step="1" value="0" style="width:90px; text-align:right;"></td>
+        <td class="num cierre-subtotal" data-id="${p.id}">—</td>
+      </tr>`).join('');
 
   actualizarTotalCierre();
   $('#modal-cierre').hidden = false;
@@ -1957,39 +1957,68 @@ async function llamarClaude(cuerpo) {
 }
 
 // Convierte la imagen a JPEG de máximo 1568 px (lo óptimo para la IA) y la devuelve en base64
-function prepararImagen(archivo) {
+// Convierte CUALQUIER foto (JPG, PNG, WebP, GIF, HEIC de iPhone...) a un JPEG
+// que la IA entiende, lo más nítido posible para leer bien el texto de los tickets.
+const MAX_LADO_IMAGEN = 2000; // px: buen equilibrio entre nitidez y tamaño de envío
+
+function lienzoABase64(fuente, ancho, alto) {
+  const escala = Math.min(1, MAX_LADO_IMAGEN / Math.max(ancho, alto));
+  const lienzo = document.createElement('canvas');
+  lienzo.width = Math.max(1, Math.round(ancho * escala));
+  lienzo.height = Math.max(1, Math.round(alto * escala));
+  const ctx = lienzo.getContext('2d');
+  ctx.fillStyle = '#ffffff'; // fondo blanco para PNG transparentes
+  ctx.fillRect(0, 0, lienzo.width, lienzo.height);
+  ctx.drawImage(fuente, 0, 0, lienzo.width, lienzo.height);
+  return lienzo.toDataURL('image/jpeg', 0.92).split(',')[1];
+}
+
+async function prepararImagen(archivo) {
+  // 1) createImageBitmap: el decodificador más amplio (respeta la orientación EXIF
+  //    y abre HEIC en Safari). Es el camino que hace funcionar "todos los formatos".
+  if (typeof createImageBitmap === 'function') {
+    try {
+      const bitmap = await createImageBitmap(archivo, { imageOrientation: 'from-image' });
+      const b64 = lienzoABase64(bitmap, bitmap.width, bitmap.height);
+      bitmap.close && bitmap.close();
+      return b64;
+    } catch (e) { /* probamos el método clásico */ }
+  }
+
+  // 2) Método clásico con <img> (JPG, PNG, WebP, GIF y HEIC en Safari)
   return new Promise((resolver, rechazar) => {
-    const lector = new FileReader();
-    lector.onerror = () => rechazar(new Error('No se pudo leer el archivo.'));
-    lector.onload = () => {
-      const imagen = new Image();
-      imagen.onerror = () => {
-        const esHeic = /heic|heif/i.test(archivo.type) || /\.hei[cf]$/i.test(archivo.name || '');
-        rechazar(new Error(esHeic
-          ? 'Es una foto HEIC de iPhone y este navegador no puede abrirla. Mándala por WhatsApp (la convierte a JPG) o cambia la cámara del iPhone a "Más compatible".'
-          : 'El archivo no parece una imagen válida.'));
-      };
-      imagen.onload = () => {
-        const escala = Math.min(1, 1568 / Math.max(imagen.width, imagen.height));
-        const lienzo = document.createElement('canvas');
-        lienzo.width = Math.round(imagen.width * escala);
-        lienzo.height = Math.round(imagen.height * escala);
-        lienzo.getContext('2d').drawImage(imagen, 0, 0, lienzo.width, lienzo.height);
-        resolver(lienzo.toDataURL('image/jpeg', 0.88).split(',')[1]);
-      };
-      imagen.src = lector.result;
+    const url = URL.createObjectURL(archivo);
+    const imagen = new Image();
+    imagen.onload = () => {
+      try { resolver(lienzoABase64(imagen, imagen.naturalWidth, imagen.naturalHeight)); }
+      catch (e) { rechazar(new Error('No se pudo procesar la imagen.')); }
+      finally { URL.revokeObjectURL(url); }
     };
-    lector.readAsDataURL(archivo);
+    imagen.onerror = () => {
+      URL.revokeObjectURL(url);
+      const esHeic = /heic|heif/i.test(archivo.type) || /\.hei[cf]$/i.test(archivo.name || '');
+      rechazar(new Error(esHeic
+        ? 'Es una foto HEIC de iPhone y este navegador no puede abrirla. Ábrela en Safari, o mándala por WhatsApp (la convierte a JPG), o pon la cámara del iPhone en "Más compatible".'
+        : 'No se pudo leer esta imagen. Prueba a hacerle una captura de pantalla y subir la captura.'));
+    };
+    imagen.src = url;
   });
 }
 
-function prepararPDF(archivo) {
-  return new Promise((resolver, rechazar) => {
-    const lector = new FileReader();
-    lector.onerror = () => rechazar(new Error('No se pudo leer el archivo.'));
-    lector.onload = () => resolver(String(lector.result).split(',')[1]);
-    lector.readAsDataURL(archivo);
-  });
+// Convierte bytes a base64 sin FileReader (que no existe en algunos navegadores de móvil)
+function bytesABase64(buffer) {
+  let binario = '';
+  const bytes = new Uint8Array(buffer);
+  const trozo = 0x8000;
+  for (let i = 0; i < bytes.length; i += trozo) {
+    binario += String.fromCharCode.apply(null, bytes.subarray(i, i + trozo));
+  }
+  return btoa(binario);
+}
+
+async function prepararPDF(archivo) {
+  const buffer = await archivo.arrayBuffer();
+  return bytesABase64(buffer);
 }
 
 // Extrae el primer objeto JSON de un texto (tolera texto alrededor)
@@ -2030,9 +2059,18 @@ function mostrarEstadoLectura(texto, leyendo = false, esError = false) {
 
 // Lee un archivo (foto o PDF) con la IA, pidiendo datos con la estructura indicada
 async function extraerConIA(archivo, instrucciones, esquema, ejemploPlanB) {
-  const esPDF = archivo.type === 'application/pdf';
-  const esImagen = archivo.type.startsWith('image/');
+  const nombre = (archivo.name || '').toLowerCase();
+  const esPDF = archivo.type === 'application/pdf' || nombre.endsWith('.pdf');
+  // Aceptamos cualquier foto: por tipo MIME, por extensión, o sin tipo (móviles)
+  const esImagen = !esPDF && (
+    archivo.type.startsWith('image/') ||
+    /\.(jpe?g|png|gif|webp|heic|heif|bmp|tiff?|avif)$/.test(nombre) ||
+    archivo.type === ''
+  );
   if (!esPDF && !esImagen) throw new Error('Solo se admiten fotos o archivos PDF.');
+  if (esPDF && archivo.size > 4 * 1024 * 1024) {
+    throw new Error('Ese PDF pesa demasiado para enviarlo. Hazle una foto a la página o usa un PDF más ligero.');
+  }
   if (archivo.size > 25 * 1024 * 1024) throw new Error('El archivo es demasiado grande (máximo 25 MB).');
 
   const bloqueDocumento = esPDF
@@ -2582,7 +2620,12 @@ function archivosDeDataTransfer(dt) {
 // --- Entrada desde WhatsApp y otras apps: arrastrar o pegar ---
 
 function archivoDeFacturaValido(archivo) {
-  return archivo && (archivo.type.startsWith('image/') || archivo.type === 'application/pdf');
+  if (!archivo) return false;
+  const nombre = (archivo.name || '').toLowerCase();
+  return archivo.type.startsWith('image/') ||
+    archivo.type === 'application/pdf' ||
+    archivo.type === '' || // fotos de móvil que llegan sin tipo
+    /\.(jpe?g|png|gif|webp|heic|heif|bmp|tiff?|avif|pdf)$/.test(nombre);
 }
 
 function configurarArrastreYPegado() {
@@ -2632,35 +2675,64 @@ function configurarArrastreYPegado() {
 /* ============ 13d. BALANCE DE CAJA ============ */
 
 // Une ventas (entradas) y gastos (salidas) del mes, en orden, con saldo acumulado
-function movimientosDelMes(mes) {
+// Movimientos (ventas como entrada, gastos como salida) entre dos fechas ISO, inclusive
+function movimientosEntre(desde, hasta) {
   const lista = [];
-  ventasDelMes(mes).forEach(v => lista.push({
-    fecha: v.fecha, id: v.id, tipo: 'entrada',
-    concepto: v.descripcion,
-    detalle: v.cantidad === 1 ? 'Venta' : `${v.cantidad.toLocaleString('es-ES', { maximumFractionDigits: 2 })} × ${dinero(v.precioUnit)}`,
-    monto: v.total
-  }));
-  gastosDelMes(mes).forEach(g => lista.push({
-    fecha: g.fecha, id: g.id, tipo: 'salida',
-    concepto: g.descripcion, detalle: g.categoria, monto: g.monto
-  }));
-
+  datos.ventas.forEach(v => {
+    if (v.fecha >= desde && v.fecha <= hasta) lista.push({
+      fecha: v.fecha, id: v.id, tipo: 'entrada',
+      concepto: v.descripcion,
+      detalle: v.cantidad === 1 ? 'Venta' : `${v.cantidad.toLocaleString('es-ES', { maximumFractionDigits: 2 })} × ${dinero(v.precioUnit)}`,
+      monto: v.total
+    });
+  });
+  datos.gastos.forEach(g => {
+    if (g.fecha >= desde && g.fecha <= hasta) lista.push({
+      fecha: g.fecha, id: g.id, tipo: 'salida',
+      concepto: g.descripcion, detalle: g.categoria, monto: g.monto
+    });
+  });
   lista.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
   let saldo = 0;
-  lista.forEach(m => {
-    saldo += m.tipo === 'entrada' ? m.monto : -m.monto;
-    m.saldo = saldo;
-  });
+  lista.forEach(m => { saldo += m.tipo === 'entrada' ? m.monto : -m.monto; m.saldo = saldo; });
   return lista;
 }
 
+// Compat: se sigue usando en otras vistas
+function movimientosDelMes(mes) { return movimientosEntre(mes + '-01', mes + '-31'); }
+
+// Rango activo del balance según el selector Día / Mes / Año
+function rangoBalance() {
+  const tipo = ($('#bal-tipo') && $('#bal-tipo').value) || 'mes';
+  if (tipo === 'dia') {
+    const d = $('#bal-dia').value || hoyISO();
+    return { tipo, desde: d, hasta: d, etiqueta: 'del día ' + fechaCorta(d), archivo: d };
+  }
+  if (tipo === 'anio') {
+    const a = $('#bal-anio').value || String(new Date().getFullYear());
+    return { tipo, desde: a + '-01-01', hasta: a + '-12-31', etiqueta: 'del año ' + a, archivo: a };
+  }
+  const m = $('#mes-balance').value || mesActual();
+  return { tipo: 'mes', desde: m + '-01', hasta: m + '-31', etiqueta: 'de ' + nombreMes(m), archivo: m };
+}
+
 function renderBalance() {
-  const mes = $('#mes-balance').value || mesActual();
-  const movimientos = movimientosDelMes(mes);
+  const tipo = ($('#bal-tipo') && $('#bal-tipo').value) || 'mes';
+  $('#grupo-bal-dia').hidden = tipo !== 'dia';
+  $('#grupo-bal-mes').hidden = tipo !== 'mes';
+  $('#grupo-bal-anio').hidden = tipo !== 'anio';
+  if (tipo === 'anio' && !$('#bal-anio').value) $('#bal-anio').value = String(new Date().getFullYear());
+  if (tipo === 'dia' && !$('#bal-dia').value) $('#bal-dia').value = hoyISO();
+
+  const r = rangoBalance();
+  const movimientos = movimientosEntre(r.desde, r.hasta);
 
   const entradas = movimientos.filter(m => m.tipo === 'entrada').reduce((s, m) => s + m.monto, 0);
   const salidas = movimientos.filter(m => m.tipo === 'salida').reduce((s, m) => s + m.monto, 0);
   const saldo = entradas - salidas;
+
+  const sufijo = tipo === 'dia' ? 'del día' : tipo === 'anio' ? 'del año' : 'del mes';
+  ['#bal-periodo-1', '#bal-periodo-2', '#bal-periodo-3'].forEach(s => { $(s).textContent = sufijo; });
 
   $('#bal-entradas').textContent = dinero(entradas);
   $('#bal-salidas').textContent = dinero(salidas);
@@ -2671,11 +2743,38 @@ function renderBalance() {
 
   const cuerpo = $('#cuerpo-balance');
   if (movimientos.length === 0) {
-    cuerpo.innerHTML = `<tr class="fila-vacia"><td colspan="6">Sin movimientos en ${nombreMes(mes)}. Añade ventas y gastos con los botones de arriba.${chipsDeMeses([...datos.ventas, ...datos.gastos], 'mes-balance', mes)}</td></tr>`;
+    const chips = tipo === 'mes' ? chipsDeMeses([...datos.ventas, ...datos.gastos], 'mes-balance', $('#mes-balance').value || mesActual()) : '';
+    cuerpo.innerHTML = `<tr class="fila-vacia"><td colspan="6">Sin movimientos ${r.etiqueta}. Añade ventas y gastos con los botones de arriba.${chips}</td></tr>`;
     return;
   }
 
-  // Lo más reciente arriba, conservando el saldo acumulado desde el día 1
+  // Vista ANUAL: resumen mes a mes (en lugar de cientos de líneas)
+  if (tipo === 'anio') {
+    const a = r.desde.slice(0, 4);
+    let acumulado = 0;
+    let filas = '';
+    for (let m = 1; m <= 12; m++) {
+      const clave = a + '-' + String(m).padStart(2, '0');
+      const movsMes = movimientosEntre(clave + '-01', clave + '-31');
+      if (movsMes.length === 0) continue;
+      const eMes = movsMes.filter(x => x.tipo === 'entrada').reduce((s, x) => s + x.monto, 0);
+      const sMes = movsMes.filter(x => x.tipo === 'salida').reduce((s, x) => s + x.monto, 0);
+      acumulado += eMes - sMes;
+      filas += `
+      <tr>
+        <td></td>
+        <td><strong>${MESES_LARGOS[m - 1]}</strong></td>
+        <td><small>${movsMes.length} movimiento(s)</small></td>
+        <td class="num"><span class="monto-entrada">+ ${dinero(eMes)}</span></td>
+        <td class="num"><span class="monto-salida">− ${dinero(sMes)}</span></td>
+        <td class="num"><strong>${dinero(acumulado)}</strong></td>
+      </tr>`;
+    }
+    cuerpo.innerHTML = filas;
+    return;
+  }
+
+  // Vista DÍA o MES: lista de movimientos, lo más reciente arriba
   cuerpo.innerHTML = movimientos.slice().reverse().map(m => `
     <tr>
       <td>${fechaCorta(m.fecha)}</td>
@@ -2688,9 +2787,9 @@ function renderBalance() {
 }
 
 function exportarBalanceCSV() {
-  const mes = $('#mes-balance').value || mesActual();
-  const movimientos = movimientosDelMes(mes);
-  if (movimientos.length === 0) return aviso('No hay movimientos en este mes para exportar.', true);
+  const r = rangoBalance();
+  const movimientos = movimientosEntre(r.desde, r.hasta);
+  if (movimientos.length === 0) return aviso('No hay movimientos en este periodo para exportar.', true);
 
   const filas = [['Fecha', 'Tipo', 'Concepto', 'Detalle', 'Entrada', 'Salida', 'Saldo']];
   movimientos.forEach(m => filas.push([
@@ -2699,9 +2798,12 @@ function exportarBalanceCSV() {
     m.tipo === 'entrada' ? numCSV(m.monto) : '', m.tipo === 'salida' ? numCSV(m.monto) : '',
     numCSV(m.saldo)
   ]));
+  const totalE = movimientos.filter(m => m.tipo === 'entrada').reduce((s, m) => s + m.monto, 0);
+  const totalS = movimientos.filter(m => m.tipo === 'salida').reduce((s, m) => s + m.monto, 0);
+  filas.push(['', '', 'TOTAL', '', numCSV(totalE), numCSV(totalS), numCSV(totalE - totalS)]);
 
-  descargarCSV(`balance-${mes}.csv`, filas);
-  aviso('Balance del mes descargado en CSV. 📄');
+  descargarCSV(`balance-${r.archivo}.csv`, filas);
+  aviso('Balance descargado en CSV. 📄');
 }
 
 /* ============ 13f. PERSONAL Y HORARIOS ============ */
@@ -3633,28 +3735,25 @@ function exportarCopia() {
   aviso('Copia de seguridad descargada. Guárdala en un lugar seguro. 💾');
 }
 
-function importarCopia(archivo) {
-  const lector = new FileReader();
-  lector.onload = () => {
-    try {
-      const recibido = JSON.parse(lector.result);
-      if (!recibido || !recibido.config || !Array.isArray(recibido.ingredientes) ||
-          !Array.isArray(recibido.platos) || !Array.isArray(recibido.ventas) || !Array.isArray(recibido.gastos)) {
-        throw new Error('formato');
-      }
-      if (!confirm('Esto REEMPLAZARÁ todos los datos actuales por los de la copia.\n\n¿Continuar?')) return;
-      datos = recibido;
-      if (!Array.isArray(datos.facturas)) datos.facturas = [];
-      if (!Array.isArray(datos.empleados)) datos.empleados = [];
-      guardar();
-      aplicarMarca();
-      refrescar();
-      aviso('Copia restaurada correctamente. ✅');
-    } catch (e) {
-      aviso('Ese archivo no parece una copia de seguridad válida de este sistema.', true);
+async function importarCopia(archivo) {
+  try {
+    const texto = await archivo.text();
+    const recibido = JSON.parse(texto);
+    if (!recibido || !recibido.config || !Array.isArray(recibido.ingredientes) ||
+        !Array.isArray(recibido.platos) || !Array.isArray(recibido.ventas) || !Array.isArray(recibido.gastos)) {
+      throw new Error('formato');
     }
-  };
-  lector.readAsText(archivo);
+    if (!confirm('Esto REEMPLAZARÁ todos los datos actuales por los de la copia.\n\n¿Continuar?')) return;
+    datos = recibido;
+    if (!Array.isArray(datos.facturas)) datos.facturas = [];
+    if (!Array.isArray(datos.empleados)) datos.empleados = [];
+    guardar();
+    aplicarMarca();
+    refrescar();
+    aviso('Copia restaurada correctamente. ✅');
+  } catch (e) {
+    aviso('Ese archivo no parece una copia de seguridad válida de este sistema.', true);
+  }
 }
 
 function borrarTodo() {
