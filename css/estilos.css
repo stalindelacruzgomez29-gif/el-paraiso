@@ -745,6 +745,12 @@ html, body {
 .monto-entrada { color: var(--ok); font-weight: 700; white-space: nowrap; }
 .monto-salida { color: var(--rojo); font-weight: 700; white-space: nowrap; }
 
+/* Contabilidad: filas editables y desglose de facturas */
+.fila-clic { cursor: pointer; }
+.fila-clic:hover { background: var(--dorado-suave); }
+.conta-cabecera td { border-top: 2px solid var(--borde); }
+.conta-sublinea td { background: var(--crema); color: var(--tinta-suave); padding-top: 4px; padding-bottom: 4px; }
+
 .estado-lectura.leyendo::before {
   content: "";
   display: inline-block;
