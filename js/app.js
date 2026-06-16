@@ -1323,6 +1323,61 @@ function borrarVenta(id) {
   aviso('Venta eliminada.');
 }
 
+// --- Venta del día (a mano, por método de pago: efectivo / tarjeta / Bizum) ---
+
+function abrirModalVentaDia() {
+  $('#vd-fecha').value = hoyISO();
+  ['#vd-efectivo', '#vd-tarjeta', '#vd-bizum', '#vd-otros-monto'].forEach(s => { $(s).value = '0'; });
+  $('#vd-otros-desc').value = '';
+  $('#vd-iva').value = String(datos.config.ivaVentaDefecto);
+  actualizarTotalVentaDia();
+  $('#modal-venta-dia').hidden = false;
+}
+
+function actualizarTotalVentaDia() {
+  const total = num($('#vd-efectivo').value) + num($('#vd-tarjeta').value) +
+                num($('#vd-bizum').value) + num($('#vd-otros-monto').value);
+  $('#vd-total').textContent = total > 0 ? dinero(total) : '—';
+}
+
+function guardarVentaDia() {
+  const fecha = $('#vd-fecha').value;
+  if (!fecha) return aviso('Elige la fecha.', true);
+  const iva = num($('#vd-iva').value);
+
+  const metodos = [
+    ['Ventas en efectivo', num($('#vd-efectivo').value)],
+    ['Ventas con tarjeta', num($('#vd-tarjeta').value)],
+    ['Ventas por Bizum', num($('#vd-bizum').value)]
+  ];
+  const otrosDesc = $('#vd-otros-desc').value.trim();
+  const otrosMonto = num($('#vd-otros-monto').value);
+  if (otrosMonto > 0) metodos.push([otrosDesc || 'Otras ventas', otrosMonto]);
+
+  const aRegistrar = metodos.filter(m => m[1] > 0);
+  if (aRegistrar.length === 0) return aviso('Pon al menos un importe mayor que 0.', true);
+
+  // Anti-duplicados: si ese día ya tiene ventas, avisar
+  const existentes = datos.ventas.filter(v => v.fecha === fecha);
+  if (existentes.length > 0 &&
+      !confirm(`El día ${fechaCorta(fecha)} ya tiene ${existentes.length} venta(s) por ${dinero(sumaVentas(existentes))}.\n\n¿Añadir igualmente? (las nuevas se SUMAN)`)) return;
+
+  aRegistrar.forEach(([desc, monto]) => {
+    datos.ventas.push({
+      id: nuevoId(), fecha, platoId: null, descripcion: desc,
+      cantidad: 1, precioUnit: monto, total: monto, ivaPct: iva, costoUnit: null
+    });
+  });
+
+  guardar();
+  $('#modal-venta-dia').hidden = true;
+  $('#mes-ventas').value = mesDe(fecha);
+  $('#mes-balance').value = mesDe(fecha);
+  refrescar();
+  const total = aRegistrar.reduce((s, m) => s + m[1], 0);
+  aviso(`Venta del ${fechaCorta(fecha)} guardada: ${dinero(total)} (${aRegistrar.length} método/s). 💶✅`);
+}
+
 // --- Cierre del día ---
 
 function abrirModalCierre() {
@@ -4426,6 +4481,10 @@ function configurarEventos() {
   // Ventas
   $('#mes-ventas').addEventListener('change', renderVentas);
   $('#btn-nueva-venta').addEventListener('click', () => abrirModalVenta());
+  $('#btn-venta-dia').addEventListener('click', abrirModalVentaDia);
+  $('#btn-guardar-venta-dia').addEventListener('click', guardarVentaDia);
+  ['#vd-efectivo', '#vd-tarjeta', '#vd-bizum', '#vd-otros-monto'].forEach(s =>
+    $(s).addEventListener('input', actualizarTotalVentaDia));
   $('#btn-cierre-dia').addEventListener('click', abrirModalCierre);
   $('#btn-cargar-informe').addEventListener('click', () => $('#archivo-informe').click());
   $('#archivo-informe').addEventListener('change', e => {
@@ -4568,6 +4627,13 @@ function configurarEventos() {
       $('#modal-progreso').hidden = true;
     }
   });
+
+  // Botón flotante "📎 Subir documento" (disponible en todas las secciones)
+  $('#fab-subir').addEventListener('click', () => { $('#modal-subir').hidden = false; });
+  $('#sub-factura').addEventListener('click', () => { $('#modal-subir').hidden = true; $('#archivo-factura').click(); });
+  $('#sub-z').addEventListener('click', () => { $('#modal-subir').hidden = true; $('#archivo-z').click(); });
+  $('#sub-informe').addEventListener('click', () => { $('#modal-subir').hidden = true; $('#archivo-informe').click(); });
+  $('#sub-carta').addEventListener('click', () => { $('#modal-subir').hidden = true; $('#archivo-carta').click(); });
 
   // Saltar al mes que sí tiene datos al pulsar un chip "📌"
   document.addEventListener('click', e => {
