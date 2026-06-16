@@ -27,6 +27,7 @@
     <button class="nav-btn" data-vista="facturas"><span class="nav-icono">📑</span> Facturas</button>
     <button class="nav-btn" data-vista="balance"><span class="nav-icono">📒</span> Balance</button>
     <button class="nav-btn" data-vista="personal"><span class="nav-icono">👥</span> Personal</button>
+    <button class="nav-btn" data-vista="contabilidad"><span class="nav-icono">📚</span> Contabilidad</button>
     <button class="nav-btn" data-vista="informes"><span class="nav-icono">📈</span> Informes</button>
     <button class="nav-btn" data-vista="analisis"><span class="nav-icono">🧠</span> Análisis</button>
     <button class="nav-btn" data-vista="impuestos"><span class="nav-icono">🏛️</span> Impuestos</button>
@@ -501,6 +502,63 @@
             <tbody id="cuerpo-inf-platos"></tbody>
           </table>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== VISTA: CONTABILIDAD ========== -->
+  <section id="vista-contabilidad" class="vista">
+    <div class="acciones-vista">
+      <label class="etiqueta-filtro">Mes:
+        <input type="month" id="mes-conta" class="campo">
+      </label>
+      <span class="separador-flexible"></span>
+      <button class="btn btn-secundario" id="btn-csv-conta">⬇ Exportar contabilidad</button>
+      <button class="btn btn-secundario" id="btn-imprimir-conta">🖨 Imprimir</button>
+    </div>
+    <p class="nota-vista">El libro de cuentas: <strong>cada venta, cada gasto y cada factura con su desglose</strong>,
+    con base, IVA y total reales. Pulsa cualquier línea para <strong>editarla</strong>. Todo lo que subes
+    (Z, informes, facturas) cae aquí automáticamente.</p>
+
+    <div class="rejilla-kpis rejilla-kpis-3">
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">💵 Ingresos del mes (IVA incl.)</div>
+        <div class="kpi-valor positivo" id="conta-ingresos">—</div>
+      </div>
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">🧾 Gastos del mes (IVA incl.)</div>
+        <div class="kpi-valor negativo" id="conta-gastos">—</div>
+      </div>
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">🏆 Resultado del mes</div>
+        <div class="kpi-valor" id="conta-resultado">—</div>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h3>💵 INGRESOS (ventas, Z e informes)</h3>
+      <div class="tabla-envoltura">
+        <table class="tabla">
+          <thead><tr><th>Fecha</th><th>Concepto</th><th class="num">Base sin IVA</th><th class="num">IVA</th><th class="num">Cuota IVA</th><th class="num">Total</th></tr></thead>
+          <tbody id="cuerpo-conta-ingresos"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h3>🧾 GASTOS Y FACTURAS (cada factura con su desglose)</h3>
+      <div class="tabla-envoltura">
+        <table class="tabla">
+          <thead><tr><th>Fecha</th><th>Concepto</th><th class="num">Base sin IVA</th><th class="num">IVA</th><th class="num">Cuota IVA</th><th class="num">Total</th></tr></thead>
+          <tbody id="cuerpo-conta-gastos"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h3>🧮 Resumen de IVA del mes (modelo 303)</h3>
+      <div class="tabla-envoltura">
+        <table class="tabla"><tbody id="cuerpo-conta-iva"></tbody></table>
       </div>
     </div>
   </section>
