@@ -4091,6 +4091,43 @@ function renderAnalisis() {
     return `<tr><td>${b.nombre}</td><td class="num">${dinero(b.base)}</td><td class="num">${pct.toFixed(1)}%</td><td>${b.etiqueta}</td><td>${estados[estado]}</td></tr>`;
   }).join('');
 
+  // Desglose mes a mes (facturas, gasto facturas, otros gastos, ventas, beneficio)
+  $('#cuerpo-an-meses').innerHTML = d.meses.map((m, i) => {
+    const facMes = facturasDelMes(m);
+    const gastoFac = facMes.reduce((s, f) => s + totalFactura(f), 0);
+    const otros = d.gastosMes[i] - gastoFac;
+    const ben = d.ventasMes[i] - d.gastosMes[i];
+    if (d.ventasMes[i] === 0 && d.gastosMes[i] === 0) return '';
+    return `<tr>
+      <td><strong>${MESES_LARGOS[i]}</strong></td>
+      <td class="num">${facMes.length || '—'}</td>
+      <td class="num">${gastoFac > 0 ? dinero(gastoFac) : '—'}</td>
+      <td class="num">${otros > 0.005 ? dinero(otros) : '—'}</td>
+      <td class="num">${dinero(d.ventasMes[i])}</td>
+      <td class="num"><strong class="${ben >= 0 ? 'monto-entrada' : 'monto-salida'}">${dinero(ben)}</strong></td>
+    </tr>`;
+  }).join('') || '<tr class="fila-vacia"><td colspan="6">Sin movimientos este año.</td></tr>';
+
+  // Gasto por proveedor
+  const porProv = {};
+  d.meses.forEach(m => facturasDelMes(m).forEach(f => {
+    const k = f.proveedor || 'Sin nombre';
+    if (!porProv[k]) porProv[k] = { total: 0, n: 0, ultima: '' };
+    porProv[k].total += totalFactura(f);
+    porProv[k].n++;
+    if (f.fecha > porProv[k].ultima) porProv[k].ultima = f.fecha;
+  }));
+  const provs = Object.keys(porProv).sort((a, b) => porProv[b].total - porProv[a].total);
+  $('#cuerpo-an-proveedores').innerHTML = provs.length === 0
+    ? '<tr class="fila-vacia"><td colspan="5">Sin facturas este año. Súbelas en Facturas o con el botón 📎.</td></tr>'
+    : provs.map(p => `<tr>
+        <td><strong>${esc(p)}</strong></td>
+        <td class="num">${porProv[p].n}</td>
+        <td class="num">${dinero(porProv[p].total)}</td>
+        <td class="num">${dinero(porProv[p].total / porProv[p].n)}</td>
+        <td>${fechaCorta(porProv[p].ultima)}</td>
+      </tr>`).join('');
+
   // Tabla de rentabilidad por producto
   $('#cuerpo-an-productos').innerHTML = rent.length === 0
     ? '<tr class="fila-vacia"><td colspan="5">Sin ventas este año.</td></tr>'
