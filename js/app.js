@@ -1594,6 +1594,83 @@ function exportarGastosCSV() {
   aviso('Archivo CSV de gastos descargado. 📄');
 }
 
+// --- Gastos fijos mensuales (alquiler, luz, gas, gestoría, nómina, SS...) ---
+
+const FIJOS_TIPICOS = [
+  { descripcion: 'Alquiler del local', categoria: 'Alquiler', monto: 0, ivaPct: 21 },
+  { descripcion: 'Luz y agua', categoria: 'Luz y agua', monto: 0, ivaPct: 21 },
+  { descripcion: 'Gas', categoria: 'Gas', monto: 0, ivaPct: 21 },
+  { descripcion: 'Gestoría', categoria: 'Gestoría', monto: 0, ivaPct: 21 },
+  { descripcion: 'Nóminas del personal', categoria: 'Nómina', monto: 0, ivaPct: 0 },
+  { descripcion: 'Seguridad Social', categoria: 'Seguridad Social', monto: 0, ivaPct: 0 }
+];
+
+function pintarLineaFijo(f) {
+  const fila = document.createElement('tr');
+  const opcionesCat = CATEGORIAS_GASTO.map(c => `<option value="${c}" ${f && f.categoria === c ? 'selected' : ''}>${c}</option>`).join('');
+  const opcionesIva = [0, 4, 10, 21].map(t => `<option value="${t}" ${f && f.ivaPct === t ? 'selected' : ''}>${t}%</option>`).join('');
+  fila.innerHTML = `
+    <td><input type="text" class="campo fijo-desc" value="${f ? esc(f.descripcion) : ''}" placeholder="Ej: Alquiler"></td>
+    <td><select class="campo fijo-cat">${opcionesCat}</select></td>
+    <td class="num"><input type="number" class="campo fijo-monto" min="0" step="any" value="${f && f.monto ? f.monto : ''}" style="width:100px;text-align:right" placeholder="0"></td>
+    <td><select class="campo fijo-iva">${opcionesIva}</select></td>
+    <td class="num"><button class="btn-icono fijo-quitar" title="Quitar">🗑</button></td>`;
+  fila.querySelector('.fijo-monto').addEventListener('input', actualizarTotalFijos);
+  fila.querySelector('.fijo-quitar').addEventListener('click', () => { fila.remove(); actualizarTotalFijos(); });
+  $('#cuerpo-fijos').appendChild(fila);
+}
+
+function leerLineasFijos() {
+  return $$('#cuerpo-fijos tr').map(fila => ({
+    descripcion: fila.querySelector('.fijo-desc').value.trim(),
+    categoria: fila.querySelector('.fijo-cat').value,
+    monto: num(fila.querySelector('.fijo-monto').value),
+    ivaPct: num(fila.querySelector('.fijo-iva').value)
+  })).filter(f => f.descripcion);
+}
+
+function actualizarTotalFijos() {
+  const total = $$('#cuerpo-fijos .fijo-monto').reduce((s, c) => s + num(c.value), 0);
+  $('#fijos-total').textContent = total > 0 ? dinero(total) : '—';
+}
+
+function abrirModalFijos() {
+  if (!Array.isArray(datos.gastosFijos)) datos.gastosFijos = [];
+  $('#cuerpo-fijos').innerHTML = '';
+  if (datos.gastosFijos.length === 0) FIJOS_TIPICOS.forEach(pintarLineaFijo);
+  else datos.gastosFijos.forEach(pintarLineaFijo);
+  actualizarTotalFijos();
+  $('#modal-fijos').hidden = false;
+}
+
+function guardarPlantillaFijos() {
+  datos.gastosFijos = leerLineasFijos();
+  guardar();
+  aviso('Plantilla de gastos fijos guardada. 💾');
+}
+
+function aplicarFijosAlMes() {
+  const fijos = leerLineasFijos().filter(f => f.monto > 0);
+  if (fijos.length === 0) return aviso('Pon el importe de al menos un gasto fijo.', true);
+  datos.gastosFijos = leerLineasFijos();
+
+  const mes = $('#mes-gastos').value || mesActual();
+  const fecha = mes + '-01';
+  let añadidos = 0, saltados = 0;
+  fijos.forEach(f => {
+    const yaEsta = datos.gastos.some(g => mesDe(g.fecha) === mes && normalizarTexto(g.descripcion) === normalizarTexto(f.descripcion));
+    if (yaEsta) { saltados++; return; }
+    const gasto = { id: nuevoId(), fecha, categoria: f.categoria, descripcion: f.descripcion, monto: f.monto, ivaPct: f.ivaPct };
+    datos.gastos.push(gasto);
+    enviarGastosTPV([gasto], true);
+    añadidos++;
+  });
+  guardar();
+  $('#modal-fijos').hidden = true;
+  refrescar();
+  aviso(`Gastos fijos en ${nombreMes(mes)}: ${añadidos} añadidos${saltados ? `, ${saltados} ya estaban` : ''}. 📌✅`);
+}
+
 /* ============ 13b. FACTURAS DE COMPRA ============ */
 
 function facturasDelMes(mes) { return datos.facturas.filter(f => mesDe(f.fecha) === mes); }
@@ -3742,7 +3819,7 @@ function codigoSync() { return localStorage.getItem(CLAVE_SYNC) || ''; }
 
 function asegurarEstructura() {
   if (!datos.config) datos.config = {};
-  ['ingredientes', 'platos', 'ventas', 'gastos', 'facturas', 'empleados'].forEach(k => {
+  ['ingredientes', 'platos', 'ventas', 'gastos', 'facturas', 'empleados', 'gastosFijos'].forEach(k => {
     if (!Array.isArray(datos[k])) datos[k] = [];
   });
   if (!datos.sigId || datos.sigId < 1) {
@@ -3750,6 +3827,13 @@ function asegurarEstructura() {
       .reduce((m, x) => Math.max(m, x.id || 0), 0);
     datos.sigId = maxId + 1;
   }
+}
+
+// El mes (AAAA-MM) más reciente que tiene ventas, gastos o facturas. Si no hay nada, el actual.
+function ultimoMesConDatos() {
+  const fechas = [...datos.ventas, ...datos.gastos, ...datos.facturas]
+    .map(x => mesDe(x.fecha)).filter(Boolean);
+  return fechas.length ? fechas.sort().reverse()[0] : mesActual();
 }
 
 function negocioTieneDatos() {
@@ -4672,6 +4756,11 @@ function configurarEventos() {
   $('#mes-gastos').addEventListener('change', renderGastos);
   $('#btn-nuevo-gasto').addEventListener('click', () => abrirModalGasto());
   $('#btn-csv-gastos').addEventListener('click', exportarGastosCSV);
+  $('#btn-gastos-fijos').addEventListener('click', abrirModalFijos);
+  $('#btn-fijo-linea').addEventListener('click', () => { pintarLineaFijo(null); });
+  $('#btn-fijo-tipicos').addEventListener('click', () => { $('#cuerpo-fijos').innerHTML = ''; FIJOS_TIPICOS.forEach(pintarLineaFijo); actualizarTotalFijos(); });
+  $('#btn-fijo-guardar').addEventListener('click', guardarPlantillaFijos);
+  $('#btn-fijo-aplicar').addEventListener('click', aplicarFijosAlMes);
   $('#btn-guardar-gasto').addEventListener('click', guardarGasto);
   $('#gasto-categoria').addEventListener('change', () => {
     $('#gasto-iva').value = String(IVA_GASTO_DEFECTO[$('#gasto-categoria').value] ?? 21);
@@ -4902,14 +4991,17 @@ function iniciar() {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
 
-  // Filtros por defecto: mes y trimestre actuales
-  $('#mes-ventas').value = mesActual();
-  $('#mes-gastos').value = mesActual();
-  $('#mes-facturas').value = mesActual();
-  $('#mes-balance').value = mesActual();
-  $('#mes-conta').value = mesActual();
-  $('#mes-informe').value = mesActual();
-  $('#trimestre-imp').value = String(Math.floor(new Date().getMonth() / 3) + 1);
+  // Filtros: se abren en el mes/año que SÍ tiene datos (si no hay, el actual)
+  const mesD = ultimoMesConDatos();
+  $('#mes-ventas').value = mesD;
+  $('#mes-gastos').value = mesD;
+  $('#mes-facturas').value = mesD;
+  $('#mes-balance').value = mesD;
+  $('#mes-conta').value = mesD;
+  $('#mes-informe').value = mesD;
+  $('#analisis-anio').value = mesD.slice(0, 4);
+  const mD = parseInt(mesD.slice(5, 7), 10);
+  $('#trimestre-imp').value = String(Math.floor((mD - 1) / 3) + 1);
 
   aplicarMarca();
   configurarEventos();
