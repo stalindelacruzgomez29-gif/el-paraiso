@@ -1572,8 +1572,8 @@ function guardarGasto() {
   }
 
   guardar();
-  // También viaja al TPV del bar (si está conectado); si falla, queda pendiente
-  enviarGastosTPV([gastoGuardado], false);
+  // También viaja al TPV del bar (si está conectado); si falla, queda pendiente SIN molestar
+  enviarGastosTPV([gastoGuardado], true);
   $('#modal-gasto').hidden = true;
   // El filtro salta al mes del gasto: así se ve reflejado al instante
   $('#mes-gastos').value = mesDe(fecha);
