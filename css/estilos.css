@@ -712,6 +712,9 @@ html, body {
 .empleado-nombre { font-weight: 700; white-space: nowrap; }
 .empleado-puesto { font-size: 12px; color: var(--tinta-suave); }
 
+.tabla-horario tfoot td { border-top: 2px solid var(--borde); font-size: 13px; }
+.dia-sin-personal { background: var(--rojo-suave); color: var(--rojo); }
+
 /* ============ LECTURA DE FACTURAS CON IA ============ */
 
 .caja-ia {
