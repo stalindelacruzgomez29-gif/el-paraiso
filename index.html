@@ -28,6 +28,7 @@
     <button class="nav-btn" data-vista="balance"><span class="nav-icono">📒</span> Balance</button>
     <button class="nav-btn" data-vista="personal"><span class="nav-icono">👥</span> Personal</button>
     <button class="nav-btn" data-vista="informes"><span class="nav-icono">📈</span> Informes</button>
+    <button class="nav-btn" data-vista="analisis"><span class="nav-icono">🧠</span> Análisis</button>
     <button class="nav-btn" data-vista="impuestos"><span class="nav-icono">🏛️</span> Impuestos</button>
     <button class="nav-btn" data-vista="config"><span class="nav-icono">⚙️</span> Configuración</button>
     <button class="nav-btn" data-vista="ayuda"><span class="nav-icono">❓</span> Ayuda</button>
@@ -500,6 +501,88 @@
             <tbody id="cuerpo-inf-platos"></tbody>
           </table>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== VISTA: ANÁLISIS ========== -->
+  <section id="vista-analisis" class="vista">
+    <div class="acciones-vista">
+      <label class="etiqueta-filtro">Año:
+        <input type="number" id="analisis-anio" class="campo" min="2000" max="2100" step="1" style="width:110px">
+      </label>
+      <span class="separador-flexible"></span>
+      <button class="btn btn-secundario" id="btn-csv-analisis">⬇ Exportar análisis</button>
+      <button class="btn btn-secundario" id="btn-imprimir-analisis">🖨 Imprimir</button>
+    </div>
+    <p class="nota-vista">Tu negocio de un vistazo: lo que vendes, lo que gastas, si ganas dinero,
+    dónde te pasas y qué hacer. Se calcula solo con tus ventas (Z e informes) y tus gastos y facturas.</p>
+
+    <div class="rejilla-kpis">
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">💵 Ventas del año</div>
+        <div class="kpi-valor positivo" id="an-ventas">—</div>
+        <div class="info-datos" id="an-ventas-proy"></div>
+      </div>
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">🧾 Gastos del año</div>
+        <div class="kpi-valor negativo" id="an-gastos">—</div>
+      </div>
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">🏆 Beneficio del año</div>
+        <div class="kpi-valor" id="an-beneficio">—</div>
+      </div>
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">📊 Margen de beneficio</div>
+        <div class="kpi-valor" id="an-margen">—</div>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h3>💡 Recomendaciones para tu negocio</h3>
+      <div id="an-recomendaciones">—</div>
+    </div>
+
+    <div class="rejilla-graficos">
+      <div class="tarjeta">
+        <h3>Ventas, gastos y beneficio mes a mes</h3>
+        <div class="caja-grafico"><canvas id="graf-an-meses"></canvas></div>
+      </div>
+      <div class="tarjeta">
+        <h3>En qué se va el dinero (gastos del año)</h3>
+        <div class="caja-grafico"><canvas id="graf-an-gastos"></canvas></div>
+      </div>
+      <div class="tarjeta">
+        <h3>🔝 Lo que MÁS vendes</h3>
+        <div class="caja-grafico"><canvas id="graf-an-top"></canvas></div>
+      </div>
+      <div class="tarjeta">
+        <h3>🔻 Lo que MENOS vendes</h3>
+        <div class="caja-grafico"><canvas id="graf-an-flop"></canvas></div>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h3>Reparto de gastos vs. lo recomendado en hostelería</h3>
+      <p class="nota-vista">Porcentaje de tus ventas (sin IVA) que se va en cada bloque. El semáforo compara
+      con lo saludable en un bar restaurante.</p>
+      <div class="tabla-envoltura">
+        <table class="tabla">
+          <thead><tr><th>Bloque de gasto</th><th class="num">Importe año</th><th class="num">% de ventas</th><th>Recomendado</th><th>Estado</th></tr></thead>
+          <tbody id="cuerpo-an-bloques"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h3>Rentabilidad de cada producto (todo el año)</h3>
+      <div class="tabla-envoltura">
+        <table class="tabla">
+          <thead>
+            <tr><th>Producto</th><th class="num">Unidades</th><th class="num">Ingresos</th><th class="num">Ganancia</th><th class="num">Margen %</th></tr>
+          </thead>
+          <tbody id="cuerpo-an-productos"></tbody>
+        </table>
       </div>
     </div>
   </section>
