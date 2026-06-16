@@ -178,7 +178,8 @@
       </label>
       <span class="separador-flexible"></span>
       <button class="btn btn-secundario" id="btn-csv-ventas">⬇ Exportar CSV</button>
-      <button class="btn btn-secundario" id="btn-nueva-venta">＋ Venta individual</button>
+      <button class="btn btn-primario" id="btn-venta-dia">💶 Venta del día (a mano)</button>
+      <button class="btn btn-secundario" id="btn-nueva-venta">✍️ Venta suelta</button>
       <button class="btn btn-secundario" id="btn-cargar-z">🧾 Cargar Z del día (foto)</button>
       <input type="file" id="archivo-z" accept="image/*,.heic,.heif,.pdf,application/pdf" hidden>
       <button class="btn btn-secundario" id="btn-cargar-informe">📅 Informe del mes (foto)</button>
@@ -1442,6 +1443,78 @@
     </div>
   </div>
 </div>
+
+<!-- ===== MODAL: VENTA DEL DÍA (a mano, por método de pago) ===== -->
+<div class="modal-fondo" id="modal-venta-dia" hidden>
+  <div class="modal">
+    <div class="modal-cabecera">
+      <h3>💶 Venta del día</h3>
+      <button class="btn-cerrar" data-cerrar>✕</button>
+    </div>
+    <div class="modal-cuerpo formulario">
+      <p class="nota-vista">Apunta cuánto vendiste hoy en cada forma de pago. Es como meter la Z a mano,
+      sin foto. Deja en 0 lo que no aplique.</p>
+      <label>Fecha *
+        <input type="date" id="vd-fecha" class="campo">
+      </label>
+      <div class="fila-campos">
+        <label>🪙 Efectivo
+          <input type="number" id="vd-efectivo" class="campo" min="0" step="any" value="0">
+        </label>
+        <label>💳 Tarjeta
+          <input type="number" id="vd-tarjeta" class="campo" min="0" step="any" value="0">
+        </label>
+        <label>📱 Bizum
+          <input type="number" id="vd-bizum" class="campo" min="0" step="any" value="0">
+        </label>
+      </div>
+      <div class="fila-campos">
+        <label>Otros (opcional)
+          <input type="text" id="vd-otros-desc" class="campo" placeholder="Ej: vales, delivery...">
+        </label>
+        <label>Importe de "otros"
+          <input type="number" id="vd-otros-monto" class="campo" min="0" step="any" value="0">
+        </label>
+        <label>IVA (%)
+          <select id="vd-iva" class="campo">
+            <option value="0">0%</option>
+            <option value="4">4%</option>
+            <option value="10" selected>10%</option>
+            <option value="21">21%</option>
+          </select>
+        </label>
+      </div>
+      <div class="caja-resaltada">Total del día: <strong id="vd-total">—</strong></div>
+    </div>
+    <div class="modal-pie">
+      <button class="btn btn-secundario" data-cerrar>Cancelar</button>
+      <button class="btn btn-primario" id="btn-guardar-venta-dia">Guardar venta del día</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: SUBIR DOCUMENTO (disponible en todas las secciones) ===== -->
+<div class="modal-fondo" id="modal-subir" hidden>
+  <div class="modal">
+    <div class="modal-cabecera">
+      <h3>📎 Subir documento</h3>
+      <button class="btn-cerrar" data-cerrar>✕</button>
+    </div>
+    <div class="modal-cuerpo formulario">
+      <p class="nota-vista">Elige qué estás subiendo (foto o PDF). La inteligencia artificial lee los datos
+      y los coloca en su sitio automáticamente.</p>
+      <button class="btn btn-primario" id="sub-factura">📑 Factura(s) de compra</button>
+      <button class="btn btn-primario" id="sub-z">🧾 Z del día (cierre de caja)</button>
+      <button class="btn btn-primario" id="sub-informe">📅 Informe mensual de ventas</button>
+      <button class="btn btn-primario" id="sub-carta">📋 La carta (crear platos)</button>
+      <p class="nota-vista">💡 También puedes <strong>arrastrar</strong> una foto o una carpeta a la ventana,
+      o copiar una imagen y <strong>pegarla con ⌘V</strong>, desde cualquier pantalla.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Botón flotante para subir documentos desde cualquier sección -->
+<button class="fab-subir" id="fab-subir" title="Subir un documento (foto o PDF)">📎</button>
 
 <div class="avisos" id="avisos"></div>
 
