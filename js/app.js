@@ -235,8 +235,14 @@ function clasificarFoodCost(fc) {
   return 'alto';
 }
 
-function ventasDelMes(mes) { return datos.ventas.filter(v => mesDe(v.fecha) === mes); }
-function gastosDelMes(mes) { return datos.gastos.filter(g => mesDe(g.fecha) === mes); }
+// Dos cajas: 'oficial' (Z, facturas, lo declarado) y 'privada' (control interno).
+// Sin etiqueta = oficial. Filtro: 'oficial' | 'privada' | 'todas'/undefined.
+function coincideCaja(mov, caja) {
+  if (!caja || caja === 'todas') return true;
+  return (mov.caja === 'privada' ? 'privada' : 'oficial') === caja;
+}
+function ventasDelMes(mes, caja) { return datos.ventas.filter(v => mesDe(v.fecha) === mes && coincideCaja(v, caja)); }
+function gastosDelMes(mes, caja) { return datos.gastos.filter(g => mesDe(g.fecha) === mes && coincideCaja(g, caja)); }
 
 function sumaVentas(lista) { return lista.reduce((s, v) => s + v.total, 0); }
 function sumaGastos(lista) { return lista.reduce((s, g) => s + g.monto, 0); }
@@ -262,8 +268,9 @@ function registrosDeTrimestre(lista, anio, trimestre) {
 
 // Modelo 303: IVA repercutido - IVA soportado del trimestre
 function calcular303(anio, trimestre) {
-  const ventas = registrosDeTrimestre(datos.ventas, anio, trimestre);
-  const gastos = registrosDeTrimestre(datos.gastos, anio, trimestre);
+  // Los impuestos se calculan SOLO sobre la caja oficial (lo declarado)
+  const ventas = registrosDeTrimestre(datos.ventas, anio, trimestre).filter(v => coincideCaja(v, 'oficial'));
+  const gastos = registrosDeTrimestre(datos.gastos, anio, trimestre).filter(g => coincideCaja(g, 'oficial'));
 
   const desglose = lista => {
     const porTipo = {};
@@ -295,8 +302,8 @@ function calcular130(anio, trimestre) {
     const meses = [];
     for (let m = 1; m <= q * 3; m++) meses.push(`${anio}-${String(m).padStart(2, '0')}`);
 
-    const ventas = datos.ventas.filter(v => meses.includes(mesDe(v.fecha)));
-    const gastos = datos.gastos.filter(g => meses.includes(mesDe(g.fecha)));
+    const ventas = datos.ventas.filter(v => meses.includes(mesDe(v.fecha)) && coincideCaja(v, 'oficial'));
+    const gastos = datos.gastos.filter(g => meses.includes(mesDe(g.fecha)) && coincideCaja(g, 'oficial'));
 
     const ingresos = baseVentas(ventas);
     const gastosDeducibles = baseGastos(gastos);
@@ -1261,6 +1268,7 @@ function abrirModalVenta(id = null) {
   $('#venta-cantidad').value = venta ? venta.cantidad : 1;
   $('#venta-precio').value = venta ? venta.precioUnit : '';
   $('#venta-iva').value = venta ? String(venta.ivaPct ?? datos.config.ivaVentaDefecto) : String(datos.config.ivaVentaDefecto);
+  $('#venta-caja').value = venta && venta.caja === 'privada' ? 'privada' : 'oficial';
 
   actualizarCamposVenta();
   $('#modal-venta').hidden = false;
@@ -1292,7 +1300,8 @@ function guardarVenta() {
     ivaPct = plato.ivaPct;
   }
 
-  const registro = { fecha, platoId, descripcion, cantidad, precioUnit, total: cantidad * precioUnit, ivaPct, costoUnit };
+  const caja = $('#venta-caja').value === 'privada' ? 'privada' : 'oficial';
+  const registro = { fecha, platoId, descripcion, cantidad, precioUnit, total: cantidad * precioUnit, ivaPct, costoUnit, caja };
 
   if (id) {
     const original = datos.ventas.find(v => v.id === id);
@@ -1330,6 +1339,7 @@ function abrirModalVentaDia() {
   ['#vd-efectivo', '#vd-tarjeta', '#vd-bizum', '#vd-otros-monto'].forEach(s => { $(s).value = '0'; });
   $('#vd-otros-desc').value = '';
   $('#vd-iva').value = String(datos.config.ivaVentaDefecto);
+  $('#vd-caja').value = 'oficial';
   actualizarTotalVentaDia();
   $('#modal-venta-dia').hidden = false;
 }
@@ -1362,10 +1372,11 @@ function guardarVentaDia() {
   if (existentes.length > 0 &&
       !confirm(`El día ${fechaCorta(fecha)} ya tiene ${existentes.length} venta(s) por ${dinero(sumaVentas(existentes))}.\n\n¿Añadir igualmente? (las nuevas se SUMAN)`)) return;
 
+  const caja = $('#vd-caja').value === 'privada' ? 'privada' : 'oficial';
   aRegistrar.forEach(([desc, monto]) => {
     datos.ventas.push({
       id: nuevoId(), fecha, platoId: null, descripcion: desc,
-      cantidad: 1, precioUnit: monto, total: monto, ivaPct: iva, costoUnit: null
+      cantidad: 1, precioUnit: monto, total: monto, ivaPct: iva, costoUnit: null, caja
     });
   });
 
@@ -1530,6 +1541,7 @@ function abrirModalGasto(id = null) {
   $('#gasto-descripcion').value = gasto ? gasto.descripcion : '';
   $('#gasto-monto').value = gasto ? gasto.monto : '';
   $('#gasto-iva').value = gasto ? String(gasto.ivaPct ?? 0) : String(IVA_GASTO_DEFECTO[$('#gasto-categoria').value] ?? 21);
+  $('#gasto-caja').value = gasto && gasto.caja === 'privada' ? 'privada' : 'oficial';
 
   $('#modal-gasto').hidden = false;
   $('#gasto-descripcion').focus();
@@ -1542,6 +1554,7 @@ function guardarGasto() {
   const descripcion = $('#gasto-descripcion').value.trim();
   const monto = num($('#gasto-monto').value);
   const ivaPct = num($('#gasto-iva').value);
+  const caja = $('#gasto-caja').value === 'privada' ? 'privada' : 'oficial';
 
   if (!fecha) return aviso('Elige la fecha del gasto.', true);
   if (!descripcion) return aviso('Escribe una descripción del gasto.', true);
@@ -1550,10 +1563,10 @@ function guardarGasto() {
   let gastoGuardado;
   if (id) {
     gastoGuardado = datos.gastos.find(g => g.id === id);
-    Object.assign(gastoGuardado, { fecha, categoria, descripcion, monto, ivaPct });
+    Object.assign(gastoGuardado, { fecha, categoria, descripcion, monto, ivaPct, caja });
     aviso('Gasto actualizado. ✅');
   } else {
-    gastoGuardado = { id: nuevoId(), fecha, categoria, descripcion, monto, ivaPct };
+    gastoGuardado = { id: nuevoId(), fecha, categoria, descripcion, monto, ivaPct, caja };
     datos.gastos.push(gastoGuardado);
     aviso('Gasto registrado. ✅');
   }
@@ -1673,7 +1686,7 @@ function aplicarFijosAlMes() {
 
 /* ============ 13b. FACTURAS DE COMPRA ============ */
 
-function facturasDelMes(mes) { return datos.facturas.filter(f => mesDe(f.fecha) === mes); }
+function facturasDelMes(mes, caja) { return datos.facturas.filter(f => mesDe(f.fecha) === mes && coincideCaja(f, caja)); }
 
 // Total de la factura con IVA incluido
 function totalFactura(f) {
@@ -2970,10 +2983,10 @@ function configurarArrastreYPegado() {
 
 // Une ventas (entradas) y gastos (salidas) del mes, en orden, con saldo acumulado
 // Movimientos (ventas como entrada, gastos como salida) entre dos fechas ISO, inclusive
-function movimientosEntre(desde, hasta) {
+function movimientosEntre(desde, hasta, caja) {
   const lista = [];
   datos.ventas.forEach(v => {
-    if (v.fecha >= desde && v.fecha <= hasta) lista.push({
+    if (v.fecha >= desde && v.fecha <= hasta && coincideCaja(v, caja)) lista.push({
       fecha: v.fecha, id: v.id, tipo: 'entrada',
       concepto: v.descripcion,
       detalle: v.cantidad === 1 ? 'Venta' : `${v.cantidad.toLocaleString('es-ES', { maximumFractionDigits: 2 })} × ${dinero(v.precioUnit)}`,
@@ -2981,7 +2994,7 @@ function movimientosEntre(desde, hasta) {
     });
   });
   datos.gastos.forEach(g => {
-    if (g.fecha >= desde && g.fecha <= hasta) lista.push({
+    if (g.fecha >= desde && g.fecha <= hasta && coincideCaja(g, caja)) lista.push({
       fecha: g.fecha, id: g.id, tipo: 'salida',
       concepto: g.descripcion, detalle: g.categoria, monto: g.monto
     });
@@ -3019,7 +3032,8 @@ function renderBalance() {
   if (tipo === 'dia' && !$('#bal-dia').value) $('#bal-dia').value = hoyISO();
 
   const r = rangoBalance();
-  const movimientos = movimientosEntre(r.desde, r.hasta);
+  const caja = ($('#bal-caja') && $('#bal-caja').value) || 'todas';
+  const movimientos = movimientosEntre(r.desde, r.hasta, caja);
 
   const entradas = movimientos.filter(m => m.tipo === 'entrada').reduce((s, m) => s + m.monto, 0);
   const salidas = movimientos.filter(m => m.tipo === 'salida').reduce((s, m) => s + m.monto, 0);
@@ -3049,7 +3063,7 @@ function renderBalance() {
     let filas = '';
     for (let m = 1; m <= 12; m++) {
       const clave = a + '-' + String(m).padStart(2, '0');
-      const movsMes = movimientosEntre(clave + '-01', clave + '-31');
+      const movsMes = movimientosEntre(clave + '-01', clave + '-31', caja);
       if (movsMes.length === 0) continue;
       const eMes = movsMes.filter(x => x.tipo === 'entrada').reduce((s, x) => s + x.monto, 0);
       const sMes = movsMes.filter(x => x.tipo === 'salida').reduce((s, x) => s + x.monto, 0);
@@ -3082,7 +3096,8 @@ function renderBalance() {
 
 function exportarBalanceCSV() {
   const r = rangoBalance();
-  const movimientos = movimientosEntre(r.desde, r.hasta);
+  const caja = ($('#bal-caja') && $('#bal-caja').value) || 'todas';
+  const movimientos = movimientosEntre(r.desde, r.hasta, caja);
   if (movimientos.length === 0) return aviso('No hay movimientos en este periodo para exportar.', true);
 
   const filas = [['Fecha', 'Tipo', 'Concepto', 'Detalle', 'Entrada', 'Salida', 'Saldo']];
@@ -3944,9 +3959,10 @@ function desgloseLineaFactura(linea, ivaIncluido) {
 
 function renderContabilidad() {
   const mes = $('#mes-conta').value || mesActual();
-  const ventas = ventasDelMes(mes).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
-  const gastos = gastosDelMes(mes);
-  const facturas = facturasDelMes(mes).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
+  const caja = ($('#conta-caja') && $('#conta-caja').value) || 'todas';
+  const ventas = ventasDelMes(mes, caja).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
+  const gastos = gastosDelMes(mes, caja);
+  const facturas = facturasDelMes(mes, caja).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
 
   // --- KPIs ---
   const totalIngresos = sumaVentas(ventas);
@@ -4104,18 +4120,18 @@ function bloquesDeGasto(gastos) {
   ];
 }
 
-function datosAnuales(anio) {
+function datosAnuales(anio, caja) {
   const meses = [];
   for (let m = 1; m <= 12; m++) meses.push(anio + '-' + String(m).padStart(2, '0'));
-  const ventasMes = meses.map(m => sumaVentas(ventasDelMes(m)));
-  const gastosMes = meses.map(m => sumaGastos(gastosDelMes(m)));
+  const ventasMes = meses.map(m => sumaVentas(ventasDelMes(m, caja)));
+  const gastosMes = meses.map(m => sumaGastos(gastosDelMes(m, caja)));
   const ventasAnio = ventasMes.reduce((a, b) => a + b, 0);
   const gastosAnio = gastosMes.reduce((a, b) => a + b, 0);
-  const baseVentasAnio = meses.reduce((s, m) => s + baseVentas(ventasDelMes(m)), 0);
-  const gastosAnioLista = meses.flatMap(m => gastosDelMes(m));
-  const ventasAnioLista = meses.flatMap(m => ventasDelMes(m));
+  const baseVentasAnio = meses.reduce((s, m) => s + baseVentas(ventasDelMes(m, caja)), 0);
+  const gastosAnioLista = meses.flatMap(m => gastosDelMes(m, caja));
+  const ventasAnioLista = meses.flatMap(m => ventasDelMes(m, caja));
   const mesesConVentas = ventasMes.filter(v => v > 0).length;
-  return { anio, meses, ventasMes, gastosMes, ventasAnio, gastosAnio, baseVentasAnio, gastosAnioLista, ventasAnioLista, mesesConVentas };
+  return { anio, caja, meses, ventasMes, gastosMes, ventasAnio, gastosAnio, baseVentasAnio, gastosAnioLista, ventasAnioLista, mesesConVentas };
 }
 
 // Motor de recomendaciones (reglas claras, sin depender de la IA)
@@ -4187,7 +4203,8 @@ function renderAnalisis() {
   const campo = $('#analisis-anio');
   if (!campo.value) campo.value = String(new Date().getFullYear());
   const anio = campo.value;
-  const d = datosAnuales(anio);
+  const caja = ($('#analisis-caja') && $('#analisis-caja').value) || 'todas';
+  const d = datosAnuales(anio, caja);
   const beneficio = d.ventasAnio - d.gastosAnio;
   const margen = d.ventasAnio > 0 ? (beneficio / d.ventasAnio * 100) : 0;
 
@@ -4292,7 +4309,7 @@ function renderAnalisis() {
 
   // Desglose mes a mes (facturas, gasto facturas, otros gastos, ventas, beneficio)
   $('#cuerpo-an-meses').innerHTML = d.meses.map((m, i) => {
-    const facMes = facturasDelMes(m);
+    const facMes = facturasDelMes(m, d.caja);
     const gastoFac = facMes.reduce((s, f) => s + totalFactura(f), 0);
     const otros = d.gastosMes[i] - gastoFac;
     const ben = d.ventasMes[i] - d.gastosMes[i];
@@ -4309,7 +4326,7 @@ function renderAnalisis() {
 
   // Gasto por proveedor
   const porProv = {};
-  d.meses.forEach(m => facturasDelMes(m).forEach(f => {
+  d.meses.forEach(m => facturasDelMes(m, d.caja).forEach(f => {
     const k = f.proveedor || 'Sin nombre';
     if (!porProv[k]) porProv[k] = { total: 0, n: 0, ultima: '' };
     porProv[k].total += totalFactura(f);
@@ -4339,7 +4356,8 @@ function renderAnalisis() {
 
 function exportarAnalisisCSV() {
   const anio = $('#analisis-anio').value || String(new Date().getFullYear());
-  const d = datosAnuales(anio);
+  const caja = ($('#analisis-caja') && $('#analisis-caja').value) || 'todas';
+  const d = datosAnuales(anio, caja);
   const beneficio = d.ventasAnio - d.gastosAnio;
   const filas = [
     [`ANÁLISIS ANUAL ${anio} — ${datos.config.nombre}`, '', `Generado el ${fechaCorta(hoyISO())}`],
@@ -4850,6 +4868,7 @@ function configurarEventos() {
 
   // Balance
   $('#mes-balance').addEventListener('change', renderBalance);
+  $('#bal-caja').addEventListener('change', renderBalance);
   $('#btn-venta-balance').addEventListener('click', () => abrirModalVenta());
   $('#btn-gasto-balance').addEventListener('click', () => abrirModalGasto());
   $('#btn-csv-balance').addEventListener('click', exportarBalanceCSV);
@@ -4883,11 +4902,13 @@ function configurarEventos() {
 
   // Análisis del negocio
   $('#analisis-anio').addEventListener('change', renderAnalisis);
+  $('#analisis-caja').addEventListener('change', renderAnalisis);
   $('#btn-csv-analisis').addEventListener('click', exportarAnalisisCSV);
   $('#btn-imprimir-analisis').addEventListener('click', () => imprimirVista());
 
   // Contabilidad (cada línea es editable)
   $('#mes-conta').addEventListener('change', renderContabilidad);
+  $('#conta-caja').addEventListener('change', renderContabilidad);
   $('#btn-csv-conta').addEventListener('click', exportarContabilidadCSV);
   $('#btn-imprimir-conta').addEventListener('click', () => imprimirVista());
   $('#vista-contabilidad').addEventListener('click', e => {
