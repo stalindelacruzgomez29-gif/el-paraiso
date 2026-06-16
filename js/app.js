@@ -565,6 +565,7 @@ const TITULOS = {
   panel: 'Panel', ingredientes: 'Ingredientes', escandallos: 'Escandallos',
   ventas: 'Ventas', gastos: 'Gastos', facturas: 'Facturas de compra',
   balance: 'Balance de caja', personal: 'Personal y horarios', informes: 'Informes',
+  analisis: 'Análisis del negocio',
   impuestos: 'Impuestos y declaraciones', config: 'Configuración', ayuda: 'Ayuda'
 };
 
@@ -586,6 +587,7 @@ function renderVista(nombre) {
   else if (nombre === 'balance') renderBalance();
   else if (nombre === 'personal') renderPersonal();
   else if (nombre === 'informes') renderInformes();
+  else if (nombre === 'analisis') renderAnalisis();
   else if (nombre === 'impuestos') renderImpuestos();
   else if (nombre === 'config') renderConfig();
 }
@@ -3351,18 +3353,7 @@ async function traerCierreDelTPV() {
 
 // Rentabilidad real de cada producto en un mes (con el costo del escandallo en el momento de cada venta)
 function rentabilidadDelMes(mes) {
-  const porPlato = {};
-  ventasDelMes(mes).forEach(v => {
-    const clave = v.platoId ? 'p' + v.platoId : 'libre';
-    if (!porPlato[clave]) {
-      porPlato[clave] = { nombre: v.platoId ? v.descripcion : 'Otras ventas (sin escandallo)', unidades: 0, cobrado: 0, base: 0, costo: 0, conCosto: !!v.platoId };
-    }
-    porPlato[clave].unidades += v.cantidad;
-    porPlato[clave].cobrado += v.total;
-    porPlato[clave].base += baseDesdeTotal(v.total, v.ivaPct);
-    if (v.costoUnit != null) porPlato[clave].costo += v.cantidad * v.costoUnit;
-  });
-  return Object.values(porPlato).sort((a, b) => b.cobrado - a.cobrado);
+  return rentabilidadDe(ventasDelMes(mes));
 }
 
 // Cuenta de Pérdidas y Ganancias del mes (todo sin IVA, como la presenta una gestoría)
@@ -3590,6 +3581,239 @@ function exportarInformeCSV() {
 
   descargarCSV(`informe-${mes}.csv`, filas);
   aviso(`Informe completo de ${nombreMes(mes)} descargado. 📄`);
+}
+
+/* ============ 13i. ANÁLISIS DEL NEGOCIO ============ */
+
+// Rentabilidad por producto a partir de una lista de ventas (reutilizable mes o año)
+function rentabilidadDe(ventas) {
+  const porPlato = {};
+  ventas.forEach(v => {
+    const clave = v.platoId ? 'p' + v.platoId : 'libre';
+    if (!porPlato[clave]) {
+      porPlato[clave] = { nombre: v.platoId ? v.descripcion : 'Otras ventas (sin escandallo)', unidades: 0, cobrado: 0, base: 0, costo: 0, conCosto: !!v.platoId };
+    }
+    porPlato[clave].unidades += v.cantidad;
+    porPlato[clave].cobrado += v.total;
+    porPlato[clave].base += baseDesdeTotal(v.total, v.ivaPct);
+    if (v.costoUnit != null) porPlato[clave].costo += v.cantidad * v.costoUnit;
+  });
+  return Object.values(porPlato).sort((a, b) => b.cobrado - a.cobrado);
+}
+
+// Bloques de gasto agrupados como en una cuenta de explotación de hostelería
+function bloquesDeGasto(gastos) {
+  const baseDe = cats => baseGastos(gastos.filter(g => cats.includes(g.categoria)));
+  return [
+    { nombre: 'Materia prima (comida y bebida)', base: baseDe(['Compras de comida', 'Bebidas']), recomendado: 35, etiqueta: '≤ 35%' },
+    { nombre: 'Personal (nómina + Seg. Social)', base: baseDe(['Nómina', 'Seguridad Social']), recomendado: 35, etiqueta: '≤ 35%' },
+    { nombre: 'Alquiler', base: baseDe(['Alquiler']), recomendado: 10, etiqueta: '≤ 10%' },
+    { nombre: 'Suministros (luz, agua, gas)', base: baseDe(['Luz y agua', 'Gas']), recomendado: 7, etiqueta: '≤ 7%' },
+    { nombre: 'Otros (gestoría, mantenimiento...)', base: baseDe(['Gestoría', 'Mantenimiento', 'Publicidad', 'Impuestos y tasas', 'Otros']), recomendado: 13, etiqueta: '≤ 13%' }
+  ];
+}
+
+function datosAnuales(anio) {
+  const meses = [];
+  for (let m = 1; m <= 12; m++) meses.push(anio + '-' + String(m).padStart(2, '0'));
+  const ventasMes = meses.map(m => sumaVentas(ventasDelMes(m)));
+  const gastosMes = meses.map(m => sumaGastos(gastosDelMes(m)));
+  const ventasAnio = ventasMes.reduce((a, b) => a + b, 0);
+  const gastosAnio = gastosMes.reduce((a, b) => a + b, 0);
+  const baseVentasAnio = meses.reduce((s, m) => s + baseVentas(ventasDelMes(m)), 0);
+  const gastosAnioLista = meses.flatMap(m => gastosDelMes(m));
+  const ventasAnioLista = meses.flatMap(m => ventasDelMes(m));
+  const mesesConVentas = ventasMes.filter(v => v > 0).length;
+  return { anio, meses, ventasMes, gastosMes, ventasAnio, gastosAnio, baseVentasAnio, gastosAnioLista, ventasAnioLista, mesesConVentas };
+}
+
+// Motor de recomendaciones (reglas claras, sin depender de la IA)
+function recomendacionesNegocio(d) {
+  const recs = [];
+  const ventas = d.baseVentasAnio; // sobre ventas sin IVA
+  const beneficio = d.ventasAnio - d.gastosAnio;
+  const margen = d.ventasAnio > 0 ? (beneficio / d.ventasAnio * 100) : 0;
+
+  if (d.ventasAnio === 0) {
+    recs.push({ nivel: 'aviso', texto: 'Aún no hay ventas registradas este año. Sube tus Z diarias o el informe mensual y aquí aparecerá el análisis completo.' });
+    return recs;
+  }
+
+  // Rentabilidad global
+  if (beneficio < 0) {
+    recs.push({ nivel: 'alerta', texto: `🔴 Estás en PÉRDIDAS: gastas ${dinero(d.gastosAnio)} y vendes ${dinero(d.ventasAnio)}. Hay que actuar en gastos o subir ventas con urgencia.` });
+  } else if (margen < 8) {
+    recs.push({ nivel: 'aviso', texto: `🟠 Tu margen es bajo (${margen.toFixed(1)}%). En hostelería un negocio sano deja un 10–20% de beneficio. Ajustar gastos te acercaría ahí.` });
+  } else {
+    recs.push({ nivel: 'ok', texto: `🟢 Vas bien: ganas ${dinero(beneficio)} al año (margen del ${margen.toFixed(1)}%). Mantén el control de gastos para que siga así.` });
+  }
+
+  // Bloques de gasto que se exceden (sobre ventas sin IVA)
+  if (ventas > 0) {
+    bloquesDeGasto(d.gastosAnioLista).forEach(b => {
+      const pct = b.base / ventas * 100;
+      if (b.base > 0 && pct > b.recomendado) {
+        const exceso = b.base - ventas * b.recomendado / 100;
+        recs.push({ nivel: pct > b.recomendado + 8 ? 'alerta' : 'aviso',
+          texto: `${pct > b.recomendado + 8 ? '🔴' : '🟠'} <strong>${b.nombre}</strong> te lleva el ${pct.toFixed(1)}% de las ventas (lo sano es ${b.etiqueta}). Si lo ajustaras al objetivo, ahorrarías unos ${dinero(exceso)} al año. Ahí es donde recortar.` });
+      }
+    });
+  }
+
+  // Producto estrella y producto flojo
+  const rent = rentabilidadDe(d.ventasAnioLista).filter(p => p.cobrado > 0);
+  if (rent.length > 0) {
+    const estrella = rent[0];
+    recs.push({ nivel: 'ok', texto: `⭐ Tu producto estrella es <strong>${esc(estrella.nombre)}</strong> (${dinero(estrella.cobrado)} al año). Cuídalo: tenlo siempre disponible, dale buen sitio en la carta y asegúrate de que su calidad no baje.` });
+
+    // Margen flojo: producto con muchas ventas pero margen bajo
+    const malMargen = rent.filter(p => p.conCosto && p.base > 0).find(p => (p.base - p.costo) / p.base * 100 < datos.config.objetivoFoodCost ? false : false);
+    const peorMargen = rent.filter(p => p.conCosto && p.base > 0)
+      .map(p => ({ ...p, margen: (p.base - p.costo) / p.base * 100 }))
+      .sort((a, b) => a.margen - b.margen)[0];
+    if (peorMargen && peorMargen.margen < 60) {
+      recs.push({ nivel: 'aviso', texto: `🟠 <strong>${esc(peorMargen.nombre)}</strong> deja poco margen (${peorMargen.margen.toFixed(0)}%). Revisa su receta/escandallo o súbele un poco el precio: el sistema te sugiere ${dinero(peorMargen.base > 0 ? (peorMargen.costo / (datos.config.objetivoFoodCost / 100)) * (1 + datos.config.ivaVentaDefecto / 100) : 0)}.` });
+    }
+
+    const flojo = rent[rent.length - 1];
+    if (rent.length > 3 && flojo.cobrado < estrella.cobrado * 0.1) {
+      recs.push({ nivel: 'aviso', texto: `🔻 <strong>${esc(flojo.nombre)}</strong> casi no se vende (${dinero(flojo.cobrado)} al año). Decide: promociónalo, cámbialo de sitio en la carta, o quítalo para simplificar la cocina y reducir mermas.` });
+    }
+  }
+
+  // Estacionalidad: mejor y peor mes
+  const conVentas = d.ventasMes.map((v, i) => ({ v, i })).filter(x => x.v > 0);
+  if (conVentas.length >= 2) {
+    const mejor = conVentas.reduce((a, b) => b.v > a.v ? b : a);
+    const peor = conVentas.reduce((a, b) => b.v < a.v ? b : a);
+    recs.push({ nivel: 'ok', texto: `📅 Tu mejor mes fue <strong>${MESES_LARGOS[mejor.i]}</strong> (${dinero(mejor.v)}) y el más flojo <strong>${MESES_LARGOS[peor.i]}</strong> (${dinero(peor.v)}). En los meses flojos prueba ofertas, menú del día o eventos para nivelar.` });
+  }
+
+  return recs;
+}
+
+function renderAnalisis() {
+  const campo = $('#analisis-anio');
+  if (!campo.value) campo.value = String(new Date().getFullYear());
+  const anio = campo.value;
+  const d = datosAnuales(anio);
+  const beneficio = d.ventasAnio - d.gastosAnio;
+  const margen = d.ventasAnio > 0 ? (beneficio / d.ventasAnio * 100) : 0;
+
+  $('#an-ventas').textContent = dinero(d.ventasAnio);
+  $('#an-gastos').textContent = dinero(d.gastosAnio);
+  const cajaBen = $('#an-beneficio');
+  cajaBen.textContent = dinero(beneficio);
+  cajaBen.classList.toggle('positivo', beneficio >= 0);
+  cajaBen.classList.toggle('negativo', beneficio < 0);
+  $('#an-margen').textContent = d.ventasAnio > 0 ? margen.toFixed(1) + '%' : '—';
+
+  // Estimación anual si el año va por la mitad
+  const hoyAnio = new Date().getFullYear();
+  if (parseInt(anio, 10) === hoyAnio && d.mesesConVentas > 0 && d.mesesConVentas < 12) {
+    const proyeccion = d.ventasAnio / d.mesesConVentas * 12;
+    $('#an-ventas-proy').textContent = `Estimación a fin de año: ~${dinero(proyeccion)} (según ${d.mesesConVentas} mes/es con ventas)`;
+  } else {
+    $('#an-ventas-proy').textContent = '';
+  }
+
+  // Recomendaciones
+  const colores = { ok: 'progreso-ok', aviso: 'progreso-aviso', alerta: 'progreso-error' };
+  const recs = recomendacionesNegocio(d);
+  $('#an-recomendaciones').innerHTML = '<div class="lista-progreso" style="max-height:none">' +
+    recs.map(r => `<div class="progreso-item ${colores[r.nivel]}">${r.texto}</div>`).join('') + '</div>';
+
+  // Gráfico: ventas, gastos y beneficio por mes
+  pintarGrafico('graf-an-meses', {
+    type: 'bar',
+    data: {
+      labels: MESES_CORTOS,
+      datasets: [
+        { type: 'line', label: 'Beneficio', data: d.meses.map((m, i) => d.ventasMes[i] - d.gastosMes[i]),
+          borderColor: '#d9a426', backgroundColor: '#d9a426', tension: 0.3, borderWidth: 2.5 },
+        { label: 'Ventas', data: d.ventasMes, backgroundColor: '#166534', borderRadius: 5 },
+        { label: 'Gastos', data: d.gastosMes, backgroundColor: '#c0392b', borderRadius: 5 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { tooltip: { callbacks: { label: c => `${c.dataset.label}: ${dinero(c.parsed.y)}` } } },
+      scales: { y: { beginAtZero: true, ticks: { callback: v => abreviar(v) } } }
+    }
+  });
+
+  // Gráfico: gastos del año por categoría
+  const porCat = {};
+  d.gastosAnioLista.forEach(g => { porCat[g.categoria] = (porCat[g.categoria] || 0) + g.monto; });
+  const cats = Object.keys(porCat).sort((a, b) => porCat[b] - porCat[a]);
+  pintarGrafico('graf-an-gastos', {
+    type: 'doughnut',
+    data: {
+      labels: cats.length ? cats : ['Sin gastos'],
+      datasets: [{ data: cats.length ? cats.map(c => porCat[c]) : [1], backgroundColor: cats.length ? PALETA : ['#e3e0d6'], borderWidth: 2, borderColor: '#fff' }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' }, tooltip: { enabled: cats.length > 0, callbacks: { label: c => `${c.label}: ${dinero(c.parsed)}` } } } }
+  });
+
+  // Top y flop de ventas
+  const rent = rentabilidadDe(d.ventasAnioLista).filter(p => p.cobrado > 0);
+  const top = rent.slice(0, 6);
+  const flop = rent.slice(-6).reverse();
+  const graficoBarras = (id, lista, color) => pintarGrafico(id, {
+    type: 'bar',
+    data: { labels: lista.map(p => p.nombre), datasets: [{ label: 'Ventas', data: lista.map(p => p.cobrado), backgroundColor: color, borderRadius: 6 }] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => dinero(c.parsed.x) } } }, scales: { x: { beginAtZero: true, ticks: { callback: v => abreviar(v) } } } }
+  });
+  graficoBarras('graf-an-top', top, '#166534');
+  graficoBarras('graf-an-flop', flop, '#b45309');
+
+  // Tabla de bloques de gasto con semáforo
+  const estados = { ok: '<span class="badge badge-ok">Bien 👍</span>', medio: '<span class="badge badge-medio">Ajustar ⚠️</span>', alto: '<span class="badge badge-alto">Te pasas 🔴</span>' };
+  $('#cuerpo-an-bloques').innerHTML = bloquesDeGasto(d.gastosAnioLista).map(b => {
+    const pct = d.baseVentasAnio > 0 ? b.base / d.baseVentasAnio * 100 : 0;
+    const estado = b.base === 0 ? 'ok' : pct <= b.recomendado ? 'ok' : pct <= b.recomendado + 8 ? 'medio' : 'alto';
+    return `<tr><td>${b.nombre}</td><td class="num">${dinero(b.base)}</td><td class="num">${pct.toFixed(1)}%</td><td>${b.etiqueta}</td><td>${estados[estado]}</td></tr>`;
+  }).join('');
+
+  // Tabla de rentabilidad por producto
+  $('#cuerpo-an-productos').innerHTML = rent.length === 0
+    ? '<tr class="fila-vacia"><td colspan="5">Sin ventas este año.</td></tr>'
+    : rent.map(p => {
+        const ganancia = p.base - p.costo;
+        const m = p.base > 0 ? ganancia / p.base * 100 : 0;
+        return `<tr><td>${esc(p.nombre)}</td><td class="num">${p.unidades.toLocaleString('es-ES', { maximumFractionDigits: 0 })}</td><td class="num">${dinero(p.cobrado)}</td><td class="num">${p.conCosto ? dinero(ganancia) : '—'}</td><td class="num">${p.conCosto ? m.toFixed(1) + '%' : '—'}</td></tr>`;
+      }).join('');
+}
+
+function exportarAnalisisCSV() {
+  const anio = $('#analisis-anio').value || String(new Date().getFullYear());
+  const d = datosAnuales(anio);
+  const beneficio = d.ventasAnio - d.gastosAnio;
+  const filas = [
+    [`ANÁLISIS ANUAL ${anio} — ${datos.config.nombre}`, '', `Generado el ${fechaCorta(hoyISO())}`],
+    [],
+    ['RESUMEN'],
+    ['Ventas del año', numCSV(d.ventasAnio)],
+    ['Gastos del año', numCSV(d.gastosAnio)],
+    ['Beneficio del año', numCSV(beneficio)],
+    ['Margen %', d.ventasAnio > 0 ? numCSV(beneficio / d.ventasAnio * 100) : '0'],
+    [],
+    ['VENTAS Y GASTOS MES A MES'],
+    ['Mes', 'Ventas', 'Gastos', 'Beneficio']
+  ];
+  d.meses.forEach((m, i) => filas.push([MESES_LARGOS[i], numCSV(d.ventasMes[i]), numCSV(d.gastosMes[i]), numCSV(d.ventasMes[i] - d.gastosMes[i])]));
+  filas.push([], ['BLOQUES DE GASTO (% sobre ventas sin IVA)'], ['Bloque', 'Importe', '% ventas', 'Recomendado']);
+  bloquesDeGasto(d.gastosAnioLista).forEach(b => filas.push([b.nombre, numCSV(b.base), d.baseVentasAnio > 0 ? numCSV(b.base / d.baseVentasAnio * 100) : '0', b.etiqueta]));
+  filas.push([], ['RENTABILIDAD POR PRODUCTO'], ['Producto', 'Unidades', 'Ingresos', 'Ganancia', 'Margen %']);
+  rentabilidadDe(d.ventasAnioLista).filter(p => p.cobrado > 0).forEach(p => {
+    const g = p.base - p.costo;
+    filas.push([`"${p.nombre.replace(/"/g, '""')}"`, numCSV(p.unidades), numCSV(p.cobrado), p.conCosto ? numCSV(g) : '', p.conCosto && p.base > 0 ? numCSV(g / p.base * 100) : '']);
+  });
+  filas.push([], ['RECOMENDACIONES']);
+  recomendacionesNegocio(d).forEach(r => filas.push([`"${r.texto.replace(/<[^>]+>/g, '').replace(/"/g, '""')}"`]));
+
+  descargarCSV(`analisis-${anio}.csv`, filas);
+  aviso(`Análisis de ${anio} descargado. 📄`);
 }
 
 /* ============ 14. INFORMES ============ */
@@ -4034,6 +4258,11 @@ function configurarEventos() {
   $('#btn-csv-informe').addEventListener('click', exportarInformeCSV);
   $('#btn-csv-pyg').addEventListener('click', exportarPyGCSV);
   $('#btn-imprimir').addEventListener('click', () => window.print());
+
+  // Análisis del negocio
+  $('#analisis-anio').addEventListener('change', renderAnalisis);
+  $('#btn-csv-analisis').addEventListener('click', exportarAnalisisCSV);
+  $('#btn-imprimir-analisis').addEventListener('click', () => window.print());
 
   // Impuestos
   $('#trimestre-imp').addEventListener('change', renderImpuestos);
