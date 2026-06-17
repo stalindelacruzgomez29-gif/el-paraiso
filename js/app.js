@@ -124,6 +124,14 @@ function mesCorto(claveMes) {
   return `${MESES_CORTOS[parseInt(m, 10) - 1]} ${a.slice(2)}`;
 }
 
+// Mes natural anterior a una clave AAAA-MM (ej: '2026-06' → '2026-05')
+function mesAnteriorDe(claveMes) {
+  let [a, m] = claveMes.split('-').map(Number);
+  m -= 1;
+  if (m < 1) { m = 12; a -= 1; }
+  return `${a}-${String(m).padStart(2, '0')}`;
+}
+
 // Cuando un mes está vacío pero HAY datos en otros meses, mostramos
 // botones para saltar a ellos (así nada parece "perdido")
 function chipsDeMeses(lista, idInput, mesActualVista) {
@@ -1841,34 +1849,149 @@ function aplicarFactura(f) {
   });
 }
 
+// Total facturado en cada mes que tiene facturas (objeto { 'AAAA-MM': {total, n} }, ordenable)
+function facturasPorMes() {
+  const porMes = {};
+  datos.facturas.forEach(f => {
+    const m = mesDe(f.fecha);
+    if (!m) return;
+    if (!porMes[m]) porMes[m] = { total: 0, n: 0 };
+    porMes[m].total += totalFactura(f);
+    porMes[m].n++;
+  });
+  return porMes;
+}
+
 function renderFacturas() {
   const mes = $('#mes-facturas').value || mesActual();
   const lista = facturasDelMes(mes).sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id - a.id);
 
-  $('#total-facturas-mes').textContent = dinero(lista.reduce((s, f) => s + totalFactura(f), 0));
-  $('#num-facturas-mes').textContent = lista.length.toLocaleString('es-ES');
-  // Gasto total acumulado según TODAS las facturas añadidas (se actualiza en tiempo real)
-  $('#total-facturas-historico').textContent = dinero(datos.facturas.reduce((s, f) => s + totalFactura(f), 0));
+  const porMes = facturasPorMes();
+  const mesesConDatos = Object.keys(porMes).sort();
+  const totalMes = lista.reduce((s, f) => s + totalFactura(f), 0);
+  const mesPasado = mesAnteriorDe(mes);
+  const totalMesPasado = (porMes[mesPasado] || { total: 0 }).total;
+  const totalHistorico = datos.facturas.reduce((s, f) => s + totalFactura(f), 0);
+  const mediaMensual = mesesConDatos.length ? totalHistorico / mesesConDatos.length : 0;
 
+  // KPIs
+  $('#total-facturas-mes').textContent = dinero(totalMes);
+  $('#num-facturas-mes').textContent = `${lista.length} factura(s) en ${nombreMes(mes)}`;
+  $('#total-facturas-mespasado').textContent = dinero(totalMesPasado);
+  $('#cambio-facturas-mes').innerHTML = textoCambioMes(totalMes, totalMesPasado, mesPasado);
+  $('#media-facturas-mes').textContent = dinero(mediaMensual);
+  $('#meses-con-facturas').textContent = `${mesesConDatos.length} mes(es) con facturas`;
+  $('#total-facturas-historico').textContent = dinero(totalHistorico);
+  $('#num-facturas-historico').textContent = `${datos.facturas.length} factura(s) en total`;
+
+  // Gráfico de evolución mes a mes (últimos 12 meses con datos, en orden)
+  const mesesGrafico = mesesConDatos.slice(-12);
+  pintarGrafico('graf-facturas-meses', {
+    type: 'bar',
+    data: {
+      labels: mesesGrafico.map(mesCorto),
+      datasets: [{
+        label: 'Facturas', data: mesesGrafico.map(m => porMes[m].total),
+        backgroundColor: mesesGrafico.map(m => m === mes ? '#d9a426' : '#166534'), borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => dinero(c.parsed.y) } } },
+      scales: { y: { beginAtZero: true, ticks: { callback: v => abreviar(v) } } }
+    }
+  });
+
+  // Tabla "desglose por mes" (más reciente arriba), con variación respecto al mes anterior
+  const cuerpoMeses = $('#cuerpo-facturas-meses');
+  if (mesesConDatos.length === 0) {
+    cuerpoMeses.innerHTML = '<tr class="fila-vacia"><td colspan="4">Aún no hay facturas. Sube la primera y aquí verás el total de cada mes.</td></tr>';
+  } else {
+    cuerpoMeses.innerHTML = mesesConDatos.slice().reverse().map(m => {
+      const prev = porMes[mesAnteriorDe(m)];
+      const variacion = prev ? textoCambioMes(porMes[m].total, prev.total, mesAnteriorDe(m), true) : '<small style="color:var(--tinta-suave)">—</small>';
+      return `<tr class="${m === mes ? 'fila-resaltada' : ''}">
+        <td><button class="badge badge-neutro btn-ir-mes" data-mes="${m}" data-input="mes-facturas">${nombreMes(m)}</button></td>
+        <td class="num">${porMes[m].n}</td>
+        <td class="num"><strong>${dinero(porMes[m].total)}</strong></td>
+        <td class="num">${variacion}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Tabla de facturas del mes filtrado
+  $('#titulo-tabla-facturas').textContent = `Facturas de ${nombreMes(mes)}`;
   const cuerpo = $('#cuerpo-facturas');
   if (lista.length === 0) {
     cuerpo.innerHTML = `<tr class="fila-vacia"><td colspan="7">No hay facturas registradas en ${nombreMes(mes)}. Registra la primera con "＋ Nueva factura".${chipsDeMeses(datos.facturas, 'mes-facturas', mes)}</td></tr>`;
-    return;
+  } else {
+    cuerpo.innerHTML = lista.map(f => `
+      <tr>
+        <td>${fechaCorta(f.fecha)}</td>
+        <td><strong>${esc(f.proveedor)}</strong></td>
+        <td>${esc(f.numero || '—')}</td>
+        <td><span class="badge badge-neutro">${esc(f.categoria)}</span></td>
+        <td class="num">${f.lineas.length}</td>
+        <td class="num"><strong>${dinero(totalFactura(f))}</strong></td>
+        <td class="num acciones-factura">
+          <button class="btn-icono btn-imprimir-factura" data-id="${f.id}" title="Imprimir / guardar en PDF">🖨️</button>
+          <button class="btn-icono btn-descargar-factura" data-id="${f.id}" title="Descargar la factura">⬇️</button>
+          <button class="btn-icono btn-enviar-factura" data-id="${f.id}" title="Enviar / compartir">📤</button>
+          <button class="btn-icono btn-editar-factura" data-id="${f.id}" title="Ver / editar">✏️</button>
+          <button class="btn-icono btn-borrar-factura" data-id="${f.id}" title="Eliminar">🗑</button>
+        </td>
+      </tr>`).join('');
   }
 
-  cuerpo.innerHTML = lista.map(f => `
-    <tr>
-      <td>${fechaCorta(f.fecha)}</td>
-      <td><strong>${esc(f.proveedor)}</strong></td>
-      <td>${esc(f.numero || '—')}</td>
-      <td><span class="badge badge-neutro">${esc(f.categoria)}</span></td>
-      <td class="num">${f.lineas.length}</td>
-      <td class="num"><strong>${dinero(totalFactura(f))}</strong></td>
-      <td class="num">
-        <button class="btn-icono btn-editar-factura" data-id="${f.id}" title="Ver / editar">✏️</button>
-        <button class="btn-icono btn-borrar-factura" data-id="${f.id}" title="Eliminar">🗑</button>
-      </td>
-    </tr>`).join('');
+  // Pie: facturas que NO están en este mes + archivos que fallaron al subir (para que nada parezca perdido)
+  const enOtrosMeses = datos.facturas.length - lista.length;
+  let pie = '';
+  if (enOtrosMeses > 0) {
+    pie += `<p class="nota-vista" style="margin:12px 0 0">📌 Hay <strong>${enOtrosMeses} factura(s) en otros meses</strong> (por eso el histórico es mayor que este mes). Cambia el mes arriba o pulsa un mes en el desglose para verlas.</p>`;
+  }
+  if (archivosFallidos.length > 0) {
+    pie += `<p class="nota-vista" style="margin:8px 0 0;color:var(--rojo)">⚠️ <strong>${archivosFallidos.length} archivo(s) no se pudieron leer</strong> en la última subida: ${archivosFallidos.map(a => esc(a.name)).join(', ')}. Vuelve a subirlos con mejor foto para que se reflejen.</p>`;
+  }
+  $('#pie-facturas').innerHTML = pie;
+}
+
+// Texto de variación de un total respecto al mes anterior (flecha + % + color)
+function textoCambioMes(actual, anterior, mesAnterior, compacto = false) {
+  if (anterior <= 0) {
+    return `<small style="color:var(--tinta-suave)">${compacto ? 'sin mes previo' : 'Sin datos del mes anterior'}</small>`;
+  }
+  const pct = (actual - anterior) / anterior * 100;
+  const sube = pct > 0.05, baja = pct < -0.05;
+  const flecha = sube ? '▲' : (baja ? '▼' : '▬');
+  // En gasto, gastar MENOS es bueno (verde); gastar más, rojo
+  const color = sube ? 'var(--rojo)' : (baja ? 'var(--ok)' : 'var(--tinta-suave)');
+  const signo = pct > 0 ? '+' : '';
+  return `<small style="color:${color};font-weight:700">${flecha} ${signo}${pct.toFixed(1)}%</small>` +
+    (compacto ? '' : ` <small style="color:var(--tinta-suave)">vs ${nombreMes(mesAnterior)}</small>`);
+}
+
+function exportarFacturasCSV() {
+  const mes = $('#mes-facturas').value || mesActual();
+  const lista = facturasDelMes(mes).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  if (lista.length === 0) return aviso('No hay facturas en este mes para exportar.', true);
+
+  const filas = [['Fecha', 'Proveedor', 'Nº factura', 'Categoría', 'Concepto', 'Cantidad', 'Unidad', 'Importe (IVA incl.)', 'Tipo IVA %', 'Base sin IVA', 'Cuota IVA']];
+  let totalMes = 0;
+  lista.forEach(f => f.lineas.forEach(l => {
+    const iva = l.ivaPct || 0;
+    const conIva = f.ivaIncluido ? l.precio : l.precio * (1 + iva / 100);
+    totalMes += conIva;
+    filas.push([
+      f.fecha, `"${(f.proveedor || '').replace(/"/g, '""')}"`, `"${(f.numero || '').replace(/"/g, '""')}"`,
+      f.categoria, `"${(l.descripcion || '').replace(/"/g, '""')}"`,
+      l.cantidad > 0 ? numCSV(l.cantidad) : '', l.unidad || '',
+      numCSV(conIva), iva, numCSV(baseDesdeTotal(conIva, iva)), numCSV(cuotaDesdeTotal(conIva, iva))
+    ]);
+  }));
+  filas.push(['', '', '', '', '', '', '', numCSV(totalMes), '', '', '']);
+
+  descargarCSV(`facturas-${mes}.csv`, filas);
+  aviso('Archivo CSV de facturas descargado. 📄');
 }
 
 // --- Modal de factura ---
@@ -2107,6 +2230,158 @@ function borrarFactura(id) {
   guardar();
   refrescar();
   aviso('Factura eliminada (su gasto también).');
+}
+
+/* ============ 13b. IMPRIMIR / DESCARGAR / ENVIAR UNA FACTURA ============ */
+
+// Desglose por tipo de IVA de una factura (base, cuota y total con IVA)
+function desgloseIVAFactura(f) {
+  const porTipo = {};
+  let base = 0, cuota = 0, total = 0;
+  f.lineas.forEach(l => {
+    const iva = l.ivaPct || 0;
+    const conIva = f.ivaIncluido ? l.precio : l.precio * (1 + iva / 100);
+    const b = baseDesdeTotal(conIva, iva);
+    if (!porTipo[iva]) porTipo[iva] = { base: 0, cuota: 0, total: 0 };
+    porTipo[iva].base += b; porTipo[iva].cuota += (conIva - b); porTipo[iva].total += conIva;
+    base += b; cuota += (conIva - b); total += conIva;
+  });
+  return { porTipo, base, cuota, total };
+}
+
+// Cuerpo HTML del documento de una factura (cabecera con logo + datos fiscales, líneas y totales)
+function cuerpoDocumentoFactura(f) {
+  const c = datos.config;
+  const empresa = [c.razonSocial, c.direccion, c.cif ? 'CIF: ' + c.cif : '', c.telefono ? 'Tel: ' + c.telefono : '']
+    .filter(Boolean).join(' · ');
+  const d = desgloseIVAFactura(f);
+
+  const filas = f.lineas.map(l => {
+    const iva = l.ivaPct || 0;
+    const conIva = f.ivaIncluido ? l.precio : l.precio * (1 + iva / 100);
+    const cant = l.cantidad > 0 ? `${l.cantidad.toLocaleString('es-ES', { maximumFractionDigits: 2 })} ${esc(l.unidad)}` : '—';
+    return `<tr><td>${esc(l.descripcion || '')}</td><td class="num">${cant}</td><td class="num">${iva}%</td><td class="num">${dinero(conIva)}</td></tr>`;
+  }).join('');
+
+  const desglose = Object.keys(d.porTipo).map(Number).sort((a, b) => b - a).map(t =>
+    `<tr><td></td><td></td><td class="num">Base ${t}%</td><td class="num">${dinero(d.porTipo[t].base)}</td></tr>` +
+    `<tr><td></td><td></td><td class="num">IVA ${t}%</td><td class="num">${dinero(d.porTipo[t].cuota)}</td></tr>`).join('');
+
+  return `
+    <div class="cabecera-impresion" style="display:flex">
+      ${c.logo ? `<img src="${c.logo}" class="logo-impresion" alt="logo">` : ''}
+      <div class="empresa-impresion">
+        <div class="empresa-nombre">${esc(c.nombre)}</div>
+        ${empresa ? `<div class="empresa-datos">${esc(empresa)}</div>` : ''}
+        <div class="empresa-datos">Factura de compra · Generado el ${fechaCorta(hoyISO())}</div>
+      </div>
+    </div>
+    <table class="tabla tabla-doc-meta"><tbody>
+      <tr><td><strong>Proveedor</strong></td><td>${esc(f.proveedor)}</td>
+          <td><strong>Nº factura</strong></td><td>${esc(f.numero || '—')}</td></tr>
+      <tr><td><strong>Fecha</strong></td><td>${fechaCorta(f.fecha)}</td>
+          <td><strong>Categoría</strong></td><td>${esc(f.categoria)}</td></tr>
+    </tbody></table>
+    <table class="tabla">
+      <thead><tr><th>Concepto</th><th class="num">Cantidad</th><th class="num">IVA</th><th class="num">Importe</th></tr></thead>
+      <tbody>${filas}</tbody>
+    </table>
+    <table class="tabla tabla-doc-totales"><tbody>
+      ${desglose}
+      <tr><td></td><td></td><td class="num"><strong>Base imponible</strong></td><td class="num"><strong>${dinero(d.base)}</strong></td></tr>
+      <tr><td></td><td></td><td class="num"><strong>IVA total</strong></td><td class="num"><strong>${dinero(d.cuota)}</strong></td></tr>
+      <tr><td></td><td></td><td class="num"><strong>TOTAL</strong></td><td class="num"><strong style="font-size:18px">${dinero(d.total)}</strong></td></tr>
+    </tbody></table>`;
+}
+
+function nombreArchivoFactura(f) {
+  const limpio = s => (s || '').replace(/[^\wáéíóúñ ]+/gi, '').trim().replace(/\s+/g, '-');
+  return `Factura-${limpio(f.proveedor) || 'proveedor'}${f.numero ? '-' + limpio(f.numero) : ''}.html`;
+}
+
+// Documento HTML autónomo (con sus propios estilos) para descargar o compartir
+function documentoFacturaStandalone(f) {
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Factura ${esc(f.proveedor)}${f.numero ? ' nº ' + esc(f.numero) : ''}</title>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;max-width:820px;margin:20px auto;padding:0 16px}
+  table{width:100%;border-collapse:collapse;margin:12px 0}
+  th,td{padding:7px 9px;border-bottom:1px solid #ddd;text-align:left;font-size:14px}
+  .num{text-align:right}
+  .cabecera-impresion{display:flex;align-items:center;gap:16px;border-bottom:3px solid #0e3d22;padding-bottom:12px;margin-bottom:18px}
+  .logo-impresion{max-height:74px;max-width:130px;object-fit:contain}
+  .empresa-nombre{font-size:22px;font-weight:700;color:#0e3d22}
+  .empresa-datos{font-size:12px;color:#666;margin-top:2px}
+  .tabla-doc-meta td,.tabla-doc-totales td{border-bottom:none}
+  .no-print{text-align:center;margin-top:24px}
+  .no-print button{background:#166534;color:#fff;border:0;border-radius:8px;padding:10px 18px;font-size:15px;cursor:pointer}
+  @media print{@page{size:A4;margin:14mm} .no-print{display:none}}
+</style></head><body>
+${cuerpoDocumentoFactura(f)}
+<div class="no-print"><button onclick="window.print()">🖨️ Imprimir / Guardar en PDF</button></div>
+</body></html>`;
+}
+
+function textoFactura(f) {
+  const d = desgloseIVAFactura(f);
+  const lineas = f.lineas.map(l => {
+    const iva = l.ivaPct || 0;
+    const conIva = f.ivaIncluido ? l.precio : l.precio * (1 + iva / 100);
+    return `• ${l.descripcion || 'Línea'} — ${dinero(conIva)} (IVA ${iva}%)`;
+  }).join('\n');
+  return `Factura de compra — ${datos.config.nombre}\n` +
+    `Proveedor: ${f.proveedor}${f.numero ? '\nNº: ' + f.numero : ''}\n` +
+    `Fecha: ${fechaCorta(f.fecha)}\nCategoría: ${f.categoria}\n\n${lineas}\n\n` +
+    `Base: ${dinero(d.base)} · IVA: ${dinero(d.cuota)}\nTOTAL: ${dinero(d.total)}`;
+}
+
+// Imprimir (o guardar en PDF) una sola factura, aislándola del resto de la página
+function imprimirFactura(id) {
+  const f = datos.facturas.find(x => x.id === id);
+  if (!f) return;
+  $('#doc-impresion').innerHTML = cuerpoDocumentoFactura(f);
+  document.body.classList.add('imprimiendo-doc');
+  const limpiar = () => {
+    document.body.classList.remove('imprimiendo-doc');
+    window.removeEventListener('afterprint', limpiar);
+  };
+  window.addEventListener('afterprint', limpiar);
+  setTimeout(limpiar, 4000); // respaldo si el navegador no dispara "afterprint"
+  window.print();
+}
+
+function descargarFactura(id) {
+  const f = datos.facturas.find(x => x.id === id);
+  if (!f) return;
+  descargarArchivo(nombreArchivoFactura(f), documentoFacturaStandalone(f), 'text/html;charset=utf-8');
+  aviso('Factura descargada. Ábrela para imprimirla, guardarla en PDF o reenviarla. ✅');
+}
+
+// Enviar/compartir una factura: en el móvil abre el menú de compartir (WhatsApp, Mail...);
+// si no, abre el correo con los datos.
+async function enviarFactura(id) {
+  const f = datos.facturas.find(x => x.id === id);
+  if (!f) return;
+  const texto = textoFactura(f);
+  try {
+    if (typeof navigator !== 'undefined' && navigator.canShare) {
+      const archivo = new File([documentoFacturaStandalone(f)], nombreArchivoFactura(f), { type: 'text/html' });
+      if (navigator.canShare({ files: [archivo] })) {
+        await navigator.share({ files: [archivo], title: `Factura ${f.proveedor}`, text: texto });
+        return;
+      }
+    }
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      await navigator.share({ title: `Factura ${f.proveedor}`, text: texto });
+      return;
+    }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return; // el usuario cerró el menú de compartir
+  }
+  window.location.href = 'mailto:?subject=' +
+    encodeURIComponent(`Factura ${f.proveedor}${f.numero ? ' nº ' + f.numero : ''}`) +
+    '&body=' + encodeURIComponent(texto);
 }
 
 /* ============ 13c. LECTURA DE FACTURAS CON IA ============ */
@@ -4791,6 +5066,9 @@ function aplicarMarca() {
       ? `<img src="${datos.config.logo}" alt="logo" style="width:38px;height:38px;object-fit:contain;border-radius:8px">`
       : '🌴';
   }
+  // Logo difuminado como marca de agua de los recuadros verdes (.panel-marca)
+  document.documentElement.style.setProperty('--logo-marca',
+    datos.config.logo ? `url("${datos.config.logo}")` : 'none');
 }
 
 // Convierte una imagen de logo a dataURL pequeño (sin FileReader, conserva PNG)
@@ -5003,15 +5281,22 @@ function configurarEventos() {
   // Facturas
   $('#mes-facturas').addEventListener('change', renderFacturas);
   $('#btn-nueva-factura').addEventListener('click', () => abrirModalFactura());
+  $('#btn-imprimir-facturas').addEventListener('click', imprimirVista);
+  $('#btn-csv-facturas').addEventListener('click', exportarFacturasCSV);
   $('#btn-agregar-linea-factura').addEventListener('click', () => agregarLineaFactura());
   $('#btn-guardar-factura').addEventListener('click', guardarFactura);
   $('#factura-iva-incluido').addEventListener('input', recalcularResumenFactura);
   $('#cuerpo-facturas').addEventListener('click', e => {
-    const editar = e.target.closest('.btn-editar-factura');
-    const borrar = e.target.closest('.btn-borrar-factura');
-    if (editar) abrirModalFactura(parseInt(editar.dataset.id, 10));
-    if (borrar) borrarFactura(parseInt(borrar.dataset.id, 10));
+    const boton = e.target.closest('button[data-id]');
+    if (!boton) return;
+    const id = parseInt(boton.dataset.id, 10);
+    if (boton.classList.contains('btn-imprimir-factura')) imprimirFactura(id);
+    else if (boton.classList.contains('btn-descargar-factura')) descargarFactura(id);
+    else if (boton.classList.contains('btn-enviar-factura')) enviarFactura(id);
+    else if (boton.classList.contains('btn-editar-factura')) abrirModalFactura(id);
+    else if (boton.classList.contains('btn-borrar-factura')) borrarFactura(id);
   });
+  // (El desglose por mes salta de mes con el manejador global de ".btn-ir-mes")
 
   // Balance
   $('#mes-balance').addEventListener('change', renderBalance);

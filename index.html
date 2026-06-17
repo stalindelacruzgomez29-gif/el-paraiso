@@ -275,27 +275,63 @@
         <input type="month" id="mes-facturas" class="campo">
       </label>
       <span class="separador-flexible"></span>
+      <button class="btn btn-secundario" id="btn-imprimir-facturas">🖨 Imprimir / PDF</button>
+      <button class="btn btn-secundario" id="btn-csv-facturas">⬇ Exportar CSV</button>
       <button class="btn btn-primario" id="btn-nueva-factura">＋ Nueva factura</button>
     </div>
     <p class="nota-vista">Registra aquí las facturas de tus proveedores con su desglose línea a línea.
     Cada factura <strong>apunta el gasto automáticamente</strong> (separado por tipo de IVA) y, si vinculas
     las líneas a tus ingredientes, <strong>actualiza sus precios reales</strong> y recalcula todos los
     escandallos, márgenes y precios recomendados.</p>
-    <div class="rejilla-kpis rejilla-kpis-3">
-      <div class="tarjeta kpi">
-        <div class="kpi-etiqueta">Total facturado en el mes</div>
-        <div class="kpi-valor" id="total-facturas-mes">—</div>
-      </div>
-      <div class="tarjeta kpi">
-        <div class="kpi-etiqueta">Facturas del mes</div>
-        <div class="kpi-valor" id="num-facturas-mes">—</div>
-      </div>
-      <div class="tarjeta kpi">
-        <div class="kpi-etiqueta">💸 Gastado según TODAS las facturas</div>
-        <div class="kpi-valor negativo" id="total-facturas-historico">—</div>
+
+    <!-- Recuadro verde con el logo difuminado del Paraíso: resumen del mes -->
+    <div class="panel-marca" id="panel-marca-facturas">
+      <div class="rejilla-kpis">
+        <div class="tarjeta kpi">
+          <div class="kpi-etiqueta">🧾 Facturas de este mes</div>
+          <div class="kpi-valor" id="total-facturas-mes">—</div>
+          <div class="kpi-sub" id="num-facturas-mes">—</div>
+        </div>
+        <div class="tarjeta kpi">
+          <div class="kpi-etiqueta">📅 Mes anterior</div>
+          <div class="kpi-valor" id="total-facturas-mespasado">—</div>
+          <div class="kpi-sub" id="cambio-facturas-mes">—</div>
+        </div>
+        <div class="tarjeta kpi">
+          <div class="kpi-etiqueta">📊 Media por mes (con facturas)</div>
+          <div class="kpi-valor" id="media-facturas-mes">—</div>
+          <div class="kpi-sub" id="meses-con-facturas">—</div>
+        </div>
+        <div class="tarjeta kpi">
+          <div class="kpi-etiqueta">💸 Total histórico (todas)</div>
+          <div class="kpi-valor negativo" id="total-facturas-historico">—</div>
+          <div class="kpi-sub" id="num-facturas-historico">—</div>
+        </div>
       </div>
     </div>
+
+    <!-- Desglose mes a mes + gráfico de evolución -->
+    <div class="rejilla-2col">
+      <div class="tarjeta">
+        <h3>📈 Gasto en compras (facturas) mes a mes</h3>
+        <div class="caja-grafico"><canvas id="graf-facturas-meses"></canvas></div>
+        <p class="nota-vista" style="margin:8px 0 0">Cada factura que subes se suma aquí al instante. Así ves <strong>cómo evoluciona tu gasto</strong> y si vas mejorando.</p>
+      </div>
+      <div class="tarjeta">
+        <h3>🗓️ Desglose por mes</h3>
+        <div class="tabla-envoltura">
+          <table class="tabla">
+            <thead>
+              <tr><th>Mes</th><th class="num">Facturas</th><th class="num">Total</th><th class="num">vs. mes anterior</th></tr>
+            </thead>
+            <tbody id="cuerpo-facturas-meses"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <div class="tarjeta">
+      <h3 id="titulo-tabla-facturas">Facturas del mes</h3>
       <div class="tabla-envoltura">
         <table class="tabla">
           <thead>
@@ -312,6 +348,7 @@
           <tbody id="cuerpo-facturas"></tbody>
         </table>
       </div>
+      <div id="pie-facturas"></div>
     </div>
   </section>
 
@@ -1654,6 +1691,9 @@
 <button class="fab-subir" id="fab-subir" title="Subir un documento (foto o PDF)">📎</button>
 
 <div class="avisos" id="avisos"></div>
+
+<!-- Documento de una sola factura: se rellena al imprimir/descargar una factura concreta -->
+<div id="doc-impresion" class="doc-impresion"></div>
 
 <script src="lib/chart.umd.min.js"></script>
 <script src="js/marca-paraiso.js"></script>

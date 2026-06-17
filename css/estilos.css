@@ -942,6 +942,38 @@ html, body {
 
 .solo-imprimir { display: none; }
 
+/* ============ RECUADRO VERDE CON LOGO DIFUMINADO + EXTRAS DE FACTURAS ============ */
+
+.panel-marca {
+  position: relative;
+  background: linear-gradient(135deg, var(--verde-oscuro) 0%, var(--verde) 100%);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 18px;
+  overflow: hidden;
+}
+/* El logo de El Paraíso, difuminado, como marca de agua del recuadro */
+.panel-marca::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--logo-marca, none);
+  background-repeat: no-repeat;
+  background-position: right -30px center;
+  background-size: 240px;
+  opacity: 0.12;
+  pointer-events: none;
+}
+.panel-marca .rejilla-kpis { position: relative; margin-bottom: 0; }
+.panel-marca .kpi { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(2px); }
+
+.kpi-sub { font-size: 12px; color: var(--tinta-suave); margin-top: 4px; }
+.fila-resaltada { background: var(--dorado-suave) !important; }
+.acciones-factura { white-space: nowrap; }
+
+/* Documento de una sola factura: invisible en pantalla; al imprimir tapa todo lo demás */
+.doc-impresion { display: none; }
+
 /* Cabecera de impresión con logo + datos de empresa (oculta en pantalla, visible al imprimir) */
 .cabecera-impresion {
   align-items: center;
@@ -967,6 +999,10 @@ html, body {
   .cabecera-impresion { display: flex; }
   .encabezado-informe { text-align: center; margin-bottom: 18px; }
   .rejilla-2col, .rejilla-graficos { grid-template-columns: 1fr 1fr; }
+
+  /* Al imprimir/guardar UNA factura, ocultamos todo lo demás y solo sale el documento */
+  body.imprimiendo-doc > *:not(#doc-impresion) { display: none !important; }
+  body.imprimiendo-doc #doc-impresion { display: block; }
 }
 
 /* ============ ADAPTACIÓN A PANTALLAS PEQUEÑAS ============ */
