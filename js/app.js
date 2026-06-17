@@ -33,6 +33,17 @@ const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 's
 const MESES_LARGOS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
                       'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
+// Marca y datos fiscales por defecto de El Paraíso (aparecen en el menú y en
+// todos los PDF imprimibles). El logo lo aporta js/marca-paraiso.js.
+const MARCA_DEFECTO = {
+  nombre: 'El Paraíso Bar Restaurante',
+  razonSocial: 'DOMINICAN BALEARIC DRINKS SL',
+  cif: 'B56661879',
+  direccion: 'Calle General Riera 114, planta BJ, 07010 Palma (Illes Balears)',
+  telefono: '',
+  logo: (typeof window !== 'undefined' && window.LOGO_PARAISO_DEFECTO) ? window.LOGO_PARAISO_DEFECTO : ''
+};
+
 /* ============ 2. ESTADO GLOBAL ============ */
 
 let datos = null;          // toda la información del negocio
@@ -344,13 +355,95 @@ function plazosFiscales(anio) {
 function azar(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 function azarDecimal(min, max) { return Math.round((min + Math.random() * (max - min)) * 100) / 100; }
 
+// Configuración por defecto (incluye marca y datos fiscales de El Paraíso)
+function configPorDefecto() {
+  return {
+    nombre: MARCA_DEFECTO.nombre, moneda: '€', objetivoFoodCost: 30,
+    ivaVentaDefecto: 10, irpfPct: 20, aplicarDificil: true, dificilPct: 5,
+    modeloIA: 'claude-opus-4-8',
+    razonSocial: MARCA_DEFECTO.razonSocial, cif: MARCA_DEFECTO.cif,
+    direccion: MARCA_DEFECTO.direccion, telefono: MARCA_DEFECTO.telefono,
+    logo: MARCA_DEFECTO.logo, marcaParaisoAplicada: true
+  };
+}
+
+// Catálogo base de ingredientes de hostelería (queso, leche, lácteos, carnes,
+// pescado, marisco, verduras, despensa, bebidas...). Vienen SIN precio: el precio
+// real se rellena al subir facturas o editando cada ingrediente, y de ahí salen
+// los costes de los escandallos. Cada uno va por kg / L / ud (en la receta puedes
+// usar g, ml o ud). El IVA por defecto es el habitual en España (editable y se
+// corrige solo con cada factura): 4% frescos básicos, 10% resto de alimentos, 21% alcohol.
+function catalogoIngredientesBase() {
+  const grupos = [
+    { categoria: 'Carnes', unidad: 'kg', iva: 10, nombres: [
+      'Pollo entero', 'Pechuga de pollo', 'Muslo de pollo', 'Alitas de pollo',
+      'Carne picada mixta', 'Ternera para filetes', 'Solomillo de ternera', 'Entrecot de ternera',
+      'Lomo de cerdo', 'Costillas de cerdo', 'Panceta de cerdo', 'Secreto ibérico', 'Presa ibérica',
+      'Chuletas de cerdo', 'Chuletas de cordero', 'Pierna de cordero', 'Conejo',
+      'Pechuga de pavo', 'Hígado de ternera', 'Carrillada' ] },
+    { categoria: 'Embutidos y charcutería', unidad: 'kg', iva: 10, nombres: [
+      'Jamón serrano', 'Jamón cocido (york)', 'Chorizo', 'Salchichón', 'Lomo embuchado',
+      'Fuet', 'Sobrasada', 'Butifarra', 'Salchichas frescas', 'Morcilla',
+      'Mortadela', 'Bacon ahumado', 'Chistorra', 'Pavo en lonchas' ] },
+    { categoria: 'Pescados', unidad: 'kg', iva: 10, nombres: [
+      'Merluza', 'Bacalao', 'Salmón', 'Atún', 'Dorada', 'Lubina', 'Sardinas', 'Boquerones',
+      'Rape', 'Gallo', 'Pez espada (emperador)', 'Lenguado', 'Caballa', 'Trucha', 'Pescadilla' ] },
+    { categoria: 'Mariscos', unidad: 'kg', iva: 10, nombres: [
+      'Gambas', 'Langostinos', 'Gamba roja', 'Mejillones', 'Almejas', 'Calamares', 'Sepia',
+      'Pulpo', 'Chipirones', 'Navajas', 'Berberechos', 'Cigalas', 'Vieiras', 'Carne de cangrejo' ] },
+    { categoria: 'Verduras y hortalizas', unidad: 'kg', iva: 4, nombres: [
+      'Patata', 'Cebolla', 'Ajo', 'Tomate', 'Pimiento rojo', 'Pimiento verde', 'Calabacín',
+      'Berenjena', 'Zanahoria', 'Lechuga', 'Espinacas', 'Acelgas', 'Brócoli', 'Coliflor',
+      'Judías verdes', 'Guisantes', 'Champiñones', 'Setas', 'Puerro', 'Apio', 'Pepino',
+      'Calabaza', 'Alcachofas', 'Espárragos', 'Maíz dulce', 'Rúcula', 'Canónigos', 'Perejil', 'Jengibre' ] },
+    { categoria: 'Frutas', unidad: 'kg', iva: 4, nombres: [
+      'Limón', 'Naranja', 'Manzana', 'Plátano', 'Fresas', 'Melón', 'Sandía', 'Piña',
+      'Pera', 'Uva', 'Kiwi', 'Aguacate', 'Mango', 'Melocotón', 'Frutos rojos' ] },
+    { categoria: 'Huevos y lácteos', unidad: 'ud', iva: 4, nombres: [ 'Huevos' ] },
+    { categoria: 'Huevos y lácteos', unidad: 'L', iva: 4, nombres: [ 'Leche' ] },
+    { categoria: 'Huevos y lácteos', unidad: 'kg', iva: 4, nombres: [
+      'Queso rallado', 'Queso mozzarella', 'Queso manchego', 'Queso de cabra', 'Queso azul',
+      'Queso parmesano', 'Queso crema', 'Queso feta', 'Queso emmental', 'Queso en lonchas', 'Requesón' ] },
+    { categoria: 'Huevos y lácteos', unidad: 'L', iva: 10, nombres: [
+      'Nata para cocinar', 'Nata para montar', 'Leche condensada' ] },
+    { categoria: 'Huevos y lácteos', unidad: 'kg', iva: 10, nombres: [
+      'Mantequilla', 'Yogur natural' ] },
+    { categoria: 'Panadería', unidad: 'ud', iva: 4, nombres: [
+      'Pan', 'Baguette', 'Pan de hamburguesa', 'Pan de molde' ] },
+    { categoria: 'Panadería', unidad: 'kg', iva: 4, nombres: [ 'Pan rallado' ] },
+    { categoria: 'Despensa', unidad: 'kg', iva: 4, nombres: [
+      'Harina de trigo', 'Arroz', 'Arroz bomba', 'Lentejas', 'Garbanzos', 'Alubias' ] },
+    { categoria: 'Despensa', unidad: 'L', iva: 4, nombres: [ 'Aceite de oliva virgen extra' ] },
+    { categoria: 'Despensa', unidad: 'kg', iva: 10, nombres: [
+      'Pasta (espaguetis)', 'Macarrones', 'Fideos', 'Azúcar', 'Sal', 'Pimentón', 'Pimienta negra',
+      'Orégano', 'Especias variadas', 'Tomate frito', 'Tomate triturado', 'Café en grano',
+      'Cacao en polvo', 'Maicena', 'Levadura', 'Miel', 'Mermelada', 'Chocolate de cobertura',
+      'Almendras', 'Aceitunas', 'Patatas fritas (bolsa)' ] },
+    { categoria: 'Despensa', unidad: 'L', iva: 10, nombres: [
+      'Aceite de girasol', 'Vinagre', 'Caldo de pollo', 'Caldo de pescado', 'Salsa de soja', 'Leche de coco' ] },
+    { categoria: 'Congelados', unidad: 'kg', iva: 10, nombres: [
+      'Patatas prefritas congeladas', 'Croquetas', 'Calamares a la romana congelados', 'Verdura congelada' ] },
+    { categoria: 'Congelados', unidad: 'L', iva: 10, nombres: [ 'Helado' ] },
+    { categoria: 'Bebidas', unidad: 'L', iva: 10, nombres: [
+      'Agua mineral', 'Agua con gas', 'Zumo de naranja', 'Zumo de piña', 'Zumo de melocotón' ] },
+    { categoria: 'Bebidas', unidad: 'ud', iva: 21, nombres: [
+      'Refresco de cola (lata)', 'Refresco de naranja (lata)', 'Refresco de limón (lata)',
+      'Tónica', 'Bitter', 'Cerveza botellín', 'Cerveza lata', 'Cava (botella)' ] },
+    { categoria: 'Bebidas', unidad: 'L', iva: 21, nombres: [
+      'Cerveza de barril', 'Vino tinto', 'Vino blanco', 'Vino rosado', 'Vermut', 'Sangría',
+      'Ginebra', 'Ron', 'Whisky', 'Vodka', 'Tequila', 'Brandy', 'Licor de hierbas' ] }
+  ];
+  const lista = [];
+  grupos.forEach(g => g.nombres.forEach(nombre => lista.push({
+    nombre, categoria: g.categoria, unidad: g.unidad, ivaPct: g.iva,
+    cantidadCompra: 1, precioCompra: 0, ivaIncluido: true, factorPiezas: 1
+  })));
+  return lista;
+}
+
 function crearDatosEjemplo() {
   datos = {
-    config: {
-      nombre: 'El Paraíso Bar Restaurante', moneda: '€', objetivoFoodCost: 30,
-      ivaVentaDefecto: 10, irpfPct: 20, aplicarDificil: true, dificilPct: 5,
-      modeloIA: 'claude-opus-4-8'
-    },
+    config: configPorDefecto(),
     sigId: 40,
     ingredientes: [
       { id: 1, nombre: 'Patatas', categoria: 'Verduras', unidad: 'kg', cantidadCompra: 10, precioCompra: 8.50, ivaPct: 4, ivaIncluido: true },
@@ -529,11 +622,17 @@ function cargarDatos() {
       if (localStorage.getItem(CLAVE_TPV_ENVIADOS) === null) {
         setTimeout(marcarTodosGastosComoEnviados, 0);
       }
-      datos.config = Object.assign({
-        nombre: 'El Paraíso Bar Restaurante', moneda: '€', objetivoFoodCost: 30,
-        ivaVentaDefecto: 10, irpfPct: 20, aplicarDificil: true, dificilPct: 5,
-        modeloIA: 'claude-opus-4-8'
-      }, datos.config);
+      const teniaMarca = !!(datos.config && datos.config.marcaParaisoAplicada);
+      datos.config = Object.assign(configPorDefecto(), datos.config);
+      // Migración única: instalaciones anteriores a la marca reciben logo y datos
+      // fiscales aunque los tuvieran vacíos. Después se respeta lo que edite el usuario.
+      if (!teniaMarca) {
+        if (!datos.config.logo) datos.config.logo = MARCA_DEFECTO.logo;
+        if (!datos.config.razonSocial) datos.config.razonSocial = MARCA_DEFECTO.razonSocial;
+        if (!datos.config.cif) datos.config.cif = MARCA_DEFECTO.cif;
+        if (!datos.config.direccion) datos.config.direccion = MARCA_DEFECTO.direccion;
+        datos.config.marcaParaisoAplicada = true;
+      }
       return;
     } catch (e) {
       console.error('No se pudo leer la información guardada', e);
@@ -545,14 +644,13 @@ function cargarDatos() {
 }
 
 function crearDatosVacios() {
+  const base = catalogoIngredientesBase();
+  base.forEach((ing, i) => { ing.id = i + 1; });
   datos = {
-    config: {
-      nombre: 'El Paraíso Bar Restaurante', moneda: '€', objetivoFoodCost: 30,
-      ivaVentaDefecto: 10, irpfPct: 20, aplicarDificil: true, dificilPct: 5,
-      modeloIA: 'claude-opus-4-8'
-    },
-    sigId: 1,
-    ingredientes: [], platos: [], ventas: [], gastos: [], facturas: [], empleados: []
+    config: configPorDefecto(),
+    sigId: base.length + 1,
+    ingredientes: base,
+    platos: [], ventas: [], gastos: [], facturas: [], empleados: []
   };
   guardarIdsEnviadosTPV(new Set());
   guardar();
@@ -856,6 +954,27 @@ function guardarIngrediente() {
   guardar();
   $('#modal-ingrediente').hidden = true;
   refrescar();
+}
+
+// Ingredientes del catálogo base que todavía NO están en los datos actuales
+// (comparando el nombre sin acentos ni mayúsculas). Lógica pura, sin tocar la pantalla.
+function ingredientesCatalogoFaltantes() {
+  const existentes = new Set(datos.ingredientes.map(i => normalizarTexto(i.nombre)));
+  return catalogoIngredientesBase().filter(i => !existentes.has(normalizarTexto(i.nombre)));
+}
+
+// Añade el catálogo base de ingredientes a los datos actuales SIN borrar nada:
+// solo agrega los que aún no existen.
+function anadirCatalogoBase() {
+  const nuevos = ingredientesCatalogoFaltantes();
+  if (nuevos.length === 0) {
+    return aviso('Ya tienes todos los ingredientes del catálogo base. No hay nada que añadir.');
+  }
+  if (!confirm(`Se añadirán ${nuevos.length} ingredientes del catálogo base (queso, leche, carnes, pescado, marisco, verduras, bebidas...).\n\nVienen SIN precio: lo rellenas luego a mano o subiendo facturas. No se borra ni se cambia nada de lo que ya tienes.\n\n¿Continuar?`)) return;
+  nuevos.forEach(i => { i.id = nuevoId(); datos.ingredientes.push(i); });
+  guardar();
+  refrescar();
+  aviso(`Se añadieron ${nuevos.length} ingredientes al catálogo. Ya puedes ponerles precio. ✅`);
 }
 
 function borrarIngrediente(id) {
@@ -4598,6 +4717,7 @@ function renderImpuestos() {
 
 function renderConfig() {
   $('#conf-nombre').value = datos.config.nombre;
+  $('#conf-razon').value = datos.config.razonSocial || '';
   $('#conf-moneda').value = datos.config.moneda;
   $('#conf-objetivo').value = datos.config.objetivoFoodCost;
   $('#conf-direccion').value = datos.config.direccion || '';
@@ -4649,6 +4769,7 @@ function guardarConfig() {
   datos.config = Object.assign({}, datos.config, {
     nombre, moneda, objetivoFoodCost: objetivo, ivaVentaDefecto: ivaVenta, irpfPct: irpf,
     aplicarDificil, dificilPct,
+    razonSocial: $('#conf-razon').value.trim(),
     direccion: $('#conf-direccion').value.trim(),
     cif: $('#conf-cif').value.trim(),
     telefono: $('#conf-telefono').value.trim()
@@ -4694,7 +4815,7 @@ async function logoADataURL(archivo) {
 // Rellena la cabecera que sale al imprimir/guardar en PDF
 function prepararCabeceraImpresion() {
   const c = datos.config;
-  const datosEmpresa = [c.direccion, c.cif ? 'CIF: ' + c.cif : '', c.telefono ? 'Tel: ' + c.telefono : '']
+  const datosEmpresa = [c.razonSocial, c.direccion, c.cif ? 'CIF: ' + c.cif : '', c.telefono ? 'Tel: ' + c.telefono : '']
     .filter(Boolean).join(' · ');
   $('#cabecera-impresion').innerHTML =
     `${c.logo ? `<img src="${c.logo}" alt="logo" class="logo-impresion">` : ''}
@@ -4771,6 +4892,7 @@ function configurarEventos() {
 
   // Ingredientes
   $('#btn-nuevo-ingrediente').addEventListener('click', () => abrirModalIngrediente());
+  $('#btn-catalogo-ingredientes').addEventListener('click', anadirCatalogoBase);
   $('#btn-csv-ingredientes').addEventListener('click', exportarIngredientesCSV);
   $('#buscar-ingrediente').addEventListener('input', renderIngredientes);
   $('#btn-guardar-ingrediente').addEventListener('click', guardarIngrediente);
