@@ -105,6 +105,7 @@
       <input type="search" id="buscar-ingrediente" class="campo buscador" placeholder="🔍 Buscar ingrediente...">
       <span class="separador-flexible"></span>
       <button class="btn btn-secundario" id="btn-csv-ingredientes">⬇ Exportar CSV</button>
+      <button class="btn btn-secundario" id="btn-catalogo-ingredientes" title="Añade de golpe queso, leche, carnes, pescado, marisco, verduras, bebidas... sin precio, para que les pongas el coste">🧺 Añadir catálogo</button>
       <button class="btn btn-primario" id="btn-nuevo-ingrediente">＋ Nuevo ingrediente</button>
     </div>
     <p class="nota-vista">Registra aquí lo que compras y a qué precio. El sistema calcula el precio por unidad
@@ -806,6 +807,9 @@
         <div class="formulario">
           <label>Nombre del negocio
             <input type="text" id="conf-nombre" class="campo">
+          </label>
+          <label>Razón social (empresa, sale en los informes impresos)
+            <input type="text" id="conf-razon" class="campo" placeholder="DOMINICAN BALEARIC DRINKS SL">
           </label>
           <label>Símbolo de moneda
             <input type="text" id="conf-moneda" class="campo" placeholder="€">
@@ -1652,6 +1656,7 @@
 <div class="avisos" id="avisos"></div>
 
 <script src="lib/chart.umd.min.js"></script>
+<script src="js/marca-paraiso.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
