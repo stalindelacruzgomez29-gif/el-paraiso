@@ -680,7 +680,8 @@ const TITULOS = {
   ventas: 'Ventas', gastos: 'Gastos', facturas: 'Facturas de compra',
   balance: 'Balance de caja', personal: 'Personal y horarios',
   contabilidad: 'Contabilidad', informes: 'Informes', analisis: 'Análisis del negocio',
-  impuestos: 'Impuestos y declaraciones', config: 'Configuración', ayuda: 'Ayuda'
+  impuestos: 'Impuestos y declaraciones', diagnostico: 'Diagnóstico del sistema',
+  config: 'Configuración', ayuda: 'Ayuda'
 };
 
 function mostrarVista(nombre) {
@@ -704,6 +705,7 @@ function renderVista(nombre) {
   else if (nombre === 'informes') renderInformes();
   else if (nombre === 'analisis') renderAnalisis();
   else if (nombre === 'impuestos') renderImpuestos();
+  else if (nombre === 'diagnostico') renderDiagnostico();
   else if (nombre === 'config') renderConfig();
 }
 
@@ -1483,13 +1485,13 @@ function guardarVentaDia() {
   const iva = num($('#vd-iva').value);
 
   const metodos = [
-    ['Ventas en efectivo', num($('#vd-efectivo').value)],
-    ['Ventas con tarjeta (TPV)', num($('#vd-tarjeta').value)],
-    ['Ventas por Bizum', num($('#vd-bizum').value)]
+    ['Ventas en efectivo', num($('#vd-efectivo').value), 'efectivo'],
+    ['Ventas con tarjeta (TPV)', num($('#vd-tarjeta').value), 'tarjeta'],
+    ['Ventas por Bizum', num($('#vd-bizum').value), 'bizum']
   ];
   const otrosDesc = $('#vd-otros-desc').value.trim();
   const otrosMonto = num($('#vd-otros-monto').value);
-  if (otrosMonto > 0) metodos.push([otrosDesc || 'Otras ventas', otrosMonto]);
+  if (otrosMonto > 0) metodos.push([otrosDesc || 'Otras ventas', otrosMonto, 'otros']);
 
   const aRegistrar = metodos.filter(m => m[1] > 0);
   if (aRegistrar.length === 0) return aviso('Pon al menos un importe mayor que 0.', true);
@@ -1500,10 +1502,10 @@ function guardarVentaDia() {
       !confirm(`El día ${fechaCorta(fecha)} ya tiene ${existentes.length} venta(s) por ${dinero(sumaVentas(existentes))}.\n\n¿Añadir igualmente? (las nuevas se SUMAN)`)) return;
 
   const caja = $('#vd-caja').value === 'privada' ? 'privada' : 'oficial';
-  aRegistrar.forEach(([desc, monto]) => {
+  aRegistrar.forEach(([desc, monto, metodoPago]) => {
     datos.ventas.push({
       id: nuevoId(), fecha, platoId: null, descripcion: desc,
-      cantidad: 1, precioUnit: monto, total: monto, ivaPct: iva, costoUnit: null, caja
+      cantidad: 1, precioUnit: monto, total: monto, ivaPct: iva, costoUnit: null, caja, metodoPago
     });
   });
 
@@ -1571,7 +1573,7 @@ function guardarCierre() {
     nuevas.push({
       id: nuevoId(), fecha, platoId: plato.id, descripcion: plato.nombre,
       cantidad, precioUnit: plato.precioVenta, total: cantidad * plato.precioVenta,
-      ivaPct: plato.ivaPct, costoUnit: costoPlato(plato)
+      ivaPct: plato.ivaPct, costoUnit: costoPlato(plato), caja: 'oficial'
     });
   });
 
@@ -1581,7 +1583,7 @@ function guardarCierre() {
       id: nuevoId(), fecha, platoId: null,
       descripcion: $('#cierre-extra-desc').value.trim() || 'Otras ventas del día',
       cantidad: 1, precioUnit: extraMonto, total: extraMonto,
-      ivaPct: num($('#cierre-extra-iva').value), costoUnit: null
+      ivaPct: num($('#cierre-extra-iva').value), costoUnit: null, caja: 'oficial'
     });
   }
 
@@ -1589,11 +1591,13 @@ function guardarCierre() {
   $$('.cierre-tpv-monto').forEach(campo => {
     const monto = num(campo.value);
     if (monto <= 0) return;
+    const metodo = (campo.dataset.metodo || '').toLowerCase();
+    const metodoPago = /efec/.test(metodo) ? 'efectivo' : /tarj|tpv/.test(metodo) ? 'tarjeta' : /bizum/.test(metodo) ? 'bizum' : 'otros';
     nuevas.push({
       id: nuevoId(), fecha, platoId: null,
       descripcion: 'TPV — ' + campo.dataset.metodo,
       cantidad: 1, precioUnit: monto, total: monto,
-      ivaPct: datos.config.ivaVentaDefecto, costoUnit: null
+      ivaPct: datos.config.ivaVentaDefecto, costoUnit: null, caja: 'oficial', metodoPago
     });
   });
 
@@ -2778,7 +2782,7 @@ async function procesarArchivoZ(archivo) {
       datos.ventas.push({
         id: nuevoId(), fecha: z.fecha, platoId: null, descripcion: l.descripcion,
         cantidad: 1, precioUnit: l.total, total: l.total,
-        ivaPct: datos.config.ivaVentaDefecto, costoUnit: null
+        ivaPct: datos.config.ivaVentaDefecto, costoUnit: null, caja: 'oficial'
       });
       anotarResultadoLote('progreso-ok', `✅ ${esc(l.descripcion)}: <strong>${dinero(l.total)}</strong>`);
     });
@@ -2832,7 +2836,7 @@ async function procesarLoteZ(archivos) {
       }
       z.lineas.forEach(l => datos.ventas.push({
         id: nuevoId(), fecha: z.fecha, platoId: null, descripcion: l.descripcion,
-        cantidad: 1, precioUnit: l.total, total: l.total, ivaPct: datos.config.ivaVentaDefecto, costoUnit: null
+        cantidad: 1, precioUnit: l.total, total: l.total, ivaPct: datos.config.ivaVentaDefecto, costoUnit: null, caja: 'oficial'
       }));
       guardar();
       ok++; totalEuros += z.total; ultimoMes = mesDe(z.fecha);
@@ -2940,7 +2944,7 @@ async function procesarArchivoInforme(archivo) {
       datos.ventas.push({
         id: nuevoId(), fecha: l.fecha, platoId: null, descripcion: l.descripcion,
         cantidad: 1, precioUnit: l.total, total: l.total,
-        ivaPct: datos.config.ivaVentaDefecto, costoUnit: null
+        ivaPct: datos.config.ivaVentaDefecto, costoUnit: null, caja: 'oficial'
       });
     });
     anotarResultadoLote('progreso-ok',
@@ -4016,11 +4020,11 @@ function rentabilidadDelMes(mes) {
 }
 
 // Cuenta de Pérdidas y Ganancias del mes (todo sin IVA, como la presenta una gestoría)
-function perdidasYGanancias(mes) {
-  const gastos = gastosDelMes(mes);
+function perdidasYGanancias(mes, caja) {
+  const gastos = gastosDelMes(mes, caja);
   const baseDe = categoria => baseGastos(gastos.filter(g => g.categoria === categoria));
 
-  const ingresos = baseVentas(ventasDelMes(mes));
+  const ingresos = baseVentas(ventasDelMes(mes, caja));
   const aprovisionamientos = baseDe('Compras de comida') + baseDe('Bebidas');
   const personal = baseDe('Nómina') + baseDe('Seguridad Social');
 
@@ -4037,8 +4041,8 @@ function perdidasYGanancias(mes) {
   };
 }
 
-function renderPyG(mes) {
-  const pyg = perdidasYGanancias(mes);
+function renderPyG(mes, caja) {
+  const pyg = perdidasYGanancias(mes, caja);
   const pct = n => pyg.ingresos > 0 ? (100 * n / pyg.ingresos).toFixed(1) + '%' : '—';
 
   $('#cuerpo-pyg').innerHTML = `
@@ -4054,7 +4058,8 @@ function renderPyG(mes) {
 
 function exportarPyGCSV() {
   const mes = $('#mes-informe').value || mesActual();
-  const pyg = perdidasYGanancias(mes);
+  const caja = ($('#informe-caja') && $('#informe-caja').value) || 'todas';
+  const pyg = perdidasYGanancias(mes, caja);
   if (pyg.ingresos === 0 && pyg.totalOtros === 0 && pyg.personal === 0 && pyg.aprovisionamientos === 0) {
     return aviso('No hay datos en este mes para la cuenta de P&G.', true);
   }
@@ -4193,8 +4198,9 @@ function exportarEscandallosCSV() {
 // Informe completo del mes en un solo archivo: resumen, gastos por categoría y rentabilidad por producto
 function exportarInformeCSV() {
   const mes = $('#mes-informe').value || mesActual();
-  const ventas = ventasDelMes(mes);
-  const gastos = gastosDelMes(mes);
+  const caja = ($('#informe-caja') && $('#informe-caja').value) || 'todas';
+  const ventas = ventasDelMes(mes, caja);
+  const gastos = gastosDelMes(mes, caja);
 
   if (ventas.length === 0 && gastos.length === 0) {
     return aviso('No hay movimientos en este mes para exportar.', true);
@@ -4474,9 +4480,10 @@ function renderContabilidad() {
 
 function exportarContabilidadCSV() {
   const mes = $('#mes-conta').value || mesActual();
-  const ventas = ventasDelMes(mes).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
-  const gastos = gastosDelMes(mes);
-  const facturas = facturasDelMes(mes).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
+  const caja = ($('#conta-caja') && $('#conta-caja').value) || 'todas';
+  const ventas = ventasDelMes(mes, caja).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
+  const gastos = gastosDelMes(mes, caja);
+  const facturas = facturasDelMes(mes, caja).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
   if (ventas.length === 0 && gastos.length === 0) return aviso('No hay movimientos en este mes para exportar.', true);
 
   const filas = [
@@ -4809,8 +4816,9 @@ function exportarAnalisisCSV() {
 
 function renderInformes() {
   const mes = $('#mes-informe').value || mesActual();
-  const ventas = ventasDelMes(mes);
-  const gastos = gastosDelMes(mes);
+  const caja = ($('#informe-caja') && $('#informe-caja').value) || 'todas';
+  const ventas = ventasDelMes(mes, caja);
+  const gastos = gastosDelMes(mes, caja);
 
   const ingresos = sumaVentas(ventas);
   const totalGastos = sumaGastos(gastos);
@@ -4856,13 +4864,13 @@ function renderInformes() {
       `<tr><td><strong>TOTAL</strong></td><td class="num"><strong>${dinero(totalGastos)}</strong></td><td class="num"><strong>100%</strong></td></tr>`;
 
   // --- Cuenta de Pérdidas y Ganancias ---
-  renderPyG(mes);
+  renderPyG(mes, caja);
 
   // --- Evolución 12 meses ---
   const meses = [];
   for (let m = 11; m >= 0; m--) meses.push(mesesAtras(m));
-  const vMes = meses.map(m => sumaVentas(ventasDelMes(m)));
-  const gMes = meses.map(m => sumaGastos(gastosDelMes(m)));
+  const vMes = meses.map(m => sumaVentas(ventasDelMes(m, caja)));
+  const gMes = meses.map(m => sumaGastos(gastosDelMes(m, caja)));
 
   pintarGrafico('graf-evolucion', {
     type: 'bar',
@@ -4986,6 +4994,122 @@ function renderImpuestos() {
       <span class="plazo-fechas">del ${fechaCorta(p.inicio)} al ${fechaCorta(p.fin)}${esProximo ? ' · PRÓXIMO PLAZO' : vencido ? ' · vencido' : ''}</span>
     </div>`;
   }).join('');
+}
+
+/* ============ 15b. DIAGNÓSTICO DEL SISTEMA ============ */
+
+// Clasifica una venta por su ORIGEN (de dónde vino), para el informe del sistema
+function origenVenta(v) {
+  const d = (v.descripcion || '');
+  if (/^Cierre Z/i.test(d)) return 'Z (cierre del día)';
+  if (/informe mensual/i.test(d)) return 'Informe mensual';
+  if (v.metodoPago || /^Ventas (en efectivo|con tarjeta|por Bizum)/i.test(d) || /^TPV —/i.test(d) || /^Otras ventas/i.test(d)) return 'Venta del día';
+  if (v.platoId) return 'Venta por plato';
+  return 'Otras ventas';
+}
+
+// Método de pago de una venta (campo nuevo; si no existe, se deduce del texto)
+function metodoDeVenta(v) {
+  if (v.metodoPago) return v.metodoPago;
+  const d = (v.descripcion || '').toLowerCase();
+  if (/efectivo/.test(d)) return 'efectivo';
+  if (/tarjeta|tpv/.test(d)) return 'tarjeta';
+  if (/bizum/.test(d)) return 'bizum';
+  return null;
+}
+
+function kpiDiag(etiqueta, valor) {
+  return `<div class="tarjeta kpi"><div class="kpi-etiqueta">${etiqueta}</div><div class="kpi-valor">${valor}</div></div>`;
+}
+
+function renderDiagnostico() {
+  const D = datos;
+  const out = [];
+
+  // 1) RESUMEN DE DATOS
+  const fechasV = D.ventas.map(v => v.fecha).filter(Boolean).sort();
+  const rango = fechasV.length ? `${fechaCorta(fechasV[0])} → ${fechaCorta(fechasV[fechasV.length - 1])}` : '—';
+  out.push(`<h3>📦 Lo que hay guardado</h3><div class="rejilla-kpis">
+    ${kpiDiag('Ingredientes', D.ingredientes.length)}
+    ${kpiDiag('Escandallos', D.platos.length)}
+    ${kpiDiag('Ventas', D.ventas.length)}
+    ${kpiDiag('Gastos', D.gastos.length)}
+    ${kpiDiag('Facturas', D.facturas.length)}
+    ${kpiDiag('Empleados', D.empleados.length)}
+  </div><p class="nota-vista">Fechas de las ventas: <strong>${rango}</strong>.</p>`);
+
+  // 2) VENTAS POR ORIGEN Y POR CAJA
+  const porOrigen = {};
+  D.ventas.forEach(v => { const o = origenVenta(v); if (!porOrigen[o]) porOrigen[o] = { n: 0, t: 0 }; porOrigen[o].n++; porOrigen[o].t += v.total; });
+  const ofi = sumaVentas(D.ventas.filter(v => coincideCaja(v, 'oficial')));
+  const priv = sumaVentas(D.ventas.filter(v => coincideCaja(v, 'privada')));
+  out.push(`<div class="tarjeta"><h3>💰 Ventas: de dónde vienen</h3>
+    <div class="tabla-envoltura"><table class="tabla"><thead><tr><th>Origen</th><th class="num">Registros</th><th class="num">Total</th></tr></thead><tbody>
+    ${Object.keys(porOrigen).sort().map(o => `<tr><td>${esc(o)}</td><td class="num">${porOrigen[o].n}</td><td class="num">${dinero(porOrigen[o].t)}</td></tr>`).join('') || '<tr class="fila-vacia"><td colspan="3">Aún no hay ventas.</td></tr>'}
+    </tbody></table></div>
+    <p class="nota-vista">🏛️ Caja oficial: <strong>${dinero(ofi)}</strong> · 🔒 Caja privada: <strong>${dinero(priv)}</strong></p></div>`);
+
+  // 3) MÉTODOS DE PAGO
+  const metodos = { efectivo: 0, tarjeta: 0, bizum: 0 };
+  let conMetodo = 0;
+  D.ventas.forEach(v => { const m = metodoDeVenta(v); if (m && metodos[m] !== undefined) { metodos[m] += v.total; conMetodo++; } });
+  out.push(`<h3>💳 Métodos de pago (de venta del día y Z)</h3><div class="rejilla-kpis rejilla-kpis-3">
+    ${kpiDiag('💵 Efectivo', dinero(metodos.efectivo))}
+    ${kpiDiag('💳 Tarjeta', dinero(metodos.tarjeta))}
+    ${kpiDiag('📲 Bizum', dinero(metodos.bizum))}
+  </div>${conMetodo === 0 ? '<p class="nota-vista">Todavía no hay ventas con método de pago. Usa "Venta del día" o sube la Z con el desglose del TPV.</p>' : ''}`);
+
+  // 4) FACTURAS: ENLACE Y POR MES
+  const totalFacturas = D.facturas.reduce((s, f) => s + totalFactura(f), 0);
+  const gastosDeFacturas = D.gastos.filter(g => g.facturaId);
+  const totalGastosFacturas = gastosDeFacturas.reduce((s, g) => s + g.monto, 0);
+  const pm = facturasPorMes();
+  const filasMes = Object.keys(pm).sort().reverse().map(m => `<tr><td>${nombreMes(m)}</td><td class="num">${pm[m].n}</td><td class="num">${dinero(pm[m].total)}</td></tr>`).join('');
+  out.push(`<div class="tarjeta"><h3>🧾 Facturas y su enlace con los gastos</h3>
+    <p>Total de todas las facturas: <strong>${dinero(totalFacturas)}</strong>. Gastos generados por ellas: <strong>${dinero(totalGastosFacturas)}</strong>.</p>
+    ${D.facturas.length ? `<div class="tabla-envoltura"><table class="tabla"><thead><tr><th>Mes</th><th class="num">Facturas</th><th class="num">Total</th></tr></thead><tbody>${filasMes}</tbody></table></div>` : '<p class="nota-vista">Aún no hay facturas.</p>'}</div>`);
+
+  // 5) COMPROBACIONES AUTOMÁTICAS
+  const checks = [];
+  const facturasSinGasto = D.facturas.filter(f => !D.gastos.some(g => g.facturaId === f.id));
+  checks.push(facturasSinGasto.length === 0
+    ? ['ok', `Todas las facturas (${D.facturas.length}) están apuntadas como gasto: el enlace factura → gastos funciona.`]
+    : ['error', `${facturasSinGasto.length} factura(s) sin su gasto: ${facturasSinGasto.slice(0, 5).map(f => esc(f.proveedor)).join(', ')}. Ábrelas y guárdalas otra vez.`]);
+  checks.push(Math.abs(totalFacturas - totalGastosFacturas) < 0.5
+    ? ['ok', 'El total de las facturas coincide con los gastos que generan (ni se duplican ni se pierden importes).']
+    : ['aviso', `Diferencia de ${dinero(Math.abs(totalFacturas - totalGastosFacturas))} entre facturas y sus gastos. Revisa facturas editadas a mano.`]);
+  const huerfanos = D.gastos.filter(g => g.facturaId && !D.facturas.some(f => f.id === g.facturaId));
+  if (huerfanos.length) checks.push(['aviso', `${huerfanos.length} gasto(s) apuntan a una factura que ya no existe. Bórralos en Gastos si sobran.`]);
+  const ventasSinCaja = D.ventas.filter(v => !v.caja).length;
+  if (ventasSinCaja) checks.push(['aviso', `${ventasSinCaja} venta(s) antiguas sin marca de caja (cuentan como 🏛️ oficial). Las nuevas ya la guardan.`]);
+  const sinCoste = D.platos.filter(p => !(p.costoManual > 0) && (!(p.lineas || []).length || costoPlato(p) <= 0));
+  if (sinCoste.length) checks.push(['aviso', `${sinCoste.length} escandallo(s) sin coste aún (p.ej. platos de la carta sin ingredientes). Añádeles ingredientes para ver su food cost.`]);
+  const sinPrecio = D.ingredientes.filter(i => !(i.precioCompra > 0)).length;
+  if (sinPrecio) checks.push(['aviso', `${sinPrecio} ingrediente(s) del catálogo sin precio aún. Se rellenan al subir facturas o a mano.`]);
+  if (typeof archivosFallidos !== 'undefined' && archivosFallidos.length) checks.push(['error', `${archivosFallidos.length} archivo(s) no se pudieron leer en la última subida: ${archivosFallidos.map(a => esc(a.name)).join(', ')}. Vuelve a subirlos.`]);
+  checks.push(D.config.logo ? ['ok', 'Logo del Paraíso cargado (sale en el menú y en los PDF).'] : ['aviso', 'No hay logo cargado. Ponlo en Configuración.']);
+  checks.push((D.config.cif && D.config.razonSocial) ? ['ok', `Datos fiscales puestos: ${esc(D.config.razonSocial)} · CIF ${esc(D.config.cif)}.`] : ['aviso', 'Faltan datos fiscales (razón social / CIF) en Configuración.']);
+  checks.push(codigoSync() ? ['ok', 'Sincronización en la nube ACTIVA: tus datos se ven igual en móvil y ordenador.'] : ['aviso', 'Sincronización en la nube NO activada: cada aparato guarda sus propios datos. Actívala en Configuración para verlos igual en todos.']);
+
+  const iconos = { ok: '✅', aviso: '⚠️', error: '❌' };
+  const clases = { ok: 'progreso-ok', aviso: 'progreso-aviso', error: 'progreso-error' };
+  out.push(`<div class="tarjeta"><h3>🔎 Comprobaciones automáticas</h3><div class="lista-progreso" style="max-height:none">${
+    checks.map(([nivel, txt]) => `<div class="progreso-item ${clases[nivel]}">${iconos[nivel]} ${txt}</div>`).join('')
+  }</div></div>`);
+
+  // 6) MAPA: QUÉ ALIMENTA CADA APARTADO
+  out.push(`<div class="tarjeta"><h3>🔗 Qué alimenta cada apartado (todo enlazado)</h3>
+    <div class="tabla-envoltura"><table class="tabla"><thead><tr><th>Lo que subes / registras</th><th>Se refleja en…</th></tr></thead><tbody>
+    <tr><td>🧾 <strong>Factura</strong> (foto/PDF o a mano)</td><td>Ingredientes (precios) · Escandallos (coste) · Gastos (por tipo de IVA) · Facturas · Balance · Contabilidad · Informes · Impuestos (303 y 130) · Análisis</td></tr>
+    <tr><td>💰 <strong>Venta del día</strong> (efectivo/tarjeta/bizum)</td><td>Ventas · Balance · Contabilidad · Informes · Impuestos (303) · Análisis · con su método de pago y su caja</td></tr>
+    <tr><td>🧾 <strong>Z del día</strong> (foto o a mano)</td><td>Ventas (caja oficial) · Balance · Contabilidad · Informes · Impuestos (303) · Análisis</td></tr>
+    <tr><td>📅 <strong>Informe mensual</strong> (foto/PDF)</td><td>Ventas del mes (caja oficial) → los mismos apartados de arriba</td></tr>
+    <tr><td>📋 <strong>La carta</strong> (foto/PDF)</td><td>Escandallos (crea los platos con su precio) y se pueden vender en Ventas. Tú le añades los ingredientes para el coste</td></tr>
+    <tr><td>👥 <strong>Personal</strong></td><td>Personal y horarios · sus nóminas/SS se apuntan en Gastos</td></tr>
+    </tbody></table></div>
+    <p class="nota-vista">Los impuestos (303/130) usan SOLO la caja oficial, como pide Hacienda. El resto de apartados te deja elegir caja (oficial, privada o las dos).</p></div>`);
+
+  $('#cuerpo-diagnostico').innerHTML = out.join('');
 }
 
 /* ============ 16. CONFIGURACIÓN ============ */
@@ -5328,7 +5452,12 @@ function configurarEventos() {
 
   // Informes
   $('#mes-informe').addEventListener('change', renderInformes);
+  $('#informe-caja').addEventListener('change', renderInformes);
   $('#btn-csv-informe').addEventListener('click', exportarInformeCSV);
+
+  // Diagnóstico del sistema
+  $('#btn-refrescar-diagnostico').addEventListener('click', renderDiagnostico);
+  $('#btn-imprimir-diagnostico').addEventListener('click', imprimirVista);
   $('#btn-csv-pyg').addEventListener('click', exportarPyGCSV);
   $('#btn-imprimir').addEventListener('click', () => imprimirVista());
 

@@ -31,6 +31,7 @@
     <button class="nav-btn" data-vista="informes"><span class="nav-icono">📈</span> Informes</button>
     <button class="nav-btn" data-vista="analisis"><span class="nav-icono">🧠</span> Análisis</button>
     <button class="nav-btn" data-vista="impuestos"><span class="nav-icono">🏛️</span> Impuestos</button>
+    <button class="nav-btn" data-vista="diagnostico"><span class="nav-icono">🔎</span> Diagnóstico</button>
     <button class="nav-btn" data-vista="config"><span class="nav-icono">⚙️</span> Configuración</button>
     <button class="nav-btn" data-vista="ayuda"><span class="nav-icono">❓</span> Ayuda</button>
   </nav>
@@ -466,6 +467,13 @@
       <label class="etiqueta-filtro">Mes del informe:
         <input type="month" id="mes-informe" class="campo">
       </label>
+      <label class="etiqueta-filtro">Caja:
+        <select id="informe-caja" class="campo">
+          <option value="todas">Las dos (real)</option>
+          <option value="oficial">🏛️ Oficial</option>
+          <option value="privada">🔒 Privada</option>
+        </select>
+      </label>
       <span class="separador-flexible"></span>
       <button class="btn btn-secundario" id="btn-csv-informe">⬇ Exportar informe (CSV)</button>
       <button class="btn btn-secundario" id="btn-imprimir">🖨 Imprimir informe</button>
@@ -834,6 +842,18 @@
       <p class="nota-vista">Si el último día cae en fin de semana o festivo, el plazo pasa al siguiente día hábil.
       Con domiciliación bancaria, el plazo suele acabar 5 días antes.</p>
     </div>
+  </section>
+
+  <!-- ========== VISTA: DIAGNÓSTICO ========== -->
+  <section id="vista-diagnostico" class="vista">
+    <div class="acciones-vista">
+      <span class="separador-flexible"></span>
+      <button class="btn btn-secundario" id="btn-imprimir-diagnostico">🖨 Imprimir / PDF</button>
+      <button class="btn btn-primario" id="btn-refrescar-diagnostico">🔄 Volver a comprobar</button>
+    </div>
+    <p class="nota-vista">Aquí ves <strong>todo lo que tiene el programa con TUS datos</strong> y se comprueba que cada cosa
+    esté enlazada y automatizada: qué documento alimenta cada apartado, cuántos registros hay, y avisos si algo no cuadra.</p>
+    <div id="cuerpo-diagnostico"></div>
   </section>
 
   <!-- ========== VISTA: CONFIGURACIÓN ========== -->
