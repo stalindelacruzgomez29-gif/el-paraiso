@@ -5263,6 +5263,34 @@ async function importarCopia(archivo) {
   }
 }
 
+// Estado de fábrica: descarga una copia ANTES de borrar nada, pide doble confirmación,
+// y deja el programa nuevo (catálogo + datos fiscales del negocio, sin ventas/gastos/facturas).
+function restablecerFabrica() {
+  exportarCopia(); // 1) copia de seguridad automática (se descarga al instante)
+
+  const resumen = `${datos.ventas.length} ventas, ${datos.gastos.length} gastos y ${datos.facturas.length} facturas`;
+  if (!confirm(`Acabo de descargarte una COPIA DE SEGURIDAD con TODO (${resumen}).\n\nAhora dejaré el programa NUEVO (estado de fábrica): se borran de ESTE aparato las ventas, los gastos y las facturas. Se conservan el catálogo de ingredientes y tus datos fiscales (logo, nombre, CIF).\n\n¿Continuar?`)) {
+    return aviso('Cancelado. No se ha borrado nada (la copia sí se descargó).');
+  }
+  if (!confirm('Última confirmación: ¿BORRAR los datos de este aparato y empezar de cero?\n\nTu copia ya está descargada; podrás restaurarla cuando quieras con "Restaurar desde una copia".')) {
+    return aviso('Cancelado. No se ha borrado nada.');
+  }
+  if (codigoSync()) {
+    if (!confirm('⚠️ Tienes la SINCRONIZACIÓN activada. Al restablecer, este aparato subirá el estado vacío a la nube y los demás aparatos también se vaciarán al sincronizar.\n\n(Tu copia descargada sigue a salvo.) ¿Seguro?')) {
+      return aviso('Cancelado. No se ha borrado nada.');
+    }
+  }
+
+  const configActual = Object.assign({}, datos.config); // conservar marca, logo, fiscales y ajustes
+  crearDatosVacios();                                    // catálogo + valores de fábrica, sin movimientos
+  datos.config = Object.assign(datos.config, configActual);
+  guardar();
+  aplicarMarca();
+  mostrarVista('panel');
+  refrescar();
+  aviso('Programa restablecido a estado de fábrica. Tu copia está descargada. 🏭✅');
+}
+
 function borrarTodo() {
   const respuesta = prompt('⚠️ Se borrarán TODOS los ingredientes, escandallos, ventas y gastos.\nLa configuración se conserva.\n\nSi estás seguro, escribe: BORRAR');
   if (respuesta === null) return;
@@ -5569,6 +5597,7 @@ function configurarEventos() {
     if (e.target.files[0]) importarCopia(e.target.files[0]);
     e.target.value = '';
   });
+  $('#btn-restablecer').addEventListener('click', restablecerFabrica);
   // Sincronización en la nube
   $('#btn-activar-sync').addEventListener('click', () => activarSync($('#conf-sync-codigo').value));
   $('#btn-subir-sync').addEventListener('click', () => {
