@@ -652,13 +652,12 @@ function cargarDatos() {
 }
 
 function crearDatosVacios() {
-  const base = catalogoIngredientesBase();
-  base.forEach((ing, i) => { ing.id = i + 1; });
+  // Inicio LIMPIO: solo aparecerán ingredientes reales (los que crean tus facturas
+  // o los que añadas a mano). El catálogo completo es opcional: botón "🧺 Añadir catálogo".
   datos = {
     config: configPorDefecto(),
-    sigId: base.length + 1,
-    ingredientes: base,
-    platos: [], ventas: [], gastos: [], facturas: [], empleados: []
+    sigId: 1,
+    ingredientes: [], platos: [], ventas: [], gastos: [], facturas: [], empleados: []
   };
   guardarIdsEnviadosTPV(new Set());
   guardar();
@@ -850,16 +849,23 @@ function renderPanel() {
 
 function renderIngredientes() {
   const filtro = ($('#buscar-ingrediente').value || '').toLowerCase().trim();
+  const ocultarSinPrecio = $('#ing-ocultar-sin-precio') && $('#ing-ocultar-sin-precio').checked;
   const lista = datos.ingredientes
     .filter(i => i.nombre.toLowerCase().includes(filtro) || (i.categoria || '').toLowerCase().includes(filtro))
+    .filter(i => !ocultarSinPrecio || i.precioCompra > 0)
     .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+
+  const sinPrecio = datos.ingredientes.filter(i => !(i.precioCompra > 0)).length;
+  $('#pie-ingredientes') && ($('#pie-ingredientes').innerHTML = sinPrecio > 0
+    ? `<p class="nota-vista" style="margin:10px 0 0">ℹ️ ${sinPrecio} ingrediente(s) sin precio todavía. Su precio se rellena solo al <strong>subir la factura</strong> donde aparezcan, o a mano. Puedes ocultarlos con la casilla de arriba.</p>`
+    : '');
 
   const cuerpo = $('#cuerpo-ingredientes');
   if (lista.length === 0) {
     cuerpo.innerHTML = `<tr class="fila-vacia"><td colspan="8">${
       datos.ingredientes.length === 0
-        ? 'Todavía no hay ingredientes. ¡Registra el primero con el botón "Nuevo ingrediente"!'
-        : 'Ningún ingrediente coincide con la búsqueda.'}</td></tr>`;
+        ? 'Todavía no hay ingredientes. Aparecerán solos al subir tus facturas, o créalos con "Nuevo ingrediente". También puedes cargar el catálogo con "🧺 Añadir catálogo".'
+        : 'Ningún ingrediente coincide con el filtro.'}</td></tr>`;
     return;
   }
 
@@ -5325,6 +5331,7 @@ function configurarEventos() {
   $('#btn-catalogo-ingredientes').addEventListener('click', anadirCatalogoBase);
   $('#btn-csv-ingredientes').addEventListener('click', exportarIngredientesCSV);
   $('#buscar-ingrediente').addEventListener('input', renderIngredientes);
+  $('#ing-ocultar-sin-precio').addEventListener('change', renderIngredientes);
   $('#btn-guardar-ingrediente').addEventListener('click', guardarIngrediente);
   ['#ing-cantidad-compra', '#ing-precio-compra', '#ing-unidad', '#ing-iva', '#ing-iva-incluido', '#ing-piezas'].forEach(sel =>
     $(sel).addEventListener('input', actualizarPrevioIngrediente));

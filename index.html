@@ -104,6 +104,9 @@
   <section id="vista-ingredientes" class="vista">
     <div class="acciones-vista">
       <input type="search" id="buscar-ingrediente" class="campo buscador" placeholder="🔍 Buscar ingrediente...">
+      <label class="etiqueta-filtro" style="flex-direction:row;align-items:center;gap:6px">
+        <input type="checkbox" id="ing-ocultar-sin-precio"> Ocultar los que están a 0 €
+      </label>
       <span class="separador-flexible"></span>
       <button class="btn btn-secundario" id="btn-csv-ingredientes">⬇ Exportar CSV</button>
       <button class="btn btn-secundario" id="btn-catalogo-ingredientes" title="Añade de golpe queso, leche, carnes, pescado, marisco, verduras, bebidas... sin precio, para que les pongas el coste">🧺 Añadir catálogo</button>
@@ -130,6 +133,7 @@
           <tbody id="cuerpo-ingredientes"></tbody>
         </table>
       </div>
+      <div id="pie-ingredientes"></div>
     </div>
   </section>
 
