@@ -1830,6 +1830,31 @@ function totalFactura(f) {
   return f.lineas.reduce((s, l) => s + (f.ivaIncluido ? l.precio : l.precio * (1 + (l.ivaPct || 0) / 100)), 0);
 }
 
+// Control de calidad de una factura: devuelve la lista de avisos (vacía si todo bien).
+// Sirve para no dejar entrar facturas con la fecha o el importe mal leídos, ni duplicados.
+function avisosFactura(f, idExcluir) {
+  const avisos = [];
+  const hoy = hoyISO();
+  const total = totalFactura(f);
+  if (!f.lineas || f.lineas.length === 0) avisos.push('No tiene líneas de productos.');
+  if (!(total > 0)) avisos.push('El total es 0 € (revisa los importes).');
+  if (total > 50000) avisos.push(`Total muy alto (${dinero(total)}); ¿seguro que se leyó bien?`);
+  if (f.fecha && f.fecha > hoy) avisos.push(`La fecha (${fechaCorta(f.fecha)}) es futura.`);
+  if (f.fecha) {
+    const dias = (new Date(hoy) - new Date(f.fecha)) / 86400000;
+    if (dias > 730) avisos.push(`La fecha (${fechaCorta(f.fecha)}) es de hace más de 2 años.`);
+  }
+  if (!f.fecha) avisos.push('No tiene fecha.');
+  if (!f.proveedor || /sin nombre/i.test(f.proveedor)) avisos.push('No se leyó el proveedor.');
+  // Posible duplicada (mismo proveedor + nº, o mismo proveedor + fecha + total)
+  const dup = (datos.facturas || []).find(x => x.id !== idExcluir && (
+    (f.numero && normalizarTexto(x.proveedor) === normalizarTexto(f.proveedor) && normalizarTexto(x.numero || '') === normalizarTexto(f.numero)) ||
+    (normalizarTexto(x.proveedor) === normalizarTexto(f.proveedor || '') && x.fecha === f.fecha && Math.abs(totalFactura(x) - total) < 0.01)
+  ));
+  if (dup) avisos.push(`Podría estar repetida (ya hay una de ${esc(dup.proveedor)} del ${fechaCorta(dup.fecha)}).`);
+  return avisos;
+}
+
 // Aplica la factura: actualiza los precios reales de los ingredientes vinculados
 // y registra su gasto en la contabilidad, desglosado por tipo de IVA
 function aplicarFactura(f) {
@@ -2196,6 +2221,13 @@ function guardarFactura() {
     }));
 
   if (lineas.length === 0) return aviso('Añade al menos una línea con su descripción e importe.', true);
+
+  // Control de calidad: avisar si la fecha/importe parecen mal o si puede estar repetida
+  const avisosPrevios = avisosFactura({ fecha, proveedor, numero, ivaIncluido, lineas }, id);
+  if (avisosPrevios.length > 0 &&
+      !confirm('⚠️ Revisa esto antes de guardar:\n\n· ' + avisosPrevios.join('\n· ') + '\n\n¿Guardar de todas formas?')) {
+    return;
+  }
 
   let factura;
   if (id) {
@@ -3246,7 +3278,7 @@ async function procesarLoteAutomatico(archivos) {
   $('#modal-progreso').hidden = false;
   mostrarVista('facturas');
 
-  let ok = 0, duplicadas = 0, errores = 0, eurosTotal = 0, nuevos = 0, actualizados = 0, ultimoMes = null;
+  let ok = 0, duplicadas = 0, errores = 0, eurosTotal = 0, nuevos = 0, actualizados = 0, ultimoMes = null, conAvisos = 0;
 
   // Foto de los costos ANTES del lote, para informar qué escandallos cambian
   const platosAntes = {};
@@ -3278,6 +3310,12 @@ async function procesarLoteAutomatico(archivos) {
         `${dinero(totalFactura(r.factura))} · ${r.factura.lineas.length} línea(s)` +
         (r.vinculadas ? ` · 🔄 ${r.vinculadas} precio(s)` : '') +
         (r.creados ? ` · ✨ ${r.creados} nuevo(s)` : ''));
+      // Control de calidad: si la factura tiene algo raro (fecha futura, total 0, posible repetida), avisar
+      const avisos = avisosFactura(r.factura, r.factura.id);
+      if (avisos.length > 0) {
+        conAvisos++;
+        anotarResultadoLote('progreso-aviso', `⚠️ Revisa <strong>${esc(r.factura.proveedor)}</strong>: ${avisos.map(esc).join(' · ')}`);
+      }
       refrescar(); // los números de toda la app se actualizan en tiempo real
     } catch (e) {
       errores++;
@@ -3315,6 +3353,7 @@ async function procesarLoteAutomatico(archivos) {
     `<strong>${ok} factura(s) registradas</strong> por un total de <strong>${dinero(eurosTotal)}</strong><br>` +
     `🔄 ${actualizados} precio(s) de ingredientes actualizados · ✨ ${nuevos} ingrediente(s) creados<br>` +
     `⚠️ ${duplicadas} duplicada(s) saltadas · ❌ ${errores} con error` +
+    (conAvisos > 0 ? `<br>🔎 <strong>${conAvisos} con avisos para revisar</strong> (fecha/importe raro o posible repetida): míralas en la lista de arriba y en 🔎 Diagnóstico.` : '') +
     (archivosFallidos.length ? `<br><br>📋 No se pudieron leer: <strong>${archivosFallidos.map(a => esc(a.name)).join(', ')}</strong>. Pulsa "Reintentar" o súbelas otra vez con mejor foto.` : '') +
     (ok > 0 ? '<br><br>Sus gastos ya están reflejados en Gastos, Balance, Informes e Impuestos.' : '');
   $('#btn-cerrar-progreso').textContent = 'Cerrar';
@@ -5086,6 +5125,10 @@ function renderDiagnostico() {
     : ['aviso', `Diferencia de ${dinero(Math.abs(totalFacturas - totalGastosFacturas))} entre facturas y sus gastos. Revisa facturas editadas a mano.`]);
   const huerfanos = D.gastos.filter(g => g.facturaId && !D.facturas.some(f => f.id === g.facturaId));
   if (huerfanos.length) checks.push(['aviso', `${huerfanos.length} gasto(s) apuntan a una factura que ya no existe. Bórralos en Gastos si sobran.`]);
+  const facturasRaras = D.facturas.filter(f => avisosFactura(f, f.id).length > 0);
+  checks.push(facturasRaras.length === 0
+    ? ['ok', 'Ninguna factura tiene la fecha o el importe sospechosos, ni parece repetida.']
+    : ['aviso', `${facturasRaras.length} factura(s) para revisar (fecha/importe raro o posible repetida): ${facturasRaras.slice(0, 4).map(f => esc(f.proveedor) + ' ' + fechaCorta(f.fecha)).join(', ')}${facturasRaras.length > 4 ? '…' : ''}. Ábrelas en Facturas y corrígelas o bórralas.`]);
   const ventasSinCaja = D.ventas.filter(v => !v.caja).length;
   if (ventasSinCaja) checks.push(['aviso', `${ventasSinCaja} venta(s) antiguas sin marca de caja (cuentan como 🏛️ oficial). Las nuevas ya la guardan.`]);
   const sinCoste = D.platos.filter(p => !(p.costoManual > 0) && (!(p.lineas || []).length || costoPlato(p) <= 0));
