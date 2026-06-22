@@ -187,13 +187,13 @@
       </label>
       <span class="separador-flexible"></span>
       <button class="btn btn-secundario" id="btn-csv-ventas">⬇ Exportar CSV</button>
-      <button class="btn btn-primario" id="btn-venta-dia">💶 Venta del día (efectivo y TPV)</button>
+      <button class="btn btn-primario" id="btn-venta-dia" title="Añadir a mano la venta del día: efectivo, tarjeta y bizum, eligiendo caja oficial o privada y la fecha">💶 Añadir venta del día (efectivo / tarjeta / bizum)</button>
       <button class="btn btn-secundario" id="btn-cargar-z">📷 Añadir Z por foto (varias)</button>
-      <button class="btn btn-secundario" id="btn-nueva-venta">✍️ Venta suelta</button>
-      <input type="file" id="archivo-z" accept="image/*,.heic,.heif,.pdf,application/pdf" multiple hidden>
+      <button class="btn btn-primario" id="btn-cierre-dia">🌙 Cierre del día (por platos)</button>
       <button class="btn btn-secundario" id="btn-cargar-informe">📅 Informe del mes (foto)</button>
+      <input type="file" id="archivo-z" accept="image/*,.heic,.heif,.pdf,application/pdf" multiple hidden>
       <input type="file" id="archivo-informe" accept="image/*,.heic,.heif,.pdf,application/pdf" hidden>
-      <button class="btn btn-primario" id="btn-cierre-dia">🌙 Cierre del día</button>
+      <button class="btn btn-secundario" id="btn-nueva-venta" title="Para anotar la venta de UN producto concreto del escandallo">✍️ Venta de un producto</button>
     </div>
     <div class="rejilla-kpis rejilla-kpis-3">
       <div class="tarjeta kpi">
@@ -232,7 +232,14 @@
   <!-- ========== VISTA: GASTOS ========== -->
   <section id="vista-gastos" class="vista">
     <div class="acciones-vista">
-      <label class="etiqueta-filtro">Mes:
+      <label class="etiqueta-filtro">Ver:
+        <select id="gastos-ambito" class="campo">
+          <option value="mes">Un mes</option>
+          <option value="anio">Todo el año</option>
+          <option value="todo">Todos</option>
+        </select>
+      </label>
+      <label class="etiqueta-filtro" id="grupo-mes-gastos">Mes:
         <input type="month" id="mes-gastos" class="campo">
       </label>
       <span class="separador-flexible"></span>
@@ -276,7 +283,14 @@
   <!-- ========== VISTA: FACTURAS ========== -->
   <section id="vista-facturas" class="vista">
     <div class="acciones-vista">
-      <label class="etiqueta-filtro">Mes:
+      <label class="etiqueta-filtro">Ver:
+        <select id="facturas-ambito" class="campo">
+          <option value="mes">Un mes</option>
+          <option value="anio">Todo el año</option>
+          <option value="todo">Todas</option>
+        </select>
+      </label>
+      <label class="etiqueta-filtro" id="grupo-mes-facturas">Mes:
         <input type="month" id="mes-facturas" class="campo">
       </label>
       <span class="separador-flexible"></span>

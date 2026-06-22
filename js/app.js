@@ -1640,7 +1640,21 @@ function exportarVentasCSV() {
 
 function renderGastos() {
   const mes = $('#mes-gastos').value || mesActual();
-  const lista = gastosDelMes(mes).sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id - a.id);
+  const ambito = ($('#gastos-ambito') && $('#gastos-ambito').value) || 'mes';
+  const anio = mes.slice(0, 4);
+  let lista, etiquetaPeriodo;
+  if (ambito === 'todo') {
+    lista = datos.gastos.slice();
+    etiquetaPeriodo = `todos los meses (${lista.length})`;
+  } else if (ambito === 'anio') {
+    lista = datos.gastos.filter(g => mesDe(g.fecha).slice(0, 4) === anio);
+    etiquetaPeriodo = `el año ${anio}`;
+  } else {
+    lista = gastosDelMes(mes);
+    etiquetaPeriodo = nombreMes(mes);
+  }
+  lista = lista.slice().sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '') || b.id - a.id);
+  if ($('#grupo-mes-gastos')) $('#grupo-mes-gastos').style.display = (ambito === 'mes') ? '' : 'none';
 
   $('#total-gastos-mes').textContent = dinero(sumaGastos(lista));
   $('#iva-gastos-mes').textContent = dinero(ivaSoportado(lista));
@@ -1648,7 +1662,7 @@ function renderGastos() {
 
   const cuerpo = $('#cuerpo-gastos');
   if (lista.length === 0) {
-    cuerpo.innerHTML = `<tr class="fila-vacia"><td colspan="6">No hay gastos registrados en ${nombreMes(mes)}.${chipsDeMeses(datos.gastos, 'mes-gastos', mes)}</td></tr>`;
+    cuerpo.innerHTML = `<tr class="fila-vacia"><td colspan="6">No hay gastos registrados en ${etiquetaPeriodo}.${chipsDeMeses(datos.gastos, 'mes-gastos', mes)}</td></tr>`;
     return;
   }
 
@@ -1899,7 +1913,24 @@ function facturasPorMes() {
 
 function renderFacturas() {
   const mes = $('#mes-facturas').value || mesActual();
+  const ambito = ($('#facturas-ambito') && $('#facturas-ambito').value) || 'mes';
   const lista = facturasDelMes(mes).sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id - a.id);
+
+  // El ámbito decide qué facturas se ven en la TABLA: un mes, todo el año, o TODAS
+  const anio = mes.slice(0, 4);
+  let listaTabla, tituloTabla;
+  if (ambito === 'todo') {
+    listaTabla = datos.facturas.slice();
+    tituloTabla = `Todas las facturas (${listaTabla.length})`;
+  } else if (ambito === 'anio') {
+    listaTabla = datos.facturas.filter(f => mesDe(f.fecha).slice(0, 4) === anio);
+    tituloTabla = `Facturas de ${anio} (${listaTabla.length})`;
+  } else {
+    listaTabla = lista;
+    tituloTabla = `Facturas de ${nombreMes(mes)}`;
+  }
+  listaTabla = listaTabla.slice().sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '') || b.id - a.id);
+  if ($('#grupo-mes-facturas')) $('#grupo-mes-facturas').style.display = (ambito === 'mes') ? '' : 'none';
 
   const porMes = facturasPorMes();
   const mesesConDatos = Object.keys(porMes).sort();
@@ -1954,13 +1985,13 @@ function renderFacturas() {
     }).join('');
   }
 
-  // Tabla de facturas del mes filtrado
-  $('#titulo-tabla-facturas').textContent = `Facturas de ${nombreMes(mes)}`;
+  // Tabla de facturas según el ámbito elegido
+  $('#titulo-tabla-facturas').textContent = tituloTabla;
   const cuerpo = $('#cuerpo-facturas');
-  if (lista.length === 0) {
-    cuerpo.innerHTML = `<tr class="fila-vacia"><td colspan="7">No hay facturas registradas en ${nombreMes(mes)}. Registra la primera con "＋ Nueva factura".${chipsDeMeses(datos.facturas, 'mes-facturas', mes)}</td></tr>`;
+  if (listaTabla.length === 0) {
+    cuerpo.innerHTML = `<tr class="fila-vacia"><td colspan="7">No hay facturas registradas en ${ambito === 'mes' ? nombreMes(mes) : 'este periodo'}. Registra la primera con "＋ Nueva factura".${chipsDeMeses(datos.facturas, 'mes-facturas', mes)}</td></tr>`;
   } else {
-    cuerpo.innerHTML = lista.map(f => `
+    cuerpo.innerHTML = listaTabla.map(f => `
       <tr>
         <td>${fechaCorta(f.fecha)}</td>
         <td><strong>${esc(f.proveedor)}</strong></td>
@@ -1978,11 +2009,11 @@ function renderFacturas() {
       </tr>`).join('');
   }
 
-  // Pie: facturas que NO están en este mes + archivos que fallaron al subir (para que nada parezca perdido)
-  const enOtrosMeses = datos.facturas.length - lista.length;
+  // Pie: facturas fuera de lo que se ve ahora + archivos que fallaron al subir (para que nada parezca perdido)
+  const fueraDeVista = datos.facturas.length - listaTabla.length;
   let pie = '';
-  if (enOtrosMeses > 0) {
-    pie += `<p class="nota-vista" style="margin:12px 0 0">📌 Hay <strong>${enOtrosMeses} factura(s) en otros meses</strong> (por eso el histórico es mayor que este mes). Cambia el mes arriba o pulsa un mes en el desglose para verlas.</p>`;
+  if (fueraDeVista > 0) {
+    pie += `<p class="nota-vista" style="margin:12px 0 0">📌 Hay <strong>${fueraDeVista} factura(s)</strong> fuera de lo que ves ahora. Para verlas TODAS de golpe, pon <strong>Ver: Todas</strong> arriba.</p>`;
   }
   if (archivosFallidos.length > 0) {
     pie += `<p class="nota-vista" style="margin:8px 0 0;color:var(--rojo)">⚠️ <strong>${archivosFallidos.length} archivo(s) no se pudieron leer</strong> en la última subida: ${archivosFallidos.map(a => esc(a.name)).join(', ')}. Vuelve a subirlos con mejor foto para que se reflejen.</p>`;
@@ -3057,19 +3088,16 @@ async function procesarArchivoCarta(archivo) {
 }
 
 // ¿Esta factura ya está registrada? (mismo proveedor y número, o mismo proveedor, fecha y total)
+// Solo se considera DUPLICADA cuando coincide proveedor + MISMO número de factura
+// (un duplicado de verdad). Si la IA no leyó el número, NO se descarta nada —antes se
+// descartaban facturas buenas del mismo proveedor y día (por eso "subo 40 y veo 7")—;
+// las posibles repetidas las marca avisosFactura para que el usuario las revise.
 function facturaDuplicada(extraido) {
   const prov = normalizarTexto(extraido.proveedor || '');
-  if (!prov) return false;
   const num = normalizarTexto(extraido.numero_factura || '');
-  if (num) {
-    return datos.facturas.some(f =>
-      normalizarTexto(f.proveedor) === prov && normalizarTexto(f.numero || '') === num);
-  }
-  const total = (extraido.lineas || []).reduce((s, l) =>
-    s + (extraido.importes_con_iva ? l.importe : l.importe * (1 + (l.iva_pct || 0) / 100)), 0);
+  if (!prov || !num) return false;
   return datos.facturas.some(f =>
-    normalizarTexto(f.proveedor) === prov && f.fecha === extraido.fecha &&
-    Math.abs(totalFactura(f) - total) < 0.01);
+    normalizarTexto(f.proveedor) === prov && normalizarTexto(f.numero || '') === num);
 }
 
 // Convierte los datos extraídos en una factura lista para guardar,
@@ -3605,10 +3633,14 @@ function ventasPorDiaSemana() {
 // Calcula las horas de un turno escrito a mano: "12-16 y 20-24", "10:30-15", "20-2"...
 function horasDeTurno(texto) {
   if (!texto) return 0;
-  const tramos = String(texto).split(/\s*(?:y|,|\+|&|\/|;)\s*/i);
+  // Tolerante con formatos: "12-16", "12:00-16:00", "12.30-16", "12h-16h", "12 a 16", "20-2" (cruza medianoche)
+  const limpio = String(texto)
+    .replace(/(\d)\s*[hH]\b/g, '$1')       // "12h" -> "12"
+    .replace(/(\d)[.](\d{2})\b/g, '$1:$2'); // "12.30" -> "12:30"  (la coma se reserva como separador)
+  const tramos = limpio.split(/\s*(?:y|,|\+|&|\/|;)\s*/i);
   let minutos = 0;
   tramos.forEach(tramo => {
-    const m = tramo.match(/(\d{1,2})(?::(\d{2}))?\s*[-aà]\s*(\d{1,2})(?::(\d{2}))?/i);
+    const m = tramo.match(/(\d{1,2})(?::(\d{2}))?\s*[-–—aà]\s*(\d{1,2})(?::(\d{2}))?/i);
     if (!m) return;
     let ini = parseInt(m[1], 10) * 60 + (m[2] ? parseInt(m[2], 10) : 0);
     let fin = parseInt(m[3], 10) * 60 + (m[4] ? parseInt(m[4], 10) : 0);
@@ -5457,6 +5489,7 @@ function configurarEventos() {
 
   // Gastos
   $('#mes-gastos').addEventListener('change', renderGastos);
+  $('#gastos-ambito').addEventListener('change', renderGastos);
   $('#btn-nuevo-gasto').addEventListener('click', () => abrirModalGasto());
   $('#btn-csv-gastos').addEventListener('click', exportarGastosCSV);
   $('#btn-gastos-fijos').addEventListener('click', abrirModalFijos);
@@ -5482,6 +5515,7 @@ function configurarEventos() {
 
   // Facturas
   $('#mes-facturas').addEventListener('change', renderFacturas);
+  $('#facturas-ambito').addEventListener('change', renderFacturas);
   $('#btn-nueva-factura').addEventListener('click', () => abrirModalFactura());
   $('#btn-imprimir-facturas').addEventListener('click', imprimirVista);
   $('#btn-csv-facturas').addEventListener('click', exportarFacturasCSV);
