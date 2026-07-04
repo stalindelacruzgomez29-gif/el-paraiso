@@ -447,8 +447,10 @@
       <button class="btn btn-primario" id="btn-nuevo-empleado">＋ Añadir empleado</button>
     </div>
     <p class="nota-vista">Apunta el turno de cada persona en cada día (ej: "12-16 y 20-24").
-    El gráfico te dice qué días vendes más, <strong>según tus ventas reales</strong>, para que refuerces
-    el personal justo donde más se necesita.</p>
+    El gráfico te dice qué días vendes más, <strong>según tus ventas reales</strong>; la tabla de
+    <strong>cobertura por franjas</strong> avisa si un día punta se queda corto en la comida o la cena;
+    y si pones los sueldos (✏️ en cada empleado), abajo verás <strong>cuánto te cuesta el equipo</strong>
+    y qué parte de tus ventas se lleva.</p>
 
     <div class="tarjeta">
       <h3>Días punta según tus ventas (promedio por día de la semana)</h3>
@@ -476,6 +478,33 @@
       <p class="nota-vista">Escribe en cada casilla la <strong>entrada y la salida</strong> del turno
       (ej: <em>12-16 y 20-24</em>). Se guarda solo y calcula las horas. Deja en blanco el día libre.
       Abajo verás cuánta gente y cuántas horas hay cada día: si un día sale en rojo, <strong>te falta personal</strong>.</p>
+    </div>
+
+    <div class="tarjeta">
+      <h3>🕒 Cobertura por franjas: ¿cuánta gente hay en cada momento?</h3>
+      <div class="tabla-envoltura">
+        <table class="tabla tabla-compacta">
+          <thead id="cabeza-cobertura"></thead>
+          <tbody id="cuerpo-cobertura"></tbody>
+        </table>
+      </div>
+      <p class="nota-vista" id="consejo-cobertura"></p>
+    </div>
+
+    <div class="tarjeta no-imprimir">
+      <h3>💶 Coste del equipo <span class="franja-detalle">(privado: NO sale al imprimir el horario)</span></h3>
+      <div class="tabla-envoltura">
+        <table class="tabla">
+          <thead><tr><th>Empleado</th><th class="num">Sueldo apuntado</th><th class="num">Horas/semana</th><th class="num">Bruto/mes</th><th class="num">Coste empresa/mes*</th></tr></thead>
+          <tbody id="cuerpo-coste-equipo"></tbody>
+          <tfoot id="pie-coste-equipo"></tfoot>
+        </table>
+      </div>
+      <p class="nota-vista" id="resumen-coste-equipo"></p>
+      <p class="nota-vista">* Coste empresa = sueldo bruto + ~33 % de Seguridad Social a cargo del negocio (orientativo;
+      el dato fino te lo da tu gestoría). El sueldo se apunta editando cada empleado con el lápiz ✏️.
+      <strong>Esto no crea gastos</strong>: la nómina real se sigue apuntando en 🧾 Gastos
+      (categorías Nómina y Seguridad Social); aquí solo se compara la estimación con lo apuntado.</p>
     </div>
   </section>
 
@@ -1186,6 +1215,13 @@
       El gráfico de <strong>días punta</strong> se calcula con tus ventas reales: te dice qué días de la
       semana entra más dinero para que pongas más manos justo ahí. El horario se puede imprimir
       (para colgarlo en cocina) o exportar.</p>
+      <p>La tabla de <strong>🕒 cobertura por franjas</strong> te enseña cuánta gente tienes en la mañana,
+      la comida, la tarde y la cena de cada día, y avisa si un día punta se queda corto justo en la comida
+      o la cena. Si además pones el <strong>sueldo</strong> de cada persona (con el lápiz ✏️; al mes o por hora),
+      la tarjeta <strong>💶 Coste del equipo</strong> calcula lo que te cuesta el personal al mes con la
+      Seguridad Social incluida y qué parte de tus ventas se lleva (en hostelería se recomienda no pasar
+      del 30-35 %). Los sueldos son privados: no salen al imprimir el horario ni crean gastos —
+      la nómina real se sigue apuntando en <em>Gastos</em>.</p>
 
       <h3>📊 Pérdidas y Ganancias, y papeles para la gestoría</h3>
       <ul>
@@ -1531,6 +1567,19 @@
       <label>Puesto
         <input type="text" id="emp-puesto" class="campo" placeholder="Ej: Cocina, Sala, Barra...">
       </label>
+      <div class="fila-campos">
+        <label>Sueldo bruto (opcional)
+          <input type="number" id="emp-sueldo" class="campo" min="0" step="0.01" inputmode="decimal" placeholder="Ej: 1500">
+        </label>
+        <label>¿Al mes o por hora?
+          <select id="emp-sueldo-tipo" class="campo">
+            <option value="mes">€ brutos al mes</option>
+            <option value="hora">€ brutos por hora</option>
+          </select>
+        </label>
+      </div>
+      <p class="nota-vista">El sueldo es privado: solo se usa para la tarjeta «💶 Coste del equipo»
+      (no sale en el horario impreso ni crea gastos).</p>
     </div>
     <div class="modal-pie">
       <button class="btn btn-secundario" data-cerrar>Cancelar</button>

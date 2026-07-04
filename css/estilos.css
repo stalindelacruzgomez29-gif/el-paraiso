@@ -715,6 +715,22 @@ html, body {
 .tabla-horario tfoot td { border-top: 2px solid var(--borde); font-size: 13px; }
 .dia-sin-personal { background: var(--rojo-suave); color: var(--rojo); }
 
+/* --- Cobertura por franjas y coste del equipo (Personal) --- */
+.dia-punta-col { color: var(--ambar); }
+.franja-detalle { font-size: 11px; color: var(--tinta-suave); font-weight: 400; white-space: nowrap; }
+.cob-celda { text-align: center; font-weight: 700; }
+.cob-0 { background: var(--rojo-suave); color: var(--rojo); }
+.cob-1 { background: var(--ok-suave); color: var(--verde); }
+.cob-2 { background: #b7e4c3; color: var(--verde-oscuro); }
+.cob-3 { background: #8fd3a4; color: var(--verde-oscuro); }
+.cob-cerrado { background: var(--crema); color: var(--tinta-suave); font-weight: 400; }
+.cob-alerta { outline: 2px solid var(--rojo); outline-offset: -2px; }
+.pendiente-sueldo { color: var(--tinta-suave); font-style: italic; }
+strong.positivo { color: var(--ok); }
+strong.atencion { color: var(--ambar); }
+strong.negativo { color: var(--rojo); }
+#pie-coste-equipo td { border-top: 2px solid var(--borde); }
+
 /* ============ LECTURA DE FACTURAS CON IA ============ */
 
 .caja-ia {
@@ -988,7 +1004,7 @@ html, body {
 
 @media print {
   @page { size: A4; margin: 14mm; }
-  .menu-lateral, .barra-superior, .acciones-vista, .avisos, .fab-subir { display: none !important; }
+  .menu-lateral, .barra-superior, .acciones-vista, .avisos, .fab-subir, .no-imprimir { display: none !important; }
   .contenido { margin: 0; padding: 0; }
   body { background: #fff; }
   .vista { display: none !important; }
