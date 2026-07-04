@@ -25,6 +25,8 @@
     <button class="nav-btn" data-vista="ventas"><span class="nav-icono">💰</span> Ventas</button>
     <button class="nav-btn" data-vista="gastos"><span class="nav-icono">🧾</span> Gastos</button>
     <button class="nav-btn" data-vista="facturas"><span class="nav-icono">📑</span> Facturas</button>
+    <button class="nav-btn" data-vista="buzon"><span class="nav-icono">📬</span> Buzón <span class="buzon-contador" id="buzon-contador" hidden>0</span></button>
+    <button class="nav-btn" data-vista="prestamos"><span class="nav-icono">🏦</span> Préstamos</button>
     <button class="nav-btn" data-vista="balance"><span class="nav-icono">📒</span> Balance</button>
     <button class="nav-btn" data-vista="personal"><span class="nav-icono">👥</span> Personal</button>
     <button class="nav-btn" data-vista="contabilidad"><span class="nav-icono">📚</span> Contabilidad</button>
@@ -280,6 +282,54 @@
     </div>
   </section>
 
+  <!-- ========== VISTA: PRÉSTAMOS ========== -->
+  <section id="vista-prestamos" class="vista">
+    <div class="acciones-vista">
+      <span class="separador-flexible"></span>
+      <button class="btn btn-primario" id="btn-nuevo-prestamo">＋ Nuevo préstamo</button>
+    </div>
+    <p class="nota-vista">Registra aquí los <strong>préstamos y financiación</strong> que ha pedido el negocio
+    (banco, ICO, leasing…). El sistema calcula solo la <strong>cuota mensual</strong> y el
+    <strong>cuadro de amortización</strong> (sistema francés). Cada vez que marcas una cuota como pagada,
+    el <strong>interés</strong> se apunta automáticamente en Gastos (es lo único deducible; la devolución del
+    capital no es un gasto). Son cálculos orientativos: confírmalos con tu banco o gestoría.</p>
+
+    <div class="rejilla-kpis rejilla-kpis-3">
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">💳 Deuda pendiente total</div>
+        <div class="kpi-valor negativo" id="kpi-deuda-pendiente">—</div>
+      </div>
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">📆 Cuota mensual total</div>
+        <div class="kpi-valor" id="kpi-cuota-mensual">—</div>
+      </div>
+      <div class="tarjeta kpi">
+        <div class="kpi-etiqueta">🧾 Intereses pagados este año</div>
+        <div class="kpi-valor" id="kpi-interes-anio">—</div>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <div class="tabla-envoltura">
+        <table class="tabla">
+          <thead>
+            <tr>
+              <th>Entidad / concepto</th>
+              <th>Inicio</th>
+              <th class="num">Capital</th>
+              <th class="num">Interés</th>
+              <th class="num">Cuotas pagadas</th>
+              <th class="num">Cuota/mes</th>
+              <th class="num">Pendiente</th>
+              <th class="acciones-col">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="cuerpo-prestamos"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
   <!-- ========== VISTA: FACTURAS ========== -->
   <section id="vista-facturas" class="vista">
     <div class="acciones-vista">
@@ -368,6 +418,50 @@
         </table>
       </div>
       <div id="pie-facturas"></div>
+    </div>
+  </section>
+
+  <!-- ========== VISTA: BUZÓN DE CORREO ========== -->
+  <section id="vista-buzon" class="vista">
+    <div class="acciones-vista">
+      <span class="separador-flexible"></span>
+      <label class="etiqueta-filtro" style="flex-direction:row;align-items:center;gap:6px" title="Registrar las facturas del correo automáticamente, sin revisarlas una a una">
+        <input type="checkbox" id="buzon-auto"> Registrar automáticamente
+      </label>
+      <button class="btn btn-primario" id="btn-revisar-buzon">🔄 Revisar correo ahora</button>
+    </div>
+    <p class="nota-vista">Reenvía (o manda) tus facturas al correo del negocio y aquí aparecerán solas para
+    <strong>registrarlas sin descargar nada</strong>. El sistema lee cada PDF o foto con la misma inteligencia
+    artificial que ya usas en Facturas: saca proveedor, fecha, líneas e IVA, apunta el gasto y actualiza precios y
+    escandallos. Con <strong>"Registrar automáticamente"</strong> activado, las mete solas en cuanto llegan.</p>
+
+    <div class="panel-marca" id="panel-marca-buzon">
+      <div class="rejilla-kpis rejilla-kpis-3">
+        <div class="tarjeta kpi">
+          <div class="kpi-etiqueta">📬 Facturas esperando en el buzón</div>
+          <div class="kpi-valor" id="buzon-kpi-pendientes">—</div>
+        </div>
+        <div class="tarjeta kpi">
+          <div class="kpi-etiqueta">📥 Registradas desde el correo</div>
+          <div class="kpi-valor" id="buzon-kpi-registradas">—</div>
+        </div>
+        <div class="tarjeta kpi">
+          <div class="kpi-etiqueta">🕓 Última revisión</div>
+          <div class="kpi-valor" id="buzon-kpi-ultima" style="font-size:1.1rem">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tarjeta" id="buzon-aviso-config" hidden>
+      <div class="caja-aviso-legal" id="buzon-aviso-config-texto"></div>
+    </div>
+
+    <div class="tarjeta">
+      <div class="fila-titulo">
+        <h3>📬 Facturas recibidas por correo</h3>
+        <div class="info-datos" id="buzon-estado"></div>
+      </div>
+      <div id="lista-buzon"></div>
     </div>
   </section>
 
@@ -1011,6 +1105,26 @@
           <button class="btn btn-secundario" id="btn-desactivar-sync">Desactivar</button>
         </div>
         <div class="info-datos" id="estado-sync"></div>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h3>📬 Buzón de facturas por correo</h3>
+      <p class="nota-vista">Manda o reenvía tus facturas (PDF o foto) a un correo del negocio y el sistema las
+      registra solo, sin que descargues nada. Revísalas o guárdalas desde la pestaña <strong>📬 Buzón</strong>.
+      Para que funcione hay que hacer una configuración <strong>una sola vez</strong> (te la explica el botón de abajo);
+      las claves del correo viven en el servidor, <strong>nunca en este navegador</strong>. El buzón usa el mismo
+      <strong>código de sincronización</strong> de arriba: actívalo primero.</p>
+      <div class="formulario">
+        <label class="etiqueta-linea">
+          <input type="checkbox" id="conf-buzon-auto">
+          Registrar automáticamente las facturas que lleguen al correo (si no, las revisas antes de guardar)
+        </label>
+        <div class="fila-campos">
+          <button class="btn btn-secundario" id="btn-probar-buzon">🔌 Probar el buzón</button>
+          <button class="btn btn-secundario" id="btn-ayuda-buzon">❓ Cómo se configura</button>
+        </div>
+        <div class="info-datos" id="estado-buzon-config"></div>
       </div>
     </div>
 
@@ -1661,6 +1775,106 @@
     <div class="modal-pie">
       <button class="btn btn-secundario" data-cerrar>Cancelar</button>
       <button class="btn btn-primario" id="btn-guardar-gasto">Guardar gasto</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: PRÉSTAMO ===== -->
+<div class="modal-fondo" id="modal-prestamo" hidden>
+  <div class="modal">
+    <div class="modal-cabecera">
+      <h3 id="titulo-modal-prestamo">Nuevo préstamo</h3>
+      <button class="btn-cerrar" data-cerrar>✕</button>
+    </div>
+    <div class="modal-cuerpo formulario">
+      <input type="hidden" id="prestamo-id">
+      <div class="fila-campos">
+        <label>Entidad *
+          <input type="text" id="prestamo-entidad" class="campo" placeholder="Ej: Banco Santander">
+        </label>
+        <label>Concepto
+          <input type="text" id="prestamo-concepto" class="campo" placeholder="Ej: Reforma de la cocina">
+        </label>
+      </div>
+      <div class="fila-campos">
+        <label>Fecha de inicio *
+          <input type="date" id="prestamo-fecha" class="campo">
+        </label>
+        <label>Capital prestado (€) *
+          <input type="number" id="prestamo-capital" class="campo" min="0" step="any" placeholder="30000">
+        </label>
+      </div>
+      <div class="fila-campos">
+        <label>Interés anual TIN (%)
+          <input type="number" id="prestamo-tin" class="campo" min="0" step="any" placeholder="6.5">
+        </label>
+        <label>Plazo (meses) *
+          <input type="number" id="prestamo-plazo" class="campo" min="1" step="1" placeholder="48">
+        </label>
+      </div>
+      <div class="caja-resaltada" id="previo-prestamo">Rellena capital, interés y plazo para ver la cuota mensual.</div>
+      <p class="nota-vista" style="margin:0">La primera cuota se paga un mes después de la fecha de inicio.
+      Usa el TIN (tipo de interés nominal anual). Si el préstamo es sin intereses, deja el interés en 0.</p>
+    </div>
+    <div class="modal-pie">
+      <button class="btn btn-secundario" data-cerrar>Cancelar</button>
+      <button class="btn btn-primario" id="btn-guardar-prestamo">Guardar préstamo</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: CUADRO DE AMORTIZACIÓN ===== -->
+<div class="modal-fondo" id="modal-cuadro" hidden>
+  <div class="modal modal-grande">
+    <div class="modal-cabecera">
+      <h3 id="titulo-modal-cuadro">Cuadro de amortización</h3>
+      <button class="btn-cerrar" data-cerrar>✕</button>
+    </div>
+    <div class="modal-cuerpo formulario">
+      <div class="caja-resaltada" id="cuadro-resumen">—</div>
+      <p class="nota-vista" style="margin:0">Pulsa <strong>"Pagar"</strong> en cada cuota cuando el banco te la cobre.
+      El interés de esa cuota se apunta en Gastos automáticamente. Puedes deshacer un pago con ↩.</p>
+      <div class="tabla-envoltura" style="max-height:52vh;overflow:auto">
+        <table class="tabla tabla-compacta">
+          <thead>
+            <tr>
+              <th class="num">Nº</th>
+              <th>Fecha</th>
+              <th class="num">Cuota</th>
+              <th class="num">Interés</th>
+              <th class="num">Capital</th>
+              <th class="num">Pendiente</th>
+              <th class="num">Estado</th>
+            </tr>
+          </thead>
+          <tbody id="cuerpo-cuadro"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-pie">
+      <button class="btn btn-secundario" id="btn-csv-cuadro">⬇ Exportar CSV</button>
+      <button class="btn btn-primario" data-cerrar>Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: ADJUNTOS (fotos / PDF de cualquier registro) ===== -->
+<div class="modal-fondo" id="modal-adjuntos" hidden>
+  <div class="modal">
+    <div class="modal-cabecera">
+      <h3 id="titulo-modal-adjuntos">📎 Documentos</h3>
+      <button class="btn-cerrar" data-cerrar>✕</button>
+    </div>
+    <div class="modal-cuerpo formulario">
+      <p class="nota-vista" style="margin:0">Adjunta <strong>fotos o PDF</strong> (recibos, facturas, contratos, tickets…).
+      Se guardan junto a este registro y viajan en tu <strong>copia de seguridad</strong>.</p>
+      <input type="file" id="adj-archivo" accept="image/*,application/pdf" multiple hidden>
+      <button class="btn btn-primario" id="btn-adj-subir">📎 Subir foto o PDF</button>
+      <div id="adj-lista" class="adj-lista"></div>
+      <div class="caja-resaltada" id="adj-espacio" style="font-size:13px"></div>
+    </div>
+    <div class="modal-pie">
+      <button class="btn btn-secundario" data-cerrar>Cerrar</button>
     </div>
   </div>
 </div>
