@@ -2,43 +2,62 @@
 //  EL PARAÍSO · Portal del equipo (api/equipo.js)
 //  Servidor del portal para los trabajadores: cuentas con correo
 //  y contraseña, avisos, tareas, horarios, fichajes y pedidos.
-//  Los datos viven en Vercel Blob (mismo almacén que la sync).
+//  Los datos viven en un repo PRIVADO de GitHub (el-paraiso-equipo-datos):
+//  lecturas siempre frescas y escrituras con control de versión (sha),
+//  así dos personas guardando a la vez nunca se pisan (se reintenta).
 //  El jefe (rol "jefe") administra; los empleados usan su parte.
 // ────────────────────────────────────────────────────────────
-const { put, list } = require('@vercel/blob');
 const crypto = require('crypto');
 
-// El secreto firma los pases de acceso (tokens). Si algún día se
-// rota el BLOB_READ_WRITE_TOKEN, todo el mundo vuelve a iniciar sesión.
+const REPO_DATOS = 'stalindelacruzgomez29-gif/el-paraiso-equipo-datos';
+const ARCHIVO_DATOS = 'datos.json';
+
+// El secreto firma los pases de acceso (tokens)
 function secreto() {
   return process.env.EQUIPO_SECRETO ||
-    crypto.createHash('sha256').update('equipo-paraiso:' + (process.env.BLOB_READ_WRITE_TOKEN || '')).digest('hex');
-}
-
-// El archivo de datos tiene un nombre imposible de adivinar
-function rutaDatos() {
-  const hash = crypto.createHash('sha256').update('equipo-datos:' + secreto()).digest('hex');
-  return `equipo/${hash}.json`;
+    crypto.createHash('sha256').update('equipo-paraiso:' + (process.env.EQUIPO_GITHUB_TOKEN || '')).digest('hex');
 }
 
 function datosVacios() {
   return { empleados: [], avisos: [], tareas: [], horario: { turnos: {}, notas: '', actualizado: null }, fichajes: [], pedidos: [] };
 }
 
-async function leerDatos() {
-  const ruta = rutaDatos();
-  const { blobs } = await list({ prefix: ruta });
-  const blob = blobs.find(b => b.pathname === ruta);
-  if (!blob) return datosVacios();
-  const r = await fetch(blob.url + '?v=' + Date.now());   // sin caché: siempre lo último
-  return { ...datosVacios(), ...(await r.json()) };
+async function gh(metodo, ruta, cuerpo) {
+  const r = await fetch('https://api.github.com' + ruta, {
+    method: metodo,
+    headers: {
+      'Authorization': 'Bearer ' + process.env.EQUIPO_GITHUB_TOKEN,
+      'Accept': 'application/vnd.github+json',
+      'Cache-Control': 'no-cache',
+      'User-Agent': 'el-paraiso-equipo',
+      ...(cuerpo ? { 'Content-Type': 'application/json' } : {})
+    },
+    body: cuerpo ? JSON.stringify(cuerpo) : undefined
+  });
+  return r;
 }
 
-async function guardarDatos(datos) {
-  await put(rutaDatos(), JSON.stringify(datos), {
-    access: 'public', addRandomSuffix: false, allowOverwrite: true,
-    contentType: 'application/json', cacheControlMaxAge: 0
+// Devuelve { datos, sha } — el sha es la "versión" del archivo
+async function leerDatos() {
+  const r = await gh('GET', `/repos/${REPO_DATOS}/contents/${ARCHIVO_DATOS}?ref=main&t=${Date.now()}`);
+  if (r.status === 404) return { datos: datosVacios(), sha: null };
+  if (!r.ok) throw new Error('No pude leer los datos del equipo (código ' + r.status + ').');
+  const j = await r.json();
+  const datos = JSON.parse(Buffer.from(j.content, 'base64').toString('utf8'));
+  return { datos: { ...datosVacios(), ...datos }, sha: j.sha };
+}
+
+// Guarda con la versión (sha) leída; si otro guardó antes, avisa para reintentar
+async function guardarDatos(datos, sha) {
+  const r = await gh('PUT', `/repos/${REPO_DATOS}/contents/${ARCHIVO_DATOS}`, {
+    message: 'actualización del portal',
+    content: Buffer.from(JSON.stringify(datos)).toString('base64'),
+    branch: 'main',
+    ...(sha ? { sha } : {})
   });
+  if (r.status === 409 || r.status === 422) return false;   // conflicto: otro guardó a la vez
+  if (!r.ok) throw new Error('No pude guardar los datos del equipo (código ' + r.status + ').');
+  return true;
 }
 
 // --- Contraseñas: guardamos solo el picadillo (scrypt), nunca la clave ---
@@ -104,7 +123,7 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  if (!process.env.EQUIPO_GITHUB_TOKEN) {
     return res.status(503).json({ error: 'El portal del equipo no está configurado en el servidor.' });
   }
 
@@ -112,7 +131,9 @@ module.exports = async (req, res) => {
   const accion = limpio(p.accion);
 
   try {
-    const datos = await leerDatos();
+    // Hasta 3 intentos: si dos personas guardan a la vez, se relee y se repite
+    for (let intento = 1; intento <= 3; intento++) {
+    const { datos, sha } = await leerDatos();
 
     // ---------- Acciones sin sesión ----------
     if (accion === 'estado') {
@@ -128,7 +149,7 @@ module.exports = async (req, res) => {
       }
       const jefe = { id: id(), nombre, email, rol: 'jefe', activo: true, creado: ahora(), ...crearCredencial(clave) };
       datos.empleados.push(jefe);
-      await guardarDatos(datos);
+      if (!await guardarDatos(datos, sha)) continue;
       return res.status(200).json({ token: crearToken(jefe), vista: vistaPara(datos, jefe) });
     }
 
@@ -282,8 +303,10 @@ module.exports = async (req, res) => {
       }
     }
 
-    if (hayCambios) await guardarDatos(datos);
+    if (hayCambios && !await guardarDatos(datos, sha)) continue;
     return res.status(200).json({ ok: true, vista: vistaPara(datos, yo) });
+    }
+    return res.status(503).json({ error: 'Hay mucha gente guardando a la vez. Espera un momento y vuelve a intentarlo.' });
 
   } catch (e) {
     const codigo = e.codigo || 500;
