@@ -58,10 +58,10 @@
 
   /* ---------- Barra inferior ---------- */
   .barra { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid var(--borde); display: flex; z-index: 10; padding-bottom: env(safe-area-inset-bottom); }
-  .barra button { flex: 1; background: none; border: none; padding: 8px 2px 6px; font-size: 10.5px; color: #789; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .barra button { flex: 1; background: none; border: none; padding: 8px 2px 6px; font-size: 10.5px; color: #789; display: flex; flex-direction: column; align-items: center; gap: 2px; position: relative; }
   .barra button .ico { font-size: 21px; }
   .barra button.activa { color: var(--verde); font-weight: 700; }
-  .barra button .punto { position: absolute; margin-left: 26px; width: 9px; height: 9px; border-radius: 50%; background: var(--rojo); display: none; }
+  .barra button .punto { position: absolute; top: 5px; right: 24%; width: 10px; height: 10px; border-radius: 50%; background: var(--rojo); display: none; border: 2px solid #fff; }
 
   /* ---------- Fichar ---------- */
   .fichar-caja { text-align: center; padding: 20px 0; }
@@ -176,7 +176,7 @@
       <h2 class="titulo-vista">✅ Tareas</h2>
       <div class="panel-crear solo-jefe" style="display:none">
         <h3>Nueva tarea</h3>
-        <input class="campo" id="tarea-titulo" placeholder="Qué hay que hacer">
+        <textarea class="campo" id="tarea-titulo" placeholder="Qué hay que hacer — puedes poner VARIAS tareas, una por línea:&#10;Limpiar la terraza&#10;Reponer neveras&#10;Revisar el hielo"></textarea>
         <textarea class="campo" id="tarea-detalle" placeholder="Detalles (opcional)"></textarea>
         <select class="campo" id="tarea-para"></select>
         <input class="campo" type="date" id="tarea-fecha">
@@ -202,6 +202,7 @@
     <div class="vista" id="vista-fichar">
       <h2 class="titulo-vista">⏱ Control horario</h2>
       <div class="trabajando-ahora solo-jefe" id="quien-trabaja" style="display:none"></div>
+      <div class="tarjeta solo-jefe" id="horas-trabajadas" style="display:none"></div>
       <div class="panel-crear solo-jefe" id="panel-ubicacion" style="display:none">
         <h3>📍 Control de ubicación al fichar</h3>
         <p class="nota-turnos" id="estado-ubicacion">—</p>
@@ -378,12 +379,18 @@ function entrar(v) {
   $$('.solo-jefe').forEach(el => el.style.display = v.yo.rol === 'jefe' ? 'block' : 'none');
   montarBarra();
   pintarTodo();
+  comprobarTareasNuevas(true);
+  // Permiso para avisar de tareas nuevas con notificación del navegador
+  if (v.yo.rol !== 'jefe' && 'Notification' in window && Notification.permission === 'default') {
+    try { Notification.requestPermission(); } catch (e) {}
+  }
 }
 
 async function refrescar(accion, params) {
   const r = await llamar(accion || 'todo', params || {});
   vista = r.vista;
   pintarTodo();
+  comprobarTareasNuevas(false);
   return r;
 }
 
@@ -396,7 +403,7 @@ function montarBarra() {
   ];
   if (esJefe) tabs.push(['equipo', '👥', 'Equipo']);
   $('#barra').innerHTML = tabs.map(([id, ico, txt]) =>
-    `<button data-tab="${id}" class="${id === pestanaActual ? 'activa' : ''}"><span class="ico">${ico}</span>${txt}</button>`).join('');
+    `<button data-tab="${id}" class="${id === pestanaActual ? 'activa' : ''}"><span class="ico">${ico}</span>${txt}<span class="punto" id="punto-${id}"></span></button>`).join('');
   $$('#barra button').forEach(b => b.onclick = () => cambiarPestana(b.dataset.tab));
 }
 function cambiarPestana(id) {
@@ -405,6 +412,30 @@ function cambiarPestana(id) {
   $('#vista-' + id).classList.add('activa');
   $$('#barra button').forEach(b => b.classList.toggle('activa', b.dataset.tab === id));
   if (id === 'avisos') marcarAvisosVistos();
+  if (id === 'tareas') marcarTareasVistas();
+}
+
+/* ---------- Notificaciones de tareas nuevas ---------- */
+function claveTareasVistas() { return 'equipo_tareas_vistas_' + vista.yo.id; }
+function idsTareasPendientes() { return (vista.tareas || []).filter(t => t.estado === 'pendiente').map(t => t.id); }
+function marcarTareasVistas() {
+  if (!vista) return;
+  localStorage.setItem(claveTareasVistas(), JSON.stringify(idsTareasPendientes()));
+  const p = $('#punto-tareas'); if (p) p.style.display = 'none';
+}
+function comprobarTareasNuevas(esPrimeraCarga) {
+  if (!vista || vista.yo.rol === 'jefe') return;   // el jefe crea las tareas, no se autoavisa
+  const vistas = new Set(JSON.parse(localStorage.getItem(claveTareasVistas()) || '[]'));
+  const nuevas = idsTareasPendientes().filter(id => !vistas.has(id));
+  const p = $('#punto-tareas'); if (p) p.style.display = nuevas.length ? 'block' : 'none';
+  if (!nuevas.length) return;
+  const primera = (vista.tareas || []).find(t => t.id === nuevas[0]);
+  const texto = nuevas.length === 1 ? '📋 ¡Tarea nueva!: ' + (primera ? primera.titulo : '') : '📋 ¡Tienes ' + nuevas.length + ' tareas nuevas!';
+  if (pestanaActual === 'tareas') { marcarTareasVistas(); return; }
+  aviso(texto);
+  if (!esPrimeraCarga && 'Notification' in window && Notification.permission === 'granted') {
+    try { new Notification('El Paraíso · Equipo', { body: texto, icon: 'logo-fondo.png' }); } catch (e) {}
+  }
 }
 
 /* ---------- Pintar cada sección ---------- */
@@ -515,6 +546,23 @@ function pintarHorario() {
   $('#horario-notas-vista').innerHTML = vista.horario.notas && !esJefe ? '📝 ' + esc(vista.horario.notas) : '';
 }
 
+// Tramos entrada→salida de un empleado (una entrada sin salida cuenta hasta ahora)
+function tramosDe(fichajesEmp) {
+  const tramos = []; let abierta = null;
+  fichajesEmp.forEach(f => {
+    if (f.tipo === 'entrada') abierta = new Date(f.ts).getTime();
+    else if (abierta != null) { tramos.push([abierta, new Date(f.ts).getTime()]); abierta = null; }
+  });
+  if (abierta != null) tramos.push([abierta, Date.now()]);
+  return tramos;
+}
+function msEnVentana(tramos, ini, fin) {
+  return tramos.reduce((s, [a, b]) => s + Math.max(0, Math.min(b, fin) - Math.max(a, ini)), 0);
+}
+function fmtHoras(ms) {
+  const m = Math.round(ms / 60000);
+  return Math.floor(m / 60) + 'h ' + String(m % 60).padStart(2, '0') + 'm';
+}
 function pintarFichar() {
   const mios = (vista.fichajes || []).filter(f => f.empleadoId === vista.yo.id);
   const ultimo = mios[mios.length - 1];
@@ -529,6 +577,21 @@ function pintarFichar() {
   $('#lista-fichajes').innerHTML = [...listado].reverse().slice(0, 40).map(f => `
     <div class="fich"><span>${f.tipo === 'entrada' ? '🟢 Entrada' : '🔴 Salida'}${esJefe ? ' · <strong>' + esc(nombreDe(f.empleadoId)) + '</strong>' : ''}${esJefe && f.dist != null ? ' <span style="color:#888;font-size:12px">📍 a ' + f.dist + ' m</span>' : ''}</span>
     <span>${fechaBonita(f.ts)}</span></div>`).join('') || '<div class="vacio">Sin fichajes todavía.</div>';
+
+  // Horas trabajadas (solo el jefe): hoy y esta semana, calculadas de los fichajes
+  if (esJefe) {
+    const hoy0 = new Date(); hoy0.setHours(0, 0, 0, 0);
+    const lunes = new Date(hoy0); lunes.setDate(lunes.getDate() - ((lunes.getDay() + 6) % 7));
+    const filas = vista.empleados.filter(e => e.rol !== 'jefe' && e.activo).map(e => {
+      const tr = tramosDe((vista.fichajes || []).filter(f => f.empleadoId === e.id));
+      return { nombre: e.nombre, hoy: msEnVentana(tr, hoy0.getTime(), Date.now()), sem: msEnVentana(tr, lunes.getTime(), Date.now()) };
+    });
+    $('#horas-trabajadas').innerHTML = `
+      <strong style="color:var(--verde)">⏳ Horas trabajadas</strong> <span style="font-size:12px;color:#888">(solo lo ves tú)</span>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:#888;margin-top:8px"><span></span><span>HOY · SEMANA</span></div>
+      ${filas.map(f => `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed var(--borde)">
+        <span><strong>${esc(f.nombre)}</strong></span><span>${fmtHoras(f.hoy)} · <strong>${fmtHoras(f.sem)}</strong></span></div>`).join('') || '<div class="vacio" style="padding:10px">Aún no hay trabajadores con fichajes.</div>'}`;
+  }
 
   // Panel del jefe: estado del control de ubicación
   if (esJefe) {
@@ -676,9 +739,10 @@ $('#btn-publicar-aviso').onclick = async () => {
 };
 $('#btn-crear-tarea').onclick = async () => {
   try {
+    const cuantas = $('#tarea-titulo').value.split('\n').map(t => t.trim()).filter(Boolean).length;
     await refrescar('crearTarea', { titulo: $('#tarea-titulo').value, detalle: $('#tarea-detalle').value, paraId: $('#tarea-para').value || null, fechaLimite: $('#tarea-fecha').value });
     $('#tarea-titulo').value = ''; $('#tarea-detalle').value = ''; $('#tarea-fecha').value = '';
-    aviso('✅ Tarea creada');
+    aviso(cuantas > 1 ? '✅ ' + cuantas + ' tareas creadas' : '✅ Tarea creada');
   } catch (e) { aviso(e.message, true); }
 };
 $('#btn-guardar-horario').onclick = async () => {

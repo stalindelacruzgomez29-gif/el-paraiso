@@ -252,12 +252,13 @@ module.exports = async (req, res) => {
       // ----- Tareas -----
       case 'crearTarea': {
         if (!esJefe) soloJefe();
-        const titulo = limpio(p.titulo);
-        if (!titulo) { const e = new Error('La tarea necesita un título.'); e.codigo = 400; throw e; }
-        datos.tareas.push({
-          id: id(), titulo, detalle: limpio(p.detalle), paraId: p.paraId || null,
+        // Cada línea del texto es UNA tarea: se pueden crear varias de golpe
+        const lineas = String(p.titulo || '').split('\n').map(limpio).filter(Boolean);
+        if (!lineas.length) { const e = new Error('La tarea necesita un título.'); e.codigo = 400; throw e; }
+        lineas.forEach(titulo => datos.tareas.push({
+          id: id(), titulo, detalle: lineas.length === 1 ? limpio(p.detalle) : '', paraId: p.paraId || null,
           fechaLimite: limpio(p.fechaLimite) || null, creada: ahora(), estado: 'pendiente', hechaPor: null, hechaEn: null
-        });
+        }));
         break;
       }
       case 'completarTarea': {
