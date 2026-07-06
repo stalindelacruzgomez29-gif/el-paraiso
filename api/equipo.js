@@ -22,6 +22,8 @@ function datosVacios() {
   return {
     empleados: [], avisos: [], tareas: [], horario: { turnos: {}, notas: '', actualizado: null },
     fichajes: [], pedidos: [], funcionesHechas: [],
+    plantillas: [],     // banco de funciones guardadas del jefe (para mandarlas con un clic)
+    mensajes: [],       // mensajes privados jefe <-> empleado (amonestaciones, avisos personales)
     config: { local: null, radioM: 100 }   // local = {lat,lng} del restaurante para el control de fichaje
   };
 }
@@ -132,6 +134,9 @@ function vistaPara(datos, yo) {
     fichajes: esJefe ? datos.fichajes.slice(-1000) : datos.fichajes.filter(f => f.empleadoId === yo.id).slice(-200),
     pedidos: datos.pedidos.slice(-300),
     funcionesHechas: esJefe ? (datos.funcionesHechas || []).slice(-1000) : (datos.funcionesHechas || []).filter(f => f.empleadoId === yo.id).slice(-100),
+    plantillas: datos.plantillas || [],
+    // Privados: cada uno ve SOLO sus conversaciones (el jefe las ve todas)
+    mensajes: esJefe ? (datos.mensajes || []).slice(-600) : (datos.mensajes || []).filter(m => m.paraId === yo.id || m.deId === yo.id).slice(-200),
     config: { radioM: (datos.config && datos.config.radioM) || 100, controlUbicacion: !!(datos.config && datos.config.local) }
   };
 }
@@ -252,13 +257,48 @@ module.exports = async (req, res) => {
       // ----- Tareas -----
       case 'crearTarea': {
         if (!esJefe) soloJefe();
-        // Cada línea del texto es UNA tarea: se pueden crear varias de golpe
+        // Cada línea del texto es UNA tarea; se puede mandar a UNO, a VARIOS o a TODOS
         const lineas = String(p.titulo || '').split('\n').map(limpio).filter(Boolean);
         if (!lineas.length) { const e = new Error('La tarea necesita un título.'); e.codigo = 400; throw e; }
-        lineas.forEach(titulo => datos.tareas.push({
-          id: id(), titulo, detalle: lineas.length === 1 ? limpio(p.detalle) : '', paraId: p.paraId || null,
+        const destinos = Array.isArray(p.paraIds) && p.paraIds.length ? p.paraIds : [p.paraId || null];
+        destinos.forEach(destino => lineas.forEach(titulo => datos.tareas.push({
+          id: id(), titulo, detalle: lineas.length === 1 ? limpio(p.detalle) : '', paraId: destino || null,
           fechaLimite: limpio(p.fechaLimite) || null, creada: ahora(), estado: 'pendiente', hechaPor: null, hechaEn: null
-        }));
+        })));
+        break;
+      }
+
+      // ----- Banco de funciones guardadas (plantillas del jefe) -----
+      case 'agregarPlantilla': {
+        if (!esJefe) soloJefe();
+        datos.plantillas = datos.plantillas || [];
+        const nuevas = String(p.texto || '').split(/\n|,|;/).map(limpio).filter(Boolean);
+        if (!nuevas.length) { const e = new Error('Escribe la función que quieres guardar.'); e.codigo = 400; throw e; }
+        nuevas.forEach(t => { if (!datos.plantillas.includes(t)) datos.plantillas.push(t); });
+        break;
+      }
+      case 'borrarPlantilla': {
+        if (!esJefe) soloJefe();
+        datos.plantillas = (datos.plantillas || []).filter(t => t !== p.texto);
+        break;
+      }
+
+      // ----- Mensajes privados (jefe <-> empleado; nadie más los ve) -----
+      case 'enviarPrivado': {
+        const texto = limpio(p.texto);
+        if (!texto) { const e = new Error('El mensaje está vacío.'); e.codigo = 400; throw e; }
+        let paraId;
+        if (esJefe) {
+          const destino = datos.empleados.find(x => x.id === p.paraId && x.rol !== 'jefe');
+          if (!destino) { const e = new Error('Elige a qué trabajador se lo mandas.'); e.codigo = 400; throw e; }
+          paraId = destino.id;
+        } else {
+          const jefe = datos.empleados.find(x => x.rol === 'jefe');
+          paraId = jefe && jefe.id;
+        }
+        datos.mensajes = datos.mensajes || [];
+        datos.mensajes.push({ id: id(), deId: yo.id, paraId, texto, fecha: ahora() });
+        if (datos.mensajes.length > 2000) datos.mensajes = datos.mensajes.slice(-1500);
         break;
       }
       case 'completarTarea': {

@@ -12,13 +12,13 @@
     --borde: #dde3dd; --texto: #1f2a1f;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  body { font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; background: #000; color: #e8ece8; min-height: 100vh; }
+  body { font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; background: #fff; color: var(--texto); min-height: 100vh; }
   button { font: inherit; cursor: pointer; }
   input, select, textarea { font: inherit; }
 
   /* ---------- Login ---------- */
-  .pantalla-login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; background: #000; position: relative; }
-  .fondo-login { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: contain; padding: 2vmin; opacity: .9; pointer-events: none; }
+  .pantalla-login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; background: #fff; position: relative; }
+  .fondo-login { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: contain; padding: 2vmin; opacity: .45; pointer-events: none; }
   .caja-login { background: rgba(255,255,255,.82); backdrop-filter: blur(2px); border: 1px solid var(--borde); border-radius: 16px; padding: 28px 24px; width: 100%; max-width: 400px; box-shadow: 0 12px 40px rgba(27,94,32,.18); position: relative; }
   .caja-login h1 { color: var(--verde); font-size: 24px; text-align: center; }
   .caja-login .sub { text-align: center; color: #777; font-size: 14px; margin: 6px 0 18px; }
@@ -65,8 +65,8 @@
 
   /* ---------- Fichar ---------- */
   .fichar-caja { text-align: center; padding: 20px 0; }
-  .fichar-caja .reloj { font-size: 42px; font-weight: 800; color: #8ee695; font-variant-numeric: tabular-nums; }
-  .fichar-caja .fecha { color: #b5c2b5; margin-bottom: 18px; }
+  .fichar-caja .reloj { font-size: 42px; font-weight: 800; color: var(--verde); font-variant-numeric: tabular-nums; }
+  .fichar-caja .fecha { color: #777; margin-bottom: 18px; }
   .boton-fichar { width: 170px; height: 170px; border-radius: 50%; border: none; color: #fff; font-size: 22px; font-weight: 800; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
   .boton-fichar.entrada { background: radial-gradient(circle at 30% 25%, #4caf50, #1b5e20); }
   .boton-fichar.salida { background: radial-gradient(circle at 30% 25%, #ef5350, #b71c1c); }
@@ -96,17 +96,13 @@
 
   /* ---------- Marca El Paraíso ---------- */
   #marca-agua { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 0; pointer-events: none; }
-  #marca-agua img { width: 100%; height: 100%; object-fit: contain; padding: 2vmin; opacity: .55; }
-  /* Sobre fondo negro: el contenido claro mantiene su texto oscuro */
+  #marca-agua img { width: 100%; height: 100%; object-fit: contain; padding: 2vmin; opacity: .22; }
   .tarjeta, .panel-crear, .kpi, .modal, .caja-login, .trabajando-ahora, .tabla-horario td { color: var(--texto); }
-  h2.titulo-vista { color: #a8e6ad; }
-  .fich { color: #e0e8e0; border-bottom-color: #333; }
   .contenido { position: relative; z-index: 1; }
   .logo-login { display: block; width: 120px; height: 120px; margin: 0 auto 12px; border-radius: 24px; box-shadow: 0 6px 18px rgba(0,0,0,.35); }
   .logo-cab { width: 38px; height: 38px; border-radius: 9px; margin-right: 10px; flex-shrink: 0; }
   .cab-izq { display: flex; align-items: center; min-width: 0; }
-  .fiscal { text-align: center; font-size: 11px; color: #93a893; line-height: 1.6; padding: 14px 10px 4px; position: relative; z-index: 1; }
-  #horario-actualizado, #horario-notas-vista { color: #c4d2c4 !important; }
+  .fiscal { text-align: center; font-size: 11px; color: #9aa79a; line-height: 1.6; padding: 14px 10px 4px; position: relative; z-index: 1; }
   .fiscal-login { text-align: center; font-size: 10.5px; color: #999; line-height: 1.5; margin-top: 14px; }
   .mi-dia { background: linear-gradient(135deg, var(--verde-claro), #fff 70%); border-left: 5px solid var(--verde-medio); }
   .mi-dia .puesto-mio { font-size: 17px; font-weight: 800; color: var(--verde); }
@@ -174,8 +170,18 @@
     <!-- TAREAS -->
     <div class="vista" id="vista-tareas">
       <h2 class="titulo-vista">✅ Tareas</h2>
+      <div class="panel-crear solo-jefe" id="panel-plantillas" style="display:none">
+        <h3>📚 Funciones guardadas — se mandan con un clic</h3>
+        <div id="lista-plantillas" style="margin-bottom:8px"></div>
+        <div class="fila-acciones">
+          <input class="campo" id="nueva-plantilla" placeholder="Añadir función nueva al banco (ej.: reponer hielo)" style="flex:1;margin:0">
+          <button class="btn btn-borde btn-peq" id="btn-agregar-plantilla">➕ Guardar</button>
+        </div>
+        <div id="destinos-plantillas" style="margin-top:10px"></div>
+        <button class="btn btn-primario btn-peq" id="btn-mandar-plantillas" style="margin-top:10px">🚀 Mandar las funciones marcadas</button>
+      </div>
       <div class="panel-crear solo-jefe" style="display:none">
-        <h3>Nueva tarea</h3>
+        <h3>Nueva tarea (escrita a mano)</h3>
         <textarea class="campo" id="tarea-titulo" placeholder="Qué hay que hacer — puedes poner VARIAS tareas, una por línea:&#10;Limpiar la terraza&#10;Reponer neveras&#10;Revisar el hielo"></textarea>
         <textarea class="campo" id="tarea-detalle" placeholder="Detalles (opcional)"></textarea>
         <select class="campo" id="tarea-para"></select>
@@ -222,7 +228,7 @@
         <button class="boton-fichar entrada" id="btn-fichar">FICHAR<br>ENTRADA</button>
       </div>
       <div class="lista-fichajes">
-        <h3 style="font-size:15px;color:#a8e6ad;margin-bottom:6px" id="titulo-fichajes">Mis últimos fichajes</h3>
+        <h3 style="font-size:15px;color:var(--verde);margin-bottom:6px" id="titulo-fichajes">Mis últimos fichajes</h3>
         <div id="lista-fichajes"></div>
       </div>
     </div>
@@ -266,6 +272,20 @@
 </div>
 
 <div class="aviso-flotante" id="aviso-flotante"></div>
+
+<!-- Modal chat privado -->
+<div class="modal-fondo" id="modal-chat">
+  <div class="modal" style="display:flex;flex-direction:column;max-height:82vh">
+    <h3 id="chat-titulo">💬 Privado</h3>
+    <p style="font-size:12px;color:#888;margin-bottom:8px">Solo lo veis esa persona y tú. Nadie más.</p>
+    <div id="chat-mensajes" style="flex:1;overflow-y:auto;background:#f2f5f2;border-radius:10px;padding:10px;margin-bottom:10px;min-height:140px"></div>
+    <textarea class="campo" id="chat-texto" placeholder="Escribe el mensaje privado..." style="min-height:58px"></textarea>
+    <div class="fila-acciones">
+      <button class="btn btn-primario btn-peq" id="btn-chat-enviar">📨 Enviar</button>
+      <button class="btn btn-borde btn-peq" id="btn-chat-cerrar">Cerrar</button>
+    </div>
+  </div>
+</div>
 
 <!-- Modal editar trabajador -->
 <div class="modal-fondo" id="modal-emp">
@@ -380,8 +400,9 @@ function entrar(v) {
   montarBarra();
   pintarTodo();
   comprobarTareasNuevas(true);
-  // Permiso para avisar de tareas nuevas con notificación del navegador
-  if (v.yo.rol !== 'jefe' && 'Notification' in window && Notification.permission === 'default') {
+  comprobarPrivadosNuevos(true);
+  // Permiso para avisar de tareas y privados con notificación del navegador
+  if ('Notification' in window && Notification.permission === 'default') {
     try { Notification.requestPermission(); } catch (e) {}
   }
 }
@@ -391,6 +412,7 @@ async function refrescar(accion, params) {
   vista = r.vista;
   pintarTodo();
   comprobarTareasNuevas(false);
+  comprobarPrivadosNuevos(false);
   return r;
 }
 
@@ -439,7 +461,7 @@ function comprobarTareasNuevas(esPrimeraCarga) {
 }
 
 /* ---------- Pintar cada sección ---------- */
-function pintarTodo() { pintarMiDia(); pintarAvisos(); pintarTareas(); pintarHorario(); pintarFichar(); pintarPedidos(); pintarEquipo(); }
+function pintarTodo() { pintarMiDia(); pintarAvisos(); pintarTareas(); pintarHorario(); pintarFichar(); pintarPedidos(); pintarEquipo(); if (chatCon != null) pintarChat(); }
 
 // Panel "Mi día": el empleado entra y ve su puesto, su turno de hoy y sus
 // funciones como LISTA PARA MARCAR (al marcarlas queda la hora registrada)
@@ -474,6 +496,11 @@ function pintarMiDia() {
       <div class="dato">🕐 <strong>Hoy:</strong> ${libre ? 'sin turno apuntado (mira el horario)' : esc(turnoHoy)}</div>
       ${funciones.length ? `<div class="dato">📋 <strong>Tus funciones de hoy</strong> (márcalas cuando las termines):</div>${listaHTML}` : ''}
       <div class="dato">✅ <strong>Tareas pendientes:</strong> ${pendientes}${pendientes ? ' — míralas en la pestaña Tareas' : ' 🎉'}</div>
+      <div class="fila-acciones">${(() => {
+        const jefe = vista.empleados.find(e => e.rol === 'jefe');
+        const nuevos = privadosNoVistos().length;
+        return jefe ? `<button class="btn ${nuevos ? 'btn-rojo' : 'btn-borde'} btn-peq" onclick="abrirChat('${jefe.id}','${esc(jefe.nombre)}')">💬 Privado con ${esc(jefe.nombre)}${nuevos ? ' (' + nuevos + ' nuevo)' : ''}</button>` : '';
+      })()}</div>
     </div>`;
 }
 window.marcarFuncion = async funcion => {
@@ -497,14 +524,8 @@ async function marcarAvisosVistos() {
 }
 window.borrarAviso = async id => { if (confirm('¿Borrar este aviso?')) try { await refrescar('borrarAviso', { id }); } catch (e) { aviso(e.message, true); } };
 
-function pintarTareas() {
-  const esJefe = vista.yo.rol === 'jefe';
-  if (esJefe) {
-    $('#tarea-para').innerHTML = '<option value="">👥 Para todo el equipo</option>' +
-      vista.empleados.filter(e => e.activo && e.rol !== 'jefe').map(e => `<option value="${e.id}">${esc(e.nombre)}</option>`).join('');
-  }
-  const tareas = [...(vista.tareas || [])].sort((a, b) => (a.estado === 'hecha') - (b.estado === 'hecha'));
-  $('#lista-tareas').innerHTML = tareas.length ? tareas.map(t => `
+function tarjetaTarea(t, esJefe) {
+  return `
     <div class="tarjeta">
       <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
         <strong style="${t.estado==='hecha'?'text-decoration:line-through;color:#999':''}">${esc(t.titulo)}</strong>
@@ -521,8 +542,61 @@ function pintarTareas() {
           `<button class="btn btn-borde btn-peq" onclick="reabrirTarea('${t.id}')">↩ Reabrir</button>`}
         ${esJefe ? `<button class="btn btn-borde btn-peq" onclick="borrarTarea('${t.id}')">🗑</button>` : ''}
       </div>
-    </div>`).join('') : '<div class="vacio">No hay tareas. ¡Todo al día! 🎉</div>';
+    </div>`;
 }
+function pintarTareas() {
+  const esJefe = vista.yo.rol === 'jefe';
+  if (esJefe) {
+    $('#tarea-para').innerHTML = '<option value="">👥 Para todo el equipo</option>' +
+      vista.empleados.filter(e => e.activo && e.rol !== 'jefe').map(e => `<option value="${e.id}">${esc(e.nombre)}</option>`).join('');
+    pintarPlantillas();
+  }
+  const tareas = [...(vista.tareas || [])].sort((a, b) => (a.estado === 'hecha') - (b.estado === 'hecha'));
+  if (!tareas.length) { $('#lista-tareas').innerHTML = '<div class="vacio">No hay tareas. ¡Todo al día! 🎉</div>'; return; }
+  if (esJefe) {
+    // Vista del jefe: agrupadas y separadas — todo el equipo primero, luego cada persona
+    const grupos = [[null, '👥 Todo el equipo'], ...vista.empleados.filter(e => e.rol !== 'jefe').map(e => [e.id, '👤 ' + e.nombre])];
+    $('#lista-tareas').innerHTML = grupos.map(([gid, titulo]) => {
+      const del = tareas.filter(t => (t.paraId || null) === gid);
+      if (!del.length) return '';
+      const pend = del.filter(t => t.estado === 'pendiente').length;
+      return `<h3 style="font-size:15.5px;color:var(--verde);margin:16px 0 6px;border-bottom:2px solid var(--verde-claro);padding-bottom:3px">${esc(titulo)} — ${pend ? pend + ' pendiente(s)' : 'todo hecho ✔'}</h3>` +
+        del.map(t => tarjetaTarea(t, true)).join('');
+    }).join('');
+  } else {
+    $('#lista-tareas').innerHTML = tareas.map(t => tarjetaTarea(t, false)).join('');
+  }
+}
+
+/* ---------- Banco de funciones guardadas (jefe) ---------- */
+const selPlantillas = new Set();
+const selDestinos = new Set();
+function pintarPlantillas() {
+  const chip = 'display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--borde);border-radius:18px;padding:6px 11px;margin:3px;font-size:14px;cursor:pointer';
+  $('#lista-plantillas').innerHTML = (vista.plantillas || []).map(t => `
+    <label style="${chip}">
+      <input type="checkbox" data-t="${esc(t)}" ${selPlantillas.has(t) ? 'checked' : ''} onchange="togglePlantilla(this)" style="transform:scale(1.2)">
+      ${esc(t)}
+      <span onclick="event.preventDefault();borrarDelBanco(this.parentElement.querySelector('input').dataset.t)" style="color:var(--rojo);font-weight:800;padding:0 2px">✕</span>
+    </label>`).join('') ||
+    '<div style="font-size:13.5px;color:#777">El banco está vacío: escribe abajo tus funciones (puedes pegar varias separadas por comas) y quedan guardadas para siempre.</div>';
+  const gente = vista.empleados.filter(e => e.activo && e.rol !== 'jefe');
+  $('#destinos-plantillas').innerHTML = '<strong style="font-size:13.5px">¿A quién se las mandas?</strong><br>' +
+    `<label style="${chip}"><input type="checkbox" data-d="todos" ${selDestinos.has('todos') ? 'checked' : ''} onchange="toggleDestino(this)" style="transform:scale(1.2)">👥 TODO EL EQUIPO</label>` +
+    gente.map(e => `<label style="${chip}"><input type="checkbox" data-d="${e.id}" ${selDestinos.has(e.id) ? 'checked' : ''} onchange="toggleDestino(this)" style="transform:scale(1.2)">${esc(e.nombre)}</label>`).join('');
+}
+window.togglePlantilla = el => { el.checked ? selPlantillas.add(el.dataset.t) : selPlantillas.delete(el.dataset.t); };
+window.toggleDestino = el => {
+  const d = el.dataset.d;
+  if (el.checked) { if (d === 'todos') selDestinos.clear(); else selDestinos.delete('todos'); selDestinos.add(d); }
+  else selDestinos.delete(d);
+  pintarPlantillas();
+};
+window.borrarDelBanco = async texto => {
+  if (!confirm('¿Quitar "' + texto + '" del banco de funciones?')) return;
+  selPlantillas.delete(texto);
+  try { await refrescar('borrarPlantilla', { texto }); } catch (e) { aviso(e.message, true); }
+};
 window.hacerTarea = async id => { try { await refrescar('completarTarea', { id }); aviso('✔ Tarea completada'); } catch (e) { aviso(e.message, true); } };
 window.reabrirTarea = async id => { try { await refrescar('reabrirTarea', { id }); } catch (e) { aviso(e.message, true); } };
 window.borrarTarea = async id => { if (confirm('¿Borrar esta tarea?')) try { await refrescar('borrarTarea', { id }); } catch (e) { aviso(e.message, true); } };
@@ -630,8 +704,8 @@ function pintarPedidos() {
       </div>
     </div>`;
   $('#lista-pedidos').innerHTML =
-    (pendientes.length ? `<h3 style="font-size:15px;color:#ff9a8d;margin:6px 0">Falta (${pendientes.length})</h3>` + pendientes.map(fila).join('') : '<div class="vacio">No falta nada apuntado. 👌</div>') +
-    (comprados.length ? `<h3 style="font-size:15px;color:#aab5aa;margin:14px 0 6px">Ya comprado</h3>` + [...comprados].reverse().map(fila).join('') : '');
+    (pendientes.length ? `<h3 style="font-size:15px;color:var(--rojo);margin:6px 0">Falta (${pendientes.length})</h3>` + pendientes.map(fila).join('') : '<div class="vacio">No falta nada apuntado. 👌</div>') +
+    (comprados.length ? `<h3 style="font-size:15px;color:#888;margin:14px 0 6px">Ya comprado</h3>` + [...comprados].reverse().map(fila).join('') : '');
 }
 window.marcarPedido = async (id, estado) => { try { await refrescar('marcarPedido', { id, estado }); } catch (e) { aviso(e.message, true); } };
 window.borrarPedido = async id => { if (confirm('¿Quitar de la lista?')) try { await refrescar('borrarPedido', { id }); } catch (e) { aviso(e.message, true); } };
@@ -674,6 +748,7 @@ function pintarEquipo() {
       <div class="meta">📧 ${esc(e.email)}</div>
       ${e.funciones ? `<div class="meta">📋 ${esc(e.funciones)}</div>` : ''}
       <div class="fila-acciones">
+        <button class="btn btn-verde btn-peq" onclick="abrirChat('${e.id}','${esc(e.nombre)}')">💬 Privado${privadosNoVistos().filter(m => m.deId === e.id).length ? ' 🔴' : ''}</button>
         <button class="btn btn-borde btn-peq" onclick="editarEmp('${e.id}')">✏️ Editar</button>
         <button class="btn btn-borde btn-peq" onclick="nuevaClaveEmp('${e.id}','${esc(e.nombre)}')">🔑 Nueva contraseña</button>
         <button class="btn ${e.activo ? 'btn-rojo' : 'btn-verde'} btn-peq" onclick="alternarEmp('${e.id}',${e.activo ? 'false' : 'true'})">${e.activo ? '🚫 Desactivar' : '✅ Reactivar'}</button>
@@ -796,6 +871,88 @@ $('#btn-quitar-local').onclick = async () => {
   try { await refrescar('fijarLocal', { quitar: true }); aviso('Control de ubicación desactivado'); }
   catch (e) { aviso(e.message, true); }
 };
+$('#btn-agregar-plantilla').onclick = async () => {
+  const texto = $('#nueva-plantilla').value.trim();
+  if (!texto) return aviso('Escribe la función que quieres guardar.', true);
+  try { await refrescar('agregarPlantilla', { texto }); $('#nueva-plantilla').value = ''; aviso('📚 Guardada en el banco'); }
+  catch (e) { aviso(e.message, true); }
+};
+$('#btn-mandar-plantillas').onclick = async () => {
+  if (!selPlantillas.size) return aviso('Marca al menos una función del banco.', true);
+  if (!selDestinos.size) return aviso('Marca a quién se las mandas.', true);
+  const titulo = [...selPlantillas].join('\n');
+  const params = selDestinos.has('todos') ? { titulo, paraId: null } : { titulo, paraIds: [...selDestinos] };
+  try {
+    await refrescar('crearTarea', params);
+    const cuantos = selDestinos.has('todos') ? 'todo el equipo' : [...selDestinos].map(nombreDe).join(', ');
+    aviso('🚀 ' + selPlantillas.size + ' función(es) mandadas a ' + cuantos);
+    selPlantillas.clear(); selDestinos.clear(); pintarPlantillas();
+  } catch (e) { aviso(e.message, true); }
+};
+
+/* ---------- Chat privado (jefe <-> trabajador) ---------- */
+let chatCon = null;
+function mensajesCon(otroId) {
+  return (vista.mensajes || []).filter(m => m.deId === otroId || m.paraId === otroId);
+}
+function clavePrivadosVistos() { return 'equipo_privados_vistos_' + vista.yo.id; }
+function privadosNoVistos() {
+  const vistos = new Set(JSON.parse(localStorage.getItem(clavePrivadosVistos()) || '[]'));
+  return (vista.mensajes || []).filter(m => m.paraId === vista.yo.id && !vistos.has(m.id));
+}
+function marcarPrivadosVistos() {
+  const vistos = new Set(JSON.parse(localStorage.getItem(clavePrivadosVistos()) || '[]'));
+  (vista.mensajes || []).forEach(m => { if (m.paraId === vista.yo.id && (chatCon == null || m.deId === chatCon)) vistos.add(m.id); });
+  localStorage.setItem(clavePrivadosVistos(), JSON.stringify([...vistos].slice(-600)));
+  actualizarPuntoPrivados();
+}
+function actualizarPuntoPrivados() {
+  const n = privadosNoVistos().length;
+  const p = $('#punto-' + (vista.yo.rol === 'jefe' ? 'equipo' : 'avisos'));
+  if (p) p.style.display = n ? 'block' : 'none';
+}
+function comprobarPrivadosNuevos(esPrimeraCarga) {
+  if (!vista) return;
+  const nuevos = privadosNoVistos();
+  actualizarPuntoPrivados();
+  if (!nuevos.length) return;
+  if (chatCon != null && nuevos.every(m => m.deId === chatCon)) { marcarPrivadosVistos(); return; }
+  const texto = '💬 Mensaje privado de ' + nombreDe(nuevos[nuevos.length - 1].deId);
+  aviso(texto);
+  if (!esPrimeraCarga && 'Notification' in window && Notification.permission === 'granted') {
+    try { new Notification('El Paraíso · Equipo', { body: texto, icon: 'logo-fondo.png' }); } catch (e) {}
+  }
+}
+window.abrirChat = (otroId, nombre) => {
+  chatCon = otroId;
+  $('#chat-titulo').textContent = '💬 Privado con ' + nombre;
+  pintarChat();
+  marcarPrivadosVistos();
+  $('#modal-chat').style.display = 'flex';
+};
+function pintarChat() {
+  if (chatCon == null) return;
+  const caja = $('#chat-mensajes');
+  caja.innerHTML = mensajesCon(chatCon).map(m => {
+    const mio = m.deId === vista.yo.id;
+    return `<div style="display:flex;justify-content:${mio ? 'flex-end' : 'flex-start'};margin:4px 0">
+      <div style="max-width:82%;padding:7px 11px;border-radius:12px;font-size:14.5px;white-space:pre-wrap;background:${mio ? '#dcf8c6' : '#fff'};border:1px solid var(--borde)">${esc(m.texto)}
+        <div style="font-size:10.5px;color:#999;text-align:right;margin-top:2px">${fechaBonita(m.fecha)}</div>
+      </div></div>`;
+  }).join('') || '<div class="vacio">Sin mensajes todavía. Escribe el primero.</div>';
+  caja.scrollTop = caja.scrollHeight;
+}
+$('#btn-chat-enviar').onclick = async () => {
+  const texto = $('#chat-texto').value.trim();
+  if (!texto) return;
+  try {
+    await refrescar('enviarPrivado', vista.yo.rol === 'jefe' ? { paraId: chatCon, texto } : { texto });
+    $('#chat-texto').value = '';
+    pintarChat();
+  } catch (e) { aviso(e.message, true); }
+};
+$('#btn-chat-cerrar').onclick = () => { $('#modal-chat').style.display = 'none'; chatCon = null; };
+
 $('#btn-agregar-pedido').onclick = async () => {
   try { await refrescar('agregarPedido', { texto: $('#nuevo-pedido').value }); $('#nuevo-pedido').value = ''; aviso('🛒 Apuntado'); }
   catch (e) { aviso(e.message, true); }
