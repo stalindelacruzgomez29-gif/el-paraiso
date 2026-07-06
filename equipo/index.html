@@ -17,8 +17,9 @@
   input, select, textarea { font: inherit; }
 
   /* ---------- Login ---------- */
-  .pantalla-login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; background: linear-gradient(160deg, #1b5e20, #2e7d32 60%, #388e3c); }
-  .caja-login { background: #fff; border-radius: 16px; padding: 28px 24px; width: 100%; max-width: 400px; box-shadow: 0 12px 40px rgba(0,0,0,.25); }
+  .pantalla-login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; background: linear-gradient(170deg, #ffffff 60%, #e8f5e9); position: relative; }
+  .fondo-login { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: contain; padding: 3vmin; opacity: .3; pointer-events: none; }
+  .caja-login { background: rgba(255,255,255,.82); backdrop-filter: blur(2px); border: 1px solid var(--borde); border-radius: 16px; padding: 28px 24px; width: 100%; max-width: 400px; box-shadow: 0 12px 40px rgba(27,94,32,.18); position: relative; }
   .caja-login h1 { color: var(--verde); font-size: 24px; text-align: center; }
   .caja-login .sub { text-align: center; color: #777; font-size: 14px; margin: 6px 0 18px; }
   .campo { width: 100%; padding: 12px 14px; border: 1.5px solid var(--borde); border-radius: 10px; margin-bottom: 12px; font-size: 16px; }
@@ -112,6 +113,7 @@
 
 <!-- ============ LOGIN / PRIMER USO ============ -->
 <div class="pantalla-login" id="pantalla-login">
+  <img class="fondo-login" src="logo-fondo.png" alt="">
   <div class="caja-login">
     <img class="logo-login" id="logo-login" alt="" style="display:none">
     <h1>El Paraíso · Equipo</h1>
@@ -299,7 +301,6 @@ let pestanaActual = 'avisos';
 
 // El logo de El Paraíso (viene de js/marca-paraiso.js, el mismo del sistema de gestión)
 if (window.LOGO_PARAISO_DEFECTO) {
-  const li = $('#logo-login'); li.src = LOGO_PARAISO_DEFECTO; li.style.display = 'block';
   const lc = $('#logo-cab'); lc.src = LOGO_PARAISO_DEFECTO; lc.style.display = 'block';
 }
 
