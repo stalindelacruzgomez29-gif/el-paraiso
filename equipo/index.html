@@ -92,6 +92,20 @@
   .modal { background: #fff; border-radius: 14px; padding: 20px; width: 100%; max-width: 380px; }
   .modal h3 { color: var(--verde); margin-bottom: 12px; }
   .visto-por { font-size: 12px; color: #999; margin-top: 4px; }
+
+  /* ---------- Marca El Paraíso ---------- */
+  #marca-agua { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 0; pointer-events: none; }
+  #marca-agua img { width: min(88vw, 480px); filter: blur(3px); opacity: .07; border-radius: 30px; }
+  .contenido { position: relative; z-index: 1; }
+  .logo-login { display: block; width: 120px; height: 120px; margin: 0 auto 12px; border-radius: 24px; box-shadow: 0 6px 18px rgba(0,0,0,.35); }
+  .logo-cab { width: 38px; height: 38px; border-radius: 9px; margin-right: 10px; flex-shrink: 0; }
+  .cab-izq { display: flex; align-items: center; min-width: 0; }
+  .fiscal { text-align: center; font-size: 11px; color: #9aa79a; line-height: 1.6; padding: 14px 10px 4px; position: relative; z-index: 1; }
+  .fiscal-login { text-align: center; font-size: 10.5px; color: #999; line-height: 1.5; margin-top: 14px; }
+  .mi-dia { background: linear-gradient(135deg, var(--verde-claro), #fff 70%); border-left: 5px solid var(--verde-medio); }
+  .mi-dia .puesto-mio { font-size: 17px; font-weight: 800; color: var(--verde); }
+  .mi-dia .dato { margin-top: 6px; font-size: 14.5px; }
+  .nota-turnos { font-size: 12.5px; color: #888; margin-top: 6px; }
 </style>
 </head>
 <body>
@@ -99,7 +113,8 @@
 <!-- ============ LOGIN / PRIMER USO ============ -->
 <div class="pantalla-login" id="pantalla-login">
   <div class="caja-login">
-    <h1>🌴 El Paraíso · Equipo</h1>
+    <img class="logo-login" id="logo-login" alt="" style="display:none">
+    <h1>El Paraíso · Equipo</h1>
     <p class="sub" id="login-sub">Entra con tu correo y contraseña</p>
     <div class="error-login" id="login-error"></div>
     <div id="form-login">
@@ -114,15 +129,20 @@
       <input class="campo" type="password" id="jefe-clave" placeholder="Contraseña (mínimo 6)">
       <button class="btn btn-primario" id="btn-crear-jefe">Crear administrador</button>
     </div>
+    <div class="fiscal-login">DOMINICAN BALEARIC DRINKS SL · CIF B56661879<br>C/ General Riera 114, BJ · 07010 Palma (Illes Balears)</div>
   </div>
 </div>
 
 <!-- ============ APLICACIÓN ============ -->
 <div id="app">
+  <div id="marca-agua"><img id="marca-agua-img" alt=""></div>
   <div class="cabecera">
-    <div>
-      <div class="quien" id="cab-nombre">—</div>
-      <div class="rol" id="cab-rol">—</div>
+    <div class="cab-izq">
+      <img class="logo-cab" id="logo-cab" alt="" style="display:none">
+      <div>
+        <div class="quien" id="cab-nombre">—</div>
+        <div class="rol" id="cab-rol">—</div>
+      </div>
     </div>
     <div>
       <button id="btn-clave">🔑</button>
@@ -134,6 +154,7 @@
 
     <!-- AVISOS -->
     <div class="vista activa" id="vista-avisos">
+      <div id="mi-dia"></div>
       <h2 class="titulo-vista">📢 Avisos</h2>
       <div class="panel-crear solo-jefe" style="display:none">
         <h3>Publicar un aviso para todo el equipo</h3>
@@ -163,6 +184,7 @@
       <p id="horario-actualizado" style="font-size:13px;color:#888;margin-bottom:10px"></p>
       <div class="scroll-x"><table class="tabla-horario" id="tabla-horario"></table></div>
       <div class="solo-jefe" style="display:none;margin-top:12px">
+        <p class="nota-turnos">✍️ Ejemplos: «12-16» · turno partido: «12-16 y 20-24» · día libre: «libre» o dejarlo vacío.</p>
         <textarea class="campo" id="horario-notas" placeholder="Notas del horario (ej.: la semana que viene María libra el jueves)"></textarea>
         <button class="btn btn-primario btn-peq" id="btn-guardar-horario">💾 Publicar horario</button>
       </div>
@@ -173,6 +195,19 @@
     <div class="vista" id="vista-fichar">
       <h2 class="titulo-vista">⏱ Control horario</h2>
       <div class="trabajando-ahora solo-jefe" id="quien-trabaja" style="display:none"></div>
+      <div class="panel-crear solo-jefe" id="panel-ubicacion" style="display:none">
+        <h3>📍 Control de ubicación al fichar</h3>
+        <p class="nota-turnos" id="estado-ubicacion">—</p>
+        <div class="fila-acciones" style="align-items:center">
+          <label style="font-size:13.5px">Radio:
+            <input class="campo" type="number" id="radio-m" value="100" min="30" max="2000" style="width:80px;margin:0 4px 0 6px;padding:8px">m
+          </label>
+          <button class="btn btn-primario btn-peq" id="btn-fijar-local">📍 Fijar aquí el local</button>
+          <button class="btn btn-borde btn-peq" id="btn-quitar-local">Quitar control</button>
+        </div>
+        <p class="nota-turnos">Ponte DENTRO del restaurante y pulsa «Fijar aquí el local»: desde entonces
+        solo se podrá fichar (entrada y salida) a menos de ese radio en metros del local.</p>
+      </div>
       <div class="fichar-caja">
         <div class="reloj" id="reloj">--:--</div>
         <div class="fecha" id="fecha-hoy"></div>
@@ -190,7 +225,10 @@
       <div class="panel-crear">
         <h3>Apuntar algo que falta</h3>
         <input class="campo" id="nuevo-pedido" placeholder="Ej.: 2 cajas de cerveza, limones, servilletas...">
-        <button class="btn btn-primario btn-peq" id="btn-agregar-pedido">➕ Añadir a la lista</button>
+        <div class="fila-acciones">
+          <button class="btn btn-primario btn-peq" id="btn-agregar-pedido">➕ Añadir a la lista</button>
+          <button class="btn btn-verde btn-peq" id="btn-whatsapp-pedidos">📲 Enviar lista por WhatsApp</button>
+        </div>
       </div>
       <div id="lista-pedidos"></div>
     </div>
@@ -199,11 +237,14 @@
     <div class="vista" id="vista-equipo">
       <h2 class="titulo-vista">👥 Equipo</h2>
       <div class="kpis" id="kpis"></div>
+      <div id="control-funciones"></div>
       <div class="panel-crear">
         <h3>Dar de alta a un trabajador</h3>
         <input class="campo" id="emp-nombre" placeholder="Nombre">
         <input class="campo" type="email" id="emp-email" placeholder="Correo (será su usuario)">
         <input class="campo" id="emp-clave" placeholder="Contraseña que le das (mínimo 6)">
+        <input class="campo" id="emp-puesto" placeholder="Puesto: camarero/a, cocina, barra...">
+        <textarea class="campo" id="emp-funciones" placeholder="Sus funciones (ej.: abrir el local, terraza, cierre de caja...)"></textarea>
         <button class="btn btn-primario btn-peq" id="btn-crear-emp">➕ Crear cuenta</button>
       </div>
       <div id="lista-empleados"></div>
@@ -211,10 +252,26 @@
 
   </div>
 
+  <div class="fiscal">🌴 El Paraíso Bar Restaurante<br>DOMINICAN BALEARIC DRINKS SL · CIF B56661879 · C/ General Riera 114, BJ · 07010 Palma</div>
+
   <div class="barra" id="barra"></div>
 </div>
 
 <div class="aviso-flotante" id="aviso-flotante"></div>
+
+<!-- Modal editar trabajador -->
+<div class="modal-fondo" id="modal-emp">
+  <div class="modal">
+    <h3>✏️ Editar trabajador</h3>
+    <input class="campo" id="ed-nombre" placeholder="Nombre">
+    <input class="campo" id="ed-puesto" placeholder="Puesto: camarero/a, cocina, barra...">
+    <textarea class="campo" id="ed-funciones" placeholder="Sus funciones y responsabilidades" style="min-height:90px"></textarea>
+    <div class="fila-acciones">
+      <button class="btn btn-primario btn-peq" id="btn-guardar-emp">Guardar</button>
+      <button class="btn btn-borde btn-peq" id="btn-cerrar-emp">Cancelar</button>
+    </div>
+  </div>
+</div>
 
 <!-- Modal cambiar contraseña -->
 <div class="modal-fondo" id="modal-clave">
@@ -229,6 +286,7 @@
   </div>
 </div>
 
+<script src="../js/marca-paraiso.js"></script>
 <script>
 /* ════════════ EL PARAÍSO · PORTAL DEL EQUIPO ════════════ */
 const API = '/api/equipo';
@@ -238,6 +296,13 @@ const CLAVE_TOKEN = 'paraiso_equipo_token';
 
 let vista = null;          // datos que manda el servidor
 let pestanaActual = 'avisos';
+
+// El logo de El Paraíso (viene de js/marca-paraiso.js, el mismo del sistema de gestión)
+if (window.LOGO_PARAISO_DEFECTO) {
+  const li = $('#logo-login'); li.src = LOGO_PARAISO_DEFECTO; li.style.display = 'block';
+  const lc = $('#logo-cab'); lc.src = LOGO_PARAISO_DEFECTO; lc.style.display = 'block';
+  $('#marca-agua-img').src = LOGO_PARAISO_DEFECTO;
+}
 
 /* ---------- Utilidades ---------- */
 function aviso(txt, mal) {
@@ -338,7 +403,46 @@ function cambiarPestana(id) {
 }
 
 /* ---------- Pintar cada sección ---------- */
-function pintarTodo() { pintarAvisos(); pintarTareas(); pintarHorario(); pintarFichar(); pintarPedidos(); pintarEquipo(); }
+function pintarTodo() { pintarMiDia(); pintarAvisos(); pintarTareas(); pintarHorario(); pintarFichar(); pintarPedidos(); pintarEquipo(); }
+
+// Panel "Mi día": el empleado entra y ve su puesto, su turno de hoy y sus
+// funciones como LISTA PARA MARCAR (al marcarlas queda la hora registrada)
+const CLAVES_DIA = ['dom','lun','mar','mie','jue','vie','sab'];
+const hoyClave = () => new Date().toLocaleDateString('sv-SE');   // AAAA-MM-DD local
+function listaFunciones(texto) {
+  return String(texto || '').split(/\n|,|;|·/).map(t => t.trim()).filter(Boolean);
+}
+function funcionHechaHoy(empleadoId, funcion) {
+  return (vista.funcionesHechas || []).find(f => f.empleadoId === empleadoId && f.fecha === hoyClave() && f.funcion === funcion);
+}
+function pintarMiDia() {
+  const cont = $('#mi-dia');
+  if (vista.yo.rol === 'jefe') { cont.innerHTML = ''; return; }
+  const yoFicha = vista.empleados.find(e => e.id === vista.yo.id) || vista.yo;
+  const turnoHoy = ((vista.horario.turnos || {})[vista.yo.id] || {})[CLAVES_DIA[new Date().getDay()]] || '';
+  const libre = !turnoHoy || /libre|descans/i.test(turnoHoy);
+  const pendientes = (vista.tareas || []).filter(t => t.estado === 'pendiente').length;
+  const funciones = listaFunciones(yoFicha.funciones);
+  const listaHTML = funciones.map(f => {
+    const hecha = funcionHechaHoy(vista.yo.id, f);
+    const hora = hecha ? new Date(hecha.ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '';
+    return `<label style="display:flex;gap:8px;align-items:baseline;padding:5px 0;border-bottom:1px dashed var(--borde);cursor:pointer">
+      <input type="checkbox" ${hecha ? 'checked' : ''} onchange="marcarFuncion('${esc(f).replace(/'/g, "\\'")}')" style="transform:scale(1.3)">
+      <span style="flex:1;${hecha ? 'text-decoration:line-through;color:#999' : ''}">${esc(f)}</span>
+      ${hecha ? `<span style="font-size:12.5px;color:var(--verde);font-weight:700">✔ ${hora}</span>` : ''}
+    </label>`;
+  }).join('');
+  cont.innerHTML = `
+    <div class="tarjeta mi-dia">
+      <div class="puesto-mio">👤 ${esc(yoFicha.nombre)}${yoFicha.puesto ? ' · ' + esc(yoFicha.puesto) : ''}</div>
+      <div class="dato">🕐 <strong>Hoy:</strong> ${libre ? 'sin turno apuntado (mira el horario)' : esc(turnoHoy)}</div>
+      ${funciones.length ? `<div class="dato">📋 <strong>Tus funciones de hoy</strong> (márcalas cuando las termines):</div>${listaHTML}` : ''}
+      <div class="dato">✅ <strong>Tareas pendientes:</strong> ${pendientes}${pendientes ? ' — míralas en la pestaña Tareas' : ' 🎉'}</div>
+    </div>`;
+}
+window.marcarFuncion = async funcion => {
+  try { await refrescar('marcarFuncion', { funcion }); } catch (e) { aviso(e.message, true); }
+};
 
 function pintarAvisos() {
   const avisos = [...(vista.avisos || [])].reverse();
@@ -418,8 +522,17 @@ function pintarFichar() {
   $('#titulo-fichajes').textContent = esJefe ? 'Fichajes del equipo (últimos)' : 'Mis últimos fichajes';
   const listado = esJefe ? (vista.fichajes || []) : mios;
   $('#lista-fichajes').innerHTML = [...listado].reverse().slice(0, 40).map(f => `
-    <div class="fich"><span>${f.tipo === 'entrada' ? '🟢 Entrada' : '🔴 Salida'}${esJefe ? ' · <strong>' + esc(nombreDe(f.empleadoId)) + '</strong>' : ''}</span>
+    <div class="fich"><span>${f.tipo === 'entrada' ? '🟢 Entrada' : '🔴 Salida'}${esJefe ? ' · <strong>' + esc(nombreDe(f.empleadoId)) + '</strong>' : ''}${esJefe && f.dist != null ? ' <span style="color:#888;font-size:12px">📍 a ' + f.dist + ' m</span>' : ''}</span>
     <span>${fechaBonita(f.ts)}</span></div>`).join('') || '<div class="vacio">Sin fichajes todavía.</div>';
+
+  // Panel del jefe: estado del control de ubicación
+  if (esJefe) {
+    const cfg = vista.config || {};
+    $('#estado-ubicacion').innerHTML = cfg.controlUbicacion
+      ? '🟢 <strong>ACTIVO</strong>: solo se puede fichar a menos de <strong>' + (cfg.radioM || 100) + ' m</strong> del local (entrada y salida).'
+      : '⚪ Desactivado: ahora mismo se puede fichar desde cualquier sitio.';
+    if (cfg.radioM && document.activeElement !== $('#radio-m')) $('#radio-m').value = cfg.radioM;
+  }
 
   if (esJefe) {
     const abiertos = {};
@@ -468,11 +581,32 @@ function pintarEquipo() {
     <div class="kpi"><div class="num">${trabajando}</div><div class="txt">fichados ahora</div></div>
     <div class="kpi"><div class="num">${tareasPend}</div><div class="txt">tareas pendientes</div></div>
     <div class="kpi"><div class="num">${pedidosPend}</div><div class="txt">cosas que faltan</div></div>`;
+
+  // Control de funciones de HOY: quién hizo qué y a qué hora
+  const conFunciones = gente.filter(e => e.activo && listaFunciones(e.funciones).length);
+  $('#control-funciones').innerHTML = conFunciones.length ? `
+    <div class="tarjeta">
+      <strong style="color:var(--verde)">📋 Funciones de hoy — control</strong>
+      ${conFunciones.map(e => {
+        const funcs = listaFunciones(e.funciones);
+        const hechas = funcs.filter(f => funcionHechaHoy(e.id, f)).length;
+        return `<div style="margin-top:10px">
+          <strong>${esc(e.nombre)}</strong> <span style="color:${hechas === funcs.length ? 'var(--verde)' : '#e65100'};font-weight:700">${hechas}/${funcs.length}</span>
+          ${funcs.map(f => {
+            const h = funcionHechaHoy(e.id, f);
+            const hora = h ? new Date(h.ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '';
+            return `<div style="font-size:13.5px;padding:2px 0 2px 12px">${h ? '✅' : '⬜'} ${esc(f)} ${h ? '<span style="color:var(--verde);font-weight:700">· ' + hora + '</span>' : ''}</div>`;
+          }).join('')}
+        </div>`;
+      }).join('')}
+    </div>` : '';
   $('#lista-empleados').innerHTML = gente.map(e => `
     <div class="tarjeta">
-      <strong>${esc(e.nombre)}</strong> ${e.activo ? '' : '<span class="etiqueta et-pendiente">DESACTIVADO</span>'}
+      <strong>${esc(e.nombre)}</strong>${e.puesto ? ' · <span style="color:var(--verde);font-weight:700">' + esc(e.puesto) + '</span>' : ''} ${e.activo ? '' : '<span class="etiqueta et-pendiente">DESACTIVADO</span>'}
       <div class="meta">📧 ${esc(e.email)}</div>
+      ${e.funciones ? `<div class="meta">📋 ${esc(e.funciones)}</div>` : ''}
       <div class="fila-acciones">
+        <button class="btn btn-borde btn-peq" onclick="editarEmp('${e.id}')">✏️ Editar</button>
         <button class="btn btn-borde btn-peq" onclick="nuevaClaveEmp('${e.id}','${esc(e.nombre)}')">🔑 Nueva contraseña</button>
         <button class="btn ${e.activo ? 'btn-rojo' : 'btn-verde'} btn-peq" onclick="alternarEmp('${e.id}',${e.activo ? 'false' : 'true'})">${e.activo ? '🚫 Desactivar' : '✅ Reactivar'}</button>
       </div>
@@ -484,6 +618,21 @@ window.nuevaClaveEmp = async (id, nombre) => {
   try { await refrescar('reiniciarClave', { id, clave }); aviso('Contraseña cambiada. Recuerda decirsela a ' + nombre + '.'); } catch (e) { aviso(e.message, true); }
 };
 window.alternarEmp = async (id, activo) => { try { await refrescar('editarEmpleado', { id, activo }); } catch (e) { aviso(e.message, true); } };
+let empEditando = null;
+window.editarEmp = id => {
+  const e = vista.empleados.find(x => x.id === id); if (!e) return;
+  empEditando = id;
+  $('#ed-nombre').value = e.nombre; $('#ed-puesto').value = e.puesto || ''; $('#ed-funciones').value = e.funciones || '';
+  $('#modal-emp').style.display = 'flex';
+};
+$('#btn-cerrar-emp').onclick = () => { $('#modal-emp').style.display = 'none'; };
+$('#btn-guardar-emp').onclick = async () => {
+  try {
+    await refrescar('editarEmpleado', { id: empEditando, nombre: $('#ed-nombre').value, puesto: $('#ed-puesto').value, funciones: $('#ed-funciones').value });
+    $('#modal-emp').style.display = 'none';
+    aviso('✏️ Ficha actualizada');
+  } catch (e) { aviso(e.message, true); }
+};
 
 /* ---------- Botones ---------- */
 $('#btn-entrar').onclick = async () => {
@@ -536,22 +685,67 @@ $('#btn-guardar-horario').onclick = async () => {
   try { await refrescar('guardarHorario', { turnos, notas: $('#horario-notas').value }); aviso('🕐 Horario publicado para todo el equipo'); }
   catch (e) { aviso(e.message, true); }
 };
+// Ubicación del móvil (para el control de fichaje en el local)
+function miUbicacion() {
+  return new Promise(res => {
+    if (!navigator.geolocation) return res(null);
+    navigator.geolocation.getCurrentPosition(
+      pos => res({ lat: pos.coords.latitude, lng: pos.coords.longitude, precision: pos.coords.accuracy }),
+      () => res(null),
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 20000 }
+    );
+  });
+}
 $('#btn-fichar').onclick = async () => {
   const mios = (vista.fichajes || []).filter(f => f.empleadoId === vista.yo.id);
   const ultimo = mios[mios.length - 1];
   const tipo = (ultimo && ultimo.tipo === 'entrada') ? 'salida' : 'entrada';
-  try { await refrescar('fichar', { tipo }); aviso(tipo === 'entrada' ? '🟢 Entrada registrada. ¡Buen turno!' : '🔴 Salida registrada. ¡Hasta luego!'); }
+  let ubi = null;
+  if (vista.config && vista.config.controlUbicacion) {
+    aviso('📍 Comprobando que estás en el local...');
+    ubi = await miUbicacion();
+    if (!ubi && vista.yo.rol !== 'jefe') {
+      return aviso('No pude obtener tu ubicación. Activa el GPS y dale permiso al navegador para fichar.', true);
+    }
+  }
+  try {
+    await refrescar('fichar', { tipo, ...(ubi || {}) });
+    aviso(tipo === 'entrada' ? '🟢 Entrada registrada. ¡Buen turno!' : '🔴 Salida registrada. ¡Hasta luego!');
+  } catch (e) { aviso(e.message, true); }
+};
+$('#btn-fijar-local').onclick = async () => {
+  aviso('📍 Obteniendo la ubicación del local...');
+  const ubi = await miUbicacion();
+  if (!ubi) return aviso('No pude obtener la ubicación. Activa el GPS y dale permiso al navegador.', true);
+  try {
+    await refrescar('fijarLocal', { lat: ubi.lat, lng: ubi.lng, radioM: Number($('#radio-m').value) || 100 });
+    aviso('📍 Local fijado: desde ahora solo se ficha a menos de ' + ($('#radio-m').value || 100) + ' m de aquí');
+  } catch (e) { aviso(e.message, true); }
+};
+$('#btn-quitar-local').onclick = async () => {
+  if (!confirm('¿Quitar el control de ubicación? Se podrá fichar desde cualquier sitio.')) return;
+  try { await refrescar('fijarLocal', { quitar: true }); aviso('Control de ubicación desactivado'); }
   catch (e) { aviso(e.message, true); }
 };
 $('#btn-agregar-pedido').onclick = async () => {
   try { await refrescar('agregarPedido', { texto: $('#nuevo-pedido').value }); $('#nuevo-pedido').value = ''; aviso('🛒 Apuntado'); }
   catch (e) { aviso(e.message, true); }
 };
+// Arma el mensaje con todo lo pendiente y lo abre en WhatsApp listo para enviar
+$('#btn-whatsapp-pedidos').onclick = () => {
+  const pendientes = (vista.pedidos || []).filter(p => p.estado === 'pendiente');
+  if (!pendientes.length) return aviso('No hay nada pendiente en la lista.', true);
+  const fecha = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+  const texto = `🛒 *PEDIDO EL PARAÍSO*\n_${fecha}_\n\nNos hace falta:\n` +
+    pendientes.map(p => `• ${p.texto}`).join('\n') +
+    `\n\n_El Paraíso Bar Restaurante · General Riera 114, Palma_`;
+  window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank');
+};
 $('#btn-crear-emp').onclick = async () => {
   try {
-    await refrescar('crearEmpleado', { nombre: $('#emp-nombre').value, email: $('#emp-email').value, clave: $('#emp-clave').value });
+    await refrescar('crearEmpleado', { nombre: $('#emp-nombre').value, email: $('#emp-email').value, clave: $('#emp-clave').value, puesto: $('#emp-puesto').value, funciones: $('#emp-funciones').value });
     aviso('👥 Cuenta creada: dale el correo y la contraseña a esa persona');
-    $('#emp-nombre').value = ''; $('#emp-email').value = ''; $('#emp-clave').value = '';
+    $('#emp-nombre').value = ''; $('#emp-email').value = ''; $('#emp-clave').value = ''; $('#emp-puesto').value = ''; $('#emp-funciones').value = '';
   } catch (e) { aviso(e.message, true); }
 };
 

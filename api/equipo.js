@@ -19,7 +19,24 @@ function secreto() {
 }
 
 function datosVacios() {
-  return { empleados: [], avisos: [], tareas: [], horario: { turnos: {}, notas: '', actualizado: null }, fichajes: [], pedidos: [] };
+  return {
+    empleados: [], avisos: [], tareas: [], horario: { turnos: {}, notas: '', actualizado: null },
+    fichajes: [], pedidos: [], funcionesHechas: [],
+    config: { local: null, radioM: 100 }   // local = {lat,lng} del restaurante para el control de fichaje
+  };
+}
+
+// Distancia en metros entre dos puntos GPS (fórmula del haversine)
+function distanciaM(a, b) {
+  const R = 6371000, rad = x => x * Math.PI / 180;
+  const dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+// La fecha de "hoy" en España (el servidor va en UTC)
+function hoyEspana() {
+  return new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Madrid' });
 }
 
 async function gh(metodo, ruta, cuerpo) {
@@ -101,7 +118,7 @@ const correoNormal = c => limpio(c).toLowerCase();
 
 // Lo que se envía al navegador de cada empleado (nunca hash/sal)
 function empleadoPublico(e) {
-  return { id: e.id, nombre: e.nombre, email: e.email, rol: e.rol, activo: e.activo !== false };
+  return { id: e.id, nombre: e.nombre, email: e.email, rol: e.rol, activo: e.activo !== false, puesto: e.puesto || '', funciones: e.funciones || '' };
 }
 
 function vistaPara(datos, yo) {
@@ -113,7 +130,9 @@ function vistaPara(datos, yo) {
     tareas: esJefe ? datos.tareas : datos.tareas.filter(t => !t.paraId || t.paraId === yo.id),
     horario: datos.horario,
     fichajes: esJefe ? datos.fichajes.slice(-1000) : datos.fichajes.filter(f => f.empleadoId === yo.id).slice(-200),
-    pedidos: datos.pedidos.slice(-300)
+    pedidos: datos.pedidos.slice(-300),
+    funcionesHechas: esJefe ? (datos.funcionesHechas || []).slice(-1000) : (datos.funcionesHechas || []).filter(f => f.empleadoId === yo.id).slice(-100),
+    config: { radioM: (datos.config && datos.config.radioM) || 100, controlUbicacion: !!(datos.config && datos.config.local) }
   };
 }
 
@@ -189,7 +208,7 @@ module.exports = async (req, res) => {
         const nombre = limpio(p.nombre), email = correoNormal(p.email), clave = String(p.clave || '');
         if (!nombre || !email.includes('@') || clave.length < 6) { const e = new Error('Hace falta nombre, correo válido y contraseña de al menos 6 caracteres.'); e.codigo = 400; throw e; }
         if (datos.empleados.some(x => x.email === email)) { const e = new Error('Ya existe una cuenta con ese correo.'); e.codigo = 400; throw e; }
-        datos.empleados.push({ id: id(), nombre, email, rol: 'empleado', activo: true, creado: ahora(), ...crearCredencial(clave) });
+        datos.empleados.push({ id: id(), nombre, email, rol: 'empleado', activo: true, creado: ahora(), puesto: limpio(p.puesto), funciones: limpio(p.funciones), ...crearCredencial(clave) });
         break;
       }
       case 'editarEmpleado': {
@@ -197,6 +216,8 @@ module.exports = async (req, res) => {
         const emp = datos.empleados.find(x => x.id === p.id);
         if (!emp) { const e = new Error('No encuentro a ese empleado.'); e.codigo = 404; throw e; }
         if (p.nombre !== undefined) emp.nombre = limpio(p.nombre) || emp.nombre;
+        if (p.puesto !== undefined) emp.puesto = limpio(p.puesto);
+        if (p.funciones !== undefined) emp.funciones = limpio(p.funciones);
         if (p.activo !== undefined && emp.rol !== 'jefe') emp.activo = !!p.activo;
         break;
       }
@@ -266,7 +287,7 @@ module.exports = async (req, res) => {
         break;
       }
 
-      // ----- Fichajes (control horario) -----
+      // ----- Fichajes (control horario, con control de ubicación) -----
       case 'fichar': {
         const tipo = p.tipo === 'salida' ? 'salida' : 'entrada';
         const mios = datos.fichajes.filter(f => f.empleadoId === yo.id);
@@ -275,8 +296,52 @@ module.exports = async (req, res) => {
           const e = new Error(tipo === 'entrada' ? 'Ya habías fichado la entrada. Ficha la salida primero.' : 'No hay una entrada abierta. Ficha la entrada primero.');
           e.codigo = 400; throw e;
         }
-        datos.fichajes.push({ id: id(), empleadoId: yo.id, tipo, ts: ahora() });
+        // Control de ubicación: si el jefe fijó el local, hay que estar allí
+        const cfg = datos.config || {};
+        let dist = null;
+        if (cfg.local && typeof p.lat === 'number' && typeof p.lng === 'number') {
+          dist = Math.round(distanciaM(cfg.local, { lat: p.lat, lng: p.lng }));
+        }
+        if (cfg.local && !esJefe) {
+          if (typeof p.lat !== 'number' || typeof p.lng !== 'number') {
+            const e = new Error('Para fichar necesito tu ubicación. Activa el GPS y dale permiso de ubicación al navegador.');
+            e.codigo = 400; throw e;
+          }
+          const margen = Math.min(Number(p.precision) || 0, 60);   // tolerancia por precisión del GPS
+          const radio = cfg.radioM || 100;
+          if (dist - margen > radio) {
+            const e = new Error(`Estás a ${dist} m del restaurante y solo se puede fichar a menos de ${radio} m. Ficha cuando llegues al local.`);
+            e.codigo = 400; throw e;
+          }
+        }
+        datos.fichajes.push({ id: id(), empleadoId: yo.id, tipo, ts: ahora(), ...(dist === null ? {} : { dist }) });
         if (datos.fichajes.length > 5000) datos.fichajes = datos.fichajes.slice(-4000);
+        break;
+      }
+      case 'fijarLocal': {
+        if (!esJefe) soloJefe();
+        datos.config = datos.config || {};
+        if (p.quitar) {
+          datos.config.local = null;
+        } else {
+          if (typeof p.lat !== 'number' || typeof p.lng !== 'number') { const e = new Error('No me llegó tu ubicación. Activa el GPS y vuelve a intentarlo.'); e.codigo = 400; throw e; }
+          datos.config.local = { lat: p.lat, lng: p.lng };
+          const radio = Math.round(Number(p.radioM));
+          datos.config.radioM = (radio >= 30 && radio <= 2000) ? radio : 100;
+        }
+        break;
+      }
+
+      // ----- Funciones diarias: se marcan al terminarlas y queda la hora -----
+      case 'marcarFuncion': {
+        const funcion = limpio(p.funcion);
+        if (!funcion) { const e = new Error('Falta la función.'); e.codigo = 400; throw e; }
+        datos.funcionesHechas = datos.funcionesHechas || [];
+        const hoy = hoyEspana();
+        const idx = datos.funcionesHechas.findIndex(f => f.empleadoId === yo.id && f.fecha === hoy && f.funcion === funcion);
+        if (idx >= 0) datos.funcionesHechas.splice(idx, 1);          // desmarcar si se equivocó
+        else datos.funcionesHechas.push({ id: id(), empleadoId: yo.id, fecha: hoy, funcion, ts: ahora() });
+        if (datos.funcionesHechas.length > 3000) datos.funcionesHechas = datos.funcionesHechas.slice(-2500);
         break;
       }
 
@@ -285,6 +350,19 @@ module.exports = async (req, res) => {
         const texto = limpio(p.texto);
         if (!texto) { const e = new Error('Escribe qué hace falta.'); e.codigo = 400; throw e; }
         datos.pedidos.push({ id: id(), texto, empleadoId: yo.id, fecha: ahora(), estado: 'pendiente', compradoEn: null });
+        // Aviso automático al WhatsApp del Paraíso (si está configurado con CallMeBot)
+        if (process.env.WHATSAPP_TELEFONO && process.env.WHATSAPP_APIKEY) {
+          try {
+            const pendientes = datos.pedidos.filter(x => x.estado === 'pendiente').length;
+            const msg = `🛒 *EL PARAÍSO · Pedidos*\n${yo.nombre} apuntó: *${texto}*\n(${pendientes} cosa(s) pendientes en la lista)`;
+            const url = 'https://api.callmebot.com/whatsapp.php?phone=' + encodeURIComponent(process.env.WHATSAPP_TELEFONO) +
+                        '&apikey=' + encodeURIComponent(process.env.WHATSAPP_APIKEY) + '&text=' + encodeURIComponent(msg);
+            const ctl = new AbortController();
+            const t = setTimeout(() => ctl.abort(), 5000);
+            await fetch(url, { signal: ctl.signal }).catch(() => {});
+            clearTimeout(t);
+          } catch (e) { /* si WhatsApp falla, el pedido queda guardado igual */ }
+        }
         break;
       }
       case 'marcarPedido': {
