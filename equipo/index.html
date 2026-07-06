@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>El Paraíso · Equipo</title>
+<meta name="theme-color" content="#1b5e20">
+<style>
+  :root {
+    --verde: #1b5e20; --verde-claro: #e8f5e9; --verde-medio: #43a047;
+    --rojo: #c62828; --ambar: #f9a825; --gris: #607d8b; --fondo: #f4f6f4;
+    --borde: #dde3dd; --texto: #1f2a1f;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; background: var(--fondo); color: var(--texto); min-height: 100vh; }
+  button { font: inherit; cursor: pointer; }
+  input, select, textarea { font: inherit; }
+
+  /* ---------- Login ---------- */
+  .pantalla-login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; background: linear-gradient(160deg, #1b5e20, #2e7d32 60%, #388e3c); }
+  .caja-login { background: #fff; border-radius: 16px; padding: 28px 24px; width: 100%; max-width: 400px; box-shadow: 0 12px 40px rgba(0,0,0,.25); }
+  .caja-login h1 { color: var(--verde); font-size: 24px; text-align: center; }
+  .caja-login .sub { text-align: center; color: #777; font-size: 14px; margin: 6px 0 18px; }
+  .campo { width: 100%; padding: 12px 14px; border: 1.5px solid var(--borde); border-radius: 10px; margin-bottom: 12px; font-size: 16px; }
+  .campo:focus { outline: none; border-color: var(--verde-medio); }
+  .btn { border: none; border-radius: 10px; padding: 12px 18px; font-weight: 700; font-size: 16px; }
+  .btn-primario { background: var(--verde); color: #fff; width: 100%; }
+  .btn-primario:active { background: #144a18; }
+  .btn-peq { padding: 7px 12px; font-size: 14px; border-radius: 8px; }
+  .btn-borde { background: #fff; border: 1.5px solid var(--borde); color: var(--texto); }
+  .btn-rojo { background: var(--rojo); color: #fff; }
+  .btn-verde { background: var(--verde-medio); color: #fff; }
+  .error-login { background: #ffebee; color: var(--rojo); border-radius: 8px; padding: 10px; font-size: 14px; margin-bottom: 12px; display: none; }
+
+  /* ---------- Estructura app ---------- */
+  #app { display: none; min-height: 100vh; padding-bottom: 76px; }
+  .cabecera { background: var(--verde); color: #fff; padding: 14px 16px; padding-top: max(14px, env(safe-area-inset-top)); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 5; }
+  .cabecera .quien { font-size: 17px; font-weight: 700; }
+  .cabecera .rol { font-size: 12px; opacity: .85; }
+  .cabecera button { background: rgba(255,255,255,.15); color: #fff; border: none; border-radius: 8px; padding: 7px 10px; font-size: 13px; margin-left: 6px; }
+  .contenido { padding: 14px; max-width: 720px; margin: 0 auto; }
+  .vista { display: none; }
+  .vista.activa { display: block; }
+  h2.titulo-vista { color: var(--verde); font-size: 20px; margin-bottom: 12px; }
+
+  .tarjeta { background: #fff; border: 1px solid var(--borde); border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+  .tarjeta .meta { font-size: 12px; color: #888; margin-top: 6px; }
+  .fila-acciones { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .panel-crear { background: var(--verde-claro); border: 1.5px dashed var(--verde-medio); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+  .panel-crear h3 { color: var(--verde); font-size: 15px; margin-bottom: 10px; }
+  textarea.campo { resize: vertical; min-height: 64px; }
+  .etiqueta { display: inline-block; font-size: 12px; font-weight: 700; border-radius: 6px; padding: 2px 8px; }
+  .et-pendiente { background: #fff3e0; color: #e65100; }
+  .et-hecha { background: var(--verde-claro); color: var(--verde); }
+  .et-todos { background: #e3f2fd; color: #1565c0; }
+  .vacio { text-align: center; color: #999; padding: 30px 10px; font-size: 15px; }
+
+  /* ---------- Barra inferior ---------- */
+  .barra { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid var(--borde); display: flex; z-index: 10; padding-bottom: env(safe-area-inset-bottom); }
+  .barra button { flex: 1; background: none; border: none; padding: 8px 2px 6px; font-size: 10.5px; color: #789; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .barra button .ico { font-size: 21px; }
+  .barra button.activa { color: var(--verde); font-weight: 700; }
+  .barra button .punto { position: absolute; margin-left: 26px; width: 9px; height: 9px; border-radius: 50%; background: var(--rojo); display: none; }
+
+  /* ---------- Fichar ---------- */
+  .fichar-caja { text-align: center; padding: 20px 0; }
+  .fichar-caja .reloj { font-size: 42px; font-weight: 800; color: var(--verde); font-variant-numeric: tabular-nums; }
+  .fichar-caja .fecha { color: #777; margin-bottom: 18px; }
+  .boton-fichar { width: 170px; height: 170px; border-radius: 50%; border: none; color: #fff; font-size: 22px; font-weight: 800; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+  .boton-fichar.entrada { background: radial-gradient(circle at 30% 25%, #4caf50, #1b5e20); }
+  .boton-fichar.salida { background: radial-gradient(circle at 30% 25%, #ef5350, #b71c1c); }
+  .lista-fichajes { margin-top: 18px; text-align: left; }
+  .fich { display: flex; justify-content: space-between; padding: 8px 4px; border-bottom: 1px dashed var(--borde); font-size: 14.5px; }
+  .trabajando-ahora { background: var(--verde-claro); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; font-size: 14.5px; }
+
+  /* ---------- Horario ---------- */
+  .tabla-horario { width: 100%; border-collapse: collapse; background: #fff; font-size: 13.5px; }
+  .tabla-horario th, .tabla-horario td { border: 1px solid var(--borde); padding: 7px 6px; text-align: center; }
+  .tabla-horario th { background: var(--verde); color: #fff; font-size: 12.5px; }
+  .tabla-horario td:first-child { font-weight: 700; text-align: left; }
+  .tabla-horario tr.yo { background: var(--verde-claro); }
+  .tabla-horario input { width: 100%; border: 1px solid #cfd8cf; border-radius: 6px; padding: 5px 3px; font-size: 13px; text-align: center; }
+  .scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .kpi { background: #fff; border: 1px solid var(--borde); border-radius: 12px; padding: 12px; text-align: center; }
+  .kpi .num { font-size: 26px; font-weight: 800; color: var(--verde); }
+  .kpi .txt { font-size: 12.5px; color: #777; }
+
+  .aviso-flotante { position: fixed; left: 50%; transform: translateX(-50%); bottom: 90px; background: #263238; color: #fff; padding: 11px 18px; border-radius: 24px; font-size: 14.5px; z-index: 50; max-width: 90%; text-align: center; display: none; }
+  .modal-fondo { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 40; display: none; align-items: center; justify-content: center; padding: 20px; }
+  .modal { background: #fff; border-radius: 14px; padding: 20px; width: 100%; max-width: 380px; }
+  .modal h3 { color: var(--verde); margin-bottom: 12px; }
+  .visto-por { font-size: 12px; color: #999; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN / PRIMER USO ============ -->
+<div class="pantalla-login" id="pantalla-login">
+  <div class="caja-login">
+    <h1>🌴 El Paraíso · Equipo</h1>
+    <p class="sub" id="login-sub">Entra con tu correo y contraseña</p>
+    <div class="error-login" id="login-error"></div>
+    <div id="form-login">
+      <input class="campo" type="email" id="login-email" placeholder="Correo electrónico" autocomplete="username">
+      <input class="campo" type="password" id="login-clave" placeholder="Contraseña" autocomplete="current-password">
+      <button class="btn btn-primario" id="btn-entrar">Entrar</button>
+    </div>
+    <div id="form-jefe" style="display:none">
+      <p style="font-size:14px;color:#555;margin-bottom:12px">Primer uso: crea la cuenta del <strong>administrador</strong> (el jefe).</p>
+      <input class="campo" type="text" id="jefe-nombre" placeholder="Tu nombre">
+      <input class="campo" type="email" id="jefe-email" placeholder="Tu correo">
+      <input class="campo" type="password" id="jefe-clave" placeholder="Contraseña (mínimo 6)">
+      <button class="btn btn-primario" id="btn-crear-jefe">Crear administrador</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ APLICACIÓN ============ -->
+<div id="app">
+  <div class="cabecera">
+    <div>
+      <div class="quien" id="cab-nombre">—</div>
+      <div class="rol" id="cab-rol">—</div>
+    </div>
+    <div>
+      <button id="btn-clave">🔑</button>
+      <button id="btn-salir">Salir</button>
+    </div>
+  </div>
+
+  <div class="contenido">
+
+    <!-- AVISOS -->
+    <div class="vista activa" id="vista-avisos">
+      <h2 class="titulo-vista">📢 Avisos</h2>
+      <div class="panel-crear solo-jefe" style="display:none">
+        <h3>Publicar un aviso para todo el equipo</h3>
+        <textarea class="campo" id="nuevo-aviso" placeholder="Ej.: Mañana abrimos a las 9:00. / Cambio de turno el viernes..."></textarea>
+        <button class="btn btn-primario btn-peq" id="btn-publicar-aviso">📣 Publicar</button>
+      </div>
+      <div id="lista-avisos"></div>
+    </div>
+
+    <!-- TAREAS -->
+    <div class="vista" id="vista-tareas">
+      <h2 class="titulo-vista">✅ Tareas</h2>
+      <div class="panel-crear solo-jefe" style="display:none">
+        <h3>Nueva tarea</h3>
+        <input class="campo" id="tarea-titulo" placeholder="Qué hay que hacer">
+        <textarea class="campo" id="tarea-detalle" placeholder="Detalles (opcional)"></textarea>
+        <select class="campo" id="tarea-para"></select>
+        <input class="campo" type="date" id="tarea-fecha">
+        <button class="btn btn-primario btn-peq" id="btn-crear-tarea">➕ Crear tarea</button>
+      </div>
+      <div id="lista-tareas"></div>
+    </div>
+
+    <!-- HORARIO -->
+    <div class="vista" id="vista-horario">
+      <h2 class="titulo-vista">🕐 Horario semanal</h2>
+      <p id="horario-actualizado" style="font-size:13px;color:#888;margin-bottom:10px"></p>
+      <div class="scroll-x"><table class="tabla-horario" id="tabla-horario"></table></div>
+      <div class="solo-jefe" style="display:none;margin-top:12px">
+        <textarea class="campo" id="horario-notas" placeholder="Notas del horario (ej.: la semana que viene María libra el jueves)"></textarea>
+        <button class="btn btn-primario btn-peq" id="btn-guardar-horario">💾 Publicar horario</button>
+      </div>
+      <div id="horario-notas-vista" style="margin-top:10px;font-size:14.5px"></div>
+    </div>
+
+    <!-- FICHAR -->
+    <div class="vista" id="vista-fichar">
+      <h2 class="titulo-vista">⏱ Control horario</h2>
+      <div class="trabajando-ahora solo-jefe" id="quien-trabaja" style="display:none"></div>
+      <div class="fichar-caja">
+        <div class="reloj" id="reloj">--:--</div>
+        <div class="fecha" id="fecha-hoy"></div>
+        <button class="boton-fichar entrada" id="btn-fichar">FICHAR<br>ENTRADA</button>
+      </div>
+      <div class="lista-fichajes">
+        <h3 style="font-size:15px;color:var(--verde);margin-bottom:6px" id="titulo-fichajes">Mis últimos fichajes</h3>
+        <div id="lista-fichajes"></div>
+      </div>
+    </div>
+
+    <!-- PEDIDOS -->
+    <div class="vista" id="vista-pedidos">
+      <h2 class="titulo-vista">🛒 Pedidos · lo que falta</h2>
+      <div class="panel-crear">
+        <h3>Apuntar algo que falta</h3>
+        <input class="campo" id="nuevo-pedido" placeholder="Ej.: 2 cajas de cerveza, limones, servilletas...">
+        <button class="btn btn-primario btn-peq" id="btn-agregar-pedido">➕ Añadir a la lista</button>
+      </div>
+      <div id="lista-pedidos"></div>
+    </div>
+
+    <!-- EQUIPO (solo jefe) -->
+    <div class="vista" id="vista-equipo">
+      <h2 class="titulo-vista">👥 Equipo</h2>
+      <div class="kpis" id="kpis"></div>
+      <div class="panel-crear">
+        <h3>Dar de alta a un trabajador</h3>
+        <input class="campo" id="emp-nombre" placeholder="Nombre">
+        <input class="campo" type="email" id="emp-email" placeholder="Correo (será su usuario)">
+        <input class="campo" id="emp-clave" placeholder="Contraseña que le das (mínimo 6)">
+        <button class="btn btn-primario btn-peq" id="btn-crear-emp">➕ Crear cuenta</button>
+      </div>
+      <div id="lista-empleados"></div>
+    </div>
+
+  </div>
+
+  <div class="barra" id="barra"></div>
+</div>
+
+<div class="aviso-flotante" id="aviso-flotante"></div>
+
+<!-- Modal cambiar contraseña -->
+<div class="modal-fondo" id="modal-clave">
+  <div class="modal">
+    <h3>🔑 Cambiar mi contraseña</h3>
+    <input class="campo" type="password" id="cl-actual" placeholder="Contraseña actual">
+    <input class="campo" type="password" id="cl-nueva" placeholder="Contraseña nueva (mínimo 6)">
+    <div class="fila-acciones">
+      <button class="btn btn-primario btn-peq" id="btn-guardar-clave">Guardar</button>
+      <button class="btn btn-borde btn-peq" id="btn-cerrar-clave">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ════════════ EL PARAÍSO · PORTAL DEL EQUIPO ════════════ */
+const API = '/api/equipo';
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const CLAVE_TOKEN = 'paraiso_equipo_token';
+
+let vista = null;          // datos que manda el servidor
+let pestanaActual = 'avisos';
+
+/* ---------- Utilidades ---------- */
+function aviso(txt, mal) {
+  const el = $('#aviso-flotante');
+  el.textContent = txt; el.style.background = mal ? '#b71c1c' : '#263238';
+  el.style.display = 'block';
+  clearTimeout(aviso._t); aviso._t = setTimeout(() => el.style.display = 'none', 3500);
+}
+const esc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function fechaBonita(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' }) + ' · ' +
+         d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+}
+function nombreDe(id) {
+  const e = (vista?.empleados || []).find(x => x.id === id);
+  return e ? e.nombre : '—';
+}
+
+/* ---------- Llamadas al servidor ---------- */
+async function llamar(accion, params = {}, conToken = true) {
+  const cuerpo = { accion, ...params };
+  if (conToken) cuerpo.token = localStorage.getItem(CLAVE_TOKEN) || '';
+  const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
+  const j = await r.json().catch(() => ({ error: 'Respuesta rara del servidor.' }));
+  if (!r.ok) {
+    if (j.reLogin) { cerrarSesion(); }
+    throw new Error(j.error || 'Error del servidor');
+  }
+  return j;
+}
+
+/* ---------- Sesión ---------- */
+function cerrarSesion() {
+  localStorage.removeItem(CLAVE_TOKEN);
+  vista = null;
+  $('#app').style.display = 'none';
+  $('#pantalla-login').style.display = 'flex';
+}
+
+async function arrancar() {
+  // ¿Ya hay administrador creado?
+  try {
+    const est = await llamar('estado', {}, false);
+    if (!est.inicializado) {
+      $('#form-login').style.display = 'none';
+      $('#form-jefe').style.display = 'block';
+      $('#login-sub').textContent = 'Bienvenido: configura el portal';
+    }
+  } catch (e) { /* seguimos con login normal */ }
+
+  // ¿Hay sesión guardada?
+  if (localStorage.getItem(CLAVE_TOKEN)) {
+    try {
+      const r = await llamar('todo');
+      entrar(r.vista);
+    } catch (e) { /* la sesión no vale: se queda en login */ }
+  }
+}
+
+function entrar(v) {
+  vista = v;
+  $('#pantalla-login').style.display = 'none';
+  $('#app').style.display = 'block';
+  $('#cab-nombre').textContent = '👋 ' + v.yo.nombre;
+  $('#cab-rol').textContent = v.yo.rol === 'jefe' ? 'Administrador' : 'Equipo · El Paraíso';
+  $$('.solo-jefe').forEach(el => el.style.display = v.yo.rol === 'jefe' ? 'block' : 'none');
+  montarBarra();
+  pintarTodo();
+}
+
+async function refrescar(accion, params) {
+  const r = await llamar(accion || 'todo', params || {});
+  vista = r.vista;
+  pintarTodo();
+  return r;
+}
+
+/* ---------- Barra de pestañas ---------- */
+function montarBarra() {
+  const esJefe = vista.yo.rol === 'jefe';
+  const tabs = [
+    ['avisos', '📢', 'Avisos'], ['tareas', '✅', 'Tareas'], ['horario', '🕐', 'Horario'],
+    ['fichar', '⏱', 'Fichar'], ['pedidos', '🛒', 'Pedidos']
+  ];
+  if (esJefe) tabs.push(['equipo', '👥', 'Equipo']);
+  $('#barra').innerHTML = tabs.map(([id, ico, txt]) =>
+    `<button data-tab="${id}" class="${id === pestanaActual ? 'activa' : ''}"><span class="ico">${ico}</span>${txt}</button>`).join('');
+  $$('#barra button').forEach(b => b.onclick = () => cambiarPestana(b.dataset.tab));
+}
+function cambiarPestana(id) {
+  pestanaActual = id;
+  $$('.vista').forEach(v => v.classList.remove('activa'));
+  $('#vista-' + id).classList.add('activa');
+  $$('#barra button').forEach(b => b.classList.toggle('activa', b.dataset.tab === id));
+  if (id === 'avisos') marcarAvisosVistos();
+}
+
+/* ---------- Pintar cada sección ---------- */
+function pintarTodo() { pintarAvisos(); pintarTareas(); pintarHorario(); pintarFichar(); pintarPedidos(); pintarEquipo(); }
+
+function pintarAvisos() {
+  const avisos = [...(vista.avisos || [])].reverse();
+  $('#lista-avisos').innerHTML = avisos.length ? avisos.map(a => `
+    <div class="tarjeta">
+      <div style="white-space:pre-wrap">${esc(a.texto)}</div>
+      <div class="meta">${fechaBonita(a.fecha)} · ${esc(nombreDe(a.autorId))}</div>
+      ${vista.yo.rol === 'jefe' ? `<div class="visto-por">👁 Visto por ${a.vistoPor.length} de ${vista.empleados.filter(e=>e.rol!=='jefe'&&e.activo).length}: ${a.vistoPor.map(v=>esc(nombreDe(v.id))).join(', ') || 'nadie todavía'}</div>
+      <div class="fila-acciones"><button class="btn btn-borde btn-peq" onclick="borrarAviso('${a.id}')">🗑 Borrar</button></div>` : ''}
+    </div>`).join('') : '<div class="vacio">No hay avisos todavía.</div>';
+}
+async function marcarAvisosVistos() {
+  if (!vista || vista.yo.rol === 'jefe') return;
+  const sinVer = (vista.avisos || []).filter(a => !a.vistoPor.some(v => v.id === vista.yo.id));
+  for (const a of sinVer) { try { await llamar('avisoVisto', { id: a.id }); } catch (e) {} }
+}
+window.borrarAviso = async id => { if (confirm('¿Borrar este aviso?')) try { await refrescar('borrarAviso', { id }); } catch (e) { aviso(e.message, true); } };
+
+function pintarTareas() {
+  const esJefe = vista.yo.rol === 'jefe';
+  if (esJefe) {
+    $('#tarea-para').innerHTML = '<option value="">👥 Para todo el equipo</option>' +
+      vista.empleados.filter(e => e.activo && e.rol !== 'jefe').map(e => `<option value="${e.id}">${esc(e.nombre)}</option>`).join('');
+  }
+  const tareas = [...(vista.tareas || [])].sort((a, b) => (a.estado === 'hecha') - (b.estado === 'hecha'));
+  $('#lista-tareas').innerHTML = tareas.length ? tareas.map(t => `
+    <div class="tarjeta">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
+        <strong style="${t.estado==='hecha'?'text-decoration:line-through;color:#999':''}">${esc(t.titulo)}</strong>
+        <span class="etiqueta ${t.estado==='hecha'?'et-hecha':'et-pendiente'}">${t.estado==='hecha'?'HECHA':'PENDIENTE'}</span>
+      </div>
+      ${t.detalle ? `<div style="font-size:14px;color:#555;margin-top:4px;white-space:pre-wrap">${esc(t.detalle)}</div>` : ''}
+      <div class="meta">
+        ${t.paraId ? '👤 ' + esc(nombreDe(t.paraId)) : '<span class="etiqueta et-todos">para todos</span>'}
+        ${t.fechaLimite ? ' · 📅 antes del ' + t.fechaLimite.split('-').reverse().join('/') : ''}
+        ${t.estado === 'hecha' ? ' · ✔ ' + esc(nombreDe(t.hechaPor)) + ' (' + fechaBonita(t.hechaEn) + ')' : ''}
+      </div>
+      <div class="fila-acciones">
+        ${t.estado === 'pendiente' ? `<button class="btn btn-verde btn-peq" onclick="hacerTarea('${t.id}')">✔ Marcar hecha</button>` :
+          `<button class="btn btn-borde btn-peq" onclick="reabrirTarea('${t.id}')">↩ Reabrir</button>`}
+        ${esJefe ? `<button class="btn btn-borde btn-peq" onclick="borrarTarea('${t.id}')">🗑</button>` : ''}
+      </div>
+    </div>`).join('') : '<div class="vacio">No hay tareas. ¡Todo al día! 🎉</div>';
+}
+window.hacerTarea = async id => { try { await refrescar('completarTarea', { id }); aviso('✔ Tarea completada'); } catch (e) { aviso(e.message, true); } };
+window.reabrirTarea = async id => { try { await refrescar('reabrirTarea', { id }); } catch (e) { aviso(e.message, true); } };
+window.borrarTarea = async id => { if (confirm('¿Borrar esta tarea?')) try { await refrescar('borrarTarea', { id }); } catch (e) { aviso(e.message, true); } };
+
+const DIAS = [['lun','Lun'],['mar','Mar'],['mie','Mié'],['jue','Jue'],['vie','Vie'],['sab','Sáb'],['dom','Dom']];
+function pintarHorario() {
+  const esJefe = vista.yo.rol === 'jefe';
+  const gente = vista.empleados.filter(e => e.activo && e.rol !== 'jefe');
+  const turnos = vista.horario.turnos || {};
+  $('#horario-actualizado').textContent = vista.horario.actualizado ? 'Última actualización: ' + fechaBonita(vista.horario.actualizado) : 'Aún no se ha publicado ningún horario.';
+  $('#tabla-horario').innerHTML =
+    '<tr><th style="text-align:left">Quién</th>' + DIAS.map(d => '<th>' + d[1] + '</th>').join('') + '</tr>' +
+    gente.map(e => {
+      const t = turnos[e.id] || {};
+      return `<tr class="${e.id === vista.yo.id ? 'yo' : ''}"><td>${esc(e.nombre)}</td>` +
+        DIAS.map(d => esJefe
+          ? `<td><input data-emp="${e.id}" data-dia="${d[0]}" value="${esc(t[d[0]] || '')}" placeholder="—"></td>`
+          : `<td>${esc(t[d[0]] || '—')}</td>`).join('') + '</tr>';
+    }).join('');
+  if (esJefe) $('#horario-notas').value = vista.horario.notas || '';
+  $('#horario-notas-vista').innerHTML = vista.horario.notas && !esJefe ? '📝 ' + esc(vista.horario.notas) : '';
+}
+
+function pintarFichar() {
+  const mios = (vista.fichajes || []).filter(f => f.empleadoId === vista.yo.id);
+  const ultimo = mios[mios.length - 1];
+  const dentro = ultimo && ultimo.tipo === 'entrada';
+  const btn = $('#btn-fichar');
+  btn.className = 'boton-fichar ' + (dentro ? 'salida' : 'entrada');
+  btn.innerHTML = dentro ? 'FICHAR<br>SALIDA' : 'FICHAR<br>ENTRADA';
+
+  const esJefe = vista.yo.rol === 'jefe';
+  $('#titulo-fichajes').textContent = esJefe ? 'Fichajes del equipo (últimos)' : 'Mis últimos fichajes';
+  const listado = esJefe ? (vista.fichajes || []) : mios;
+  $('#lista-fichajes').innerHTML = [...listado].reverse().slice(0, 40).map(f => `
+    <div class="fich"><span>${f.tipo === 'entrada' ? '🟢 Entrada' : '🔴 Salida'}${esJefe ? ' · <strong>' + esc(nombreDe(f.empleadoId)) + '</strong>' : ''}</span>
+    <span>${fechaBonita(f.ts)}</span></div>`).join('') || '<div class="vacio">Sin fichajes todavía.</div>';
+
+  if (esJefe) {
+    const abiertos = {};
+    (vista.fichajes || []).forEach(f => { abiertos[f.empleadoId] = f.tipo === 'entrada'; });
+    const dentroAhora = Object.keys(abiertos).filter(idE => abiertos[idE]).map(nombreDe);
+    $('#quien-trabaja').style.display = 'block';
+    $('#quien-trabaja').innerHTML = dentroAhora.length
+      ? '🟢 <strong>Ahora mismo trabajando:</strong> ' + dentroAhora.map(esc).join(', ')
+      : '⚪ Ahora mismo no hay nadie fichado.';
+  }
+}
+
+function pintarPedidos() {
+  const pendientes = (vista.pedidos || []).filter(p => p.estado === 'pendiente');
+  const comprados = (vista.pedidos || []).filter(p => p.estado === 'comprado').slice(-15);
+  const fila = p => `
+    <div class="tarjeta">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
+        <span style="${p.estado==='comprado'?'text-decoration:line-through;color:#999':''}">${esc(p.texto)}</span>
+        <span class="etiqueta ${p.estado==='comprado'?'et-hecha':'et-pendiente'}">${p.estado==='comprado'?'COMPRADO':'FALTA'}</span>
+      </div>
+      <div class="meta">${esc(nombreDe(p.empleadoId))} · ${fechaBonita(p.fecha)}</div>
+      <div class="fila-acciones">
+        ${p.estado === 'pendiente' ? `<button class="btn btn-verde btn-peq" onclick="marcarPedido('${p.id}','comprado')">✔ Comprado</button>` :
+          `<button class="btn btn-borde btn-peq" onclick="marcarPedido('${p.id}','pendiente')">↩ Vuelve a faltar</button>`}
+        ${vista.yo.rol === 'jefe' ? `<button class="btn btn-borde btn-peq" onclick="borrarPedido('${p.id}')">🗑</button>` : ''}
+      </div>
+    </div>`;
+  $('#lista-pedidos').innerHTML =
+    (pendientes.length ? `<h3 style="font-size:15px;color:var(--rojo);margin:6px 0">Falta (${pendientes.length})</h3>` + pendientes.map(fila).join('') : '<div class="vacio">No falta nada apuntado. 👌</div>') +
+    (comprados.length ? `<h3 style="font-size:15px;color:#888;margin:14px 0 6px">Ya comprado</h3>` + [...comprados].reverse().map(fila).join('') : '');
+}
+window.marcarPedido = async (id, estado) => { try { await refrescar('marcarPedido', { id, estado }); } catch (e) { aviso(e.message, true); } };
+window.borrarPedido = async id => { if (confirm('¿Quitar de la lista?')) try { await refrescar('borrarPedido', { id }); } catch (e) { aviso(e.message, true); } };
+
+function pintarEquipo() {
+  if (vista.yo.rol !== 'jefe') return;
+  const gente = vista.empleados.filter(e => e.rol !== 'jefe');
+  const tareasPend = (vista.tareas || []).filter(t => t.estado === 'pendiente').length;
+  const pedidosPend = (vista.pedidos || []).filter(p => p.estado === 'pendiente').length;
+  const abiertos = {};
+  (vista.fichajes || []).forEach(f => { abiertos[f.empleadoId] = f.tipo === 'entrada'; });
+  const trabajando = Object.values(abiertos).filter(Boolean).length;
+  $('#kpis').innerHTML = `
+    <div class="kpi"><div class="num">${gente.filter(e=>e.activo).length}</div><div class="txt">trabajadores activos</div></div>
+    <div class="kpi"><div class="num">${trabajando}</div><div class="txt">fichados ahora</div></div>
+    <div class="kpi"><div class="num">${tareasPend}</div><div class="txt">tareas pendientes</div></div>
+    <div class="kpi"><div class="num">${pedidosPend}</div><div class="txt">cosas que faltan</div></div>`;
+  $('#lista-empleados').innerHTML = gente.map(e => `
+    <div class="tarjeta">
+      <strong>${esc(e.nombre)}</strong> ${e.activo ? '' : '<span class="etiqueta et-pendiente">DESACTIVADO</span>'}
+      <div class="meta">📧 ${esc(e.email)}</div>
+      <div class="fila-acciones">
+        <button class="btn btn-borde btn-peq" onclick="nuevaClaveEmp('${e.id}','${esc(e.nombre)}')">🔑 Nueva contraseña</button>
+        <button class="btn ${e.activo ? 'btn-rojo' : 'btn-verde'} btn-peq" onclick="alternarEmp('${e.id}',${e.activo ? 'false' : 'true'})">${e.activo ? '🚫 Desactivar' : '✅ Reactivar'}</button>
+      </div>
+    </div>`).join('') || '<div class="vacio">Todavía no has dado de alta a nadie.</div>';
+}
+window.nuevaClaveEmp = async (id, nombre) => {
+  const clave = prompt('Nueva contraseña para ' + nombre + ' (mínimo 6):');
+  if (!clave) return;
+  try { await refrescar('reiniciarClave', { id, clave }); aviso('Contraseña cambiada. Recuerda decirsela a ' + nombre + '.'); } catch (e) { aviso(e.message, true); }
+};
+window.alternarEmp = async (id, activo) => { try { await refrescar('editarEmpleado', { id, activo }); } catch (e) { aviso(e.message, true); } };
+
+/* ---------- Botones ---------- */
+$('#btn-entrar').onclick = async () => {
+  $('#login-error').style.display = 'none';
+  try {
+    const r = await llamar('login', { email: $('#login-email').value, clave: $('#login-clave').value }, false);
+    localStorage.setItem(CLAVE_TOKEN, r.token);
+    entrar(r.vista);
+  } catch (e) { $('#login-error').textContent = e.message; $('#login-error').style.display = 'block'; }
+};
+$('#login-clave').addEventListener('keydown', e => { if (e.key === 'Enter') $('#btn-entrar').click(); });
+
+$('#btn-crear-jefe').onclick = async () => {
+  $('#login-error').style.display = 'none';
+  try {
+    const r = await llamar('crearJefe', { nombre: $('#jefe-nombre').value, email: $('#jefe-email').value, clave: $('#jefe-clave').value }, false);
+    localStorage.setItem(CLAVE_TOKEN, r.token);
+    entrar(r.vista);
+  } catch (e) { $('#login-error').textContent = e.message; $('#login-error').style.display = 'block'; }
+};
+
+$('#btn-salir').onclick = () => { if (confirm('¿Cerrar sesión?')) cerrarSesion(); };
+$('#btn-clave').onclick = () => { $('#modal-clave').style.display = 'flex'; };
+$('#btn-cerrar-clave').onclick = () => { $('#modal-clave').style.display = 'none'; };
+$('#btn-guardar-clave').onclick = async () => {
+  try {
+    await llamar('cambiarClave', { claveActual: $('#cl-actual').value, claveNueva: $('#cl-nueva').value });
+    $('#modal-clave').style.display = 'none'; $('#cl-actual').value = ''; $('#cl-nueva').value = '';
+    aviso('🔑 Contraseña cambiada');
+  } catch (e) { aviso(e.message, true); }
+};
+
+$('#btn-publicar-aviso').onclick = async () => {
+  try { await refrescar('publicarAviso', { texto: $('#nuevo-aviso').value }); $('#nuevo-aviso').value = ''; aviso('📣 Aviso publicado'); }
+  catch (e) { aviso(e.message, true); }
+};
+$('#btn-crear-tarea').onclick = async () => {
+  try {
+    await refrescar('crearTarea', { titulo: $('#tarea-titulo').value, detalle: $('#tarea-detalle').value, paraId: $('#tarea-para').value || null, fechaLimite: $('#tarea-fecha').value });
+    $('#tarea-titulo').value = ''; $('#tarea-detalle').value = ''; $('#tarea-fecha').value = '';
+    aviso('✅ Tarea creada');
+  } catch (e) { aviso(e.message, true); }
+};
+$('#btn-guardar-horario').onclick = async () => {
+  const turnos = {};
+  $$('#tabla-horario input').forEach(inp => {
+    turnos[inp.dataset.emp] = turnos[inp.dataset.emp] || {};
+    turnos[inp.dataset.emp][inp.dataset.dia] = inp.value.trim();
+  });
+  try { await refrescar('guardarHorario', { turnos, notas: $('#horario-notas').value }); aviso('🕐 Horario publicado para todo el equipo'); }
+  catch (e) { aviso(e.message, true); }
+};
+$('#btn-fichar').onclick = async () => {
+  const mios = (vista.fichajes || []).filter(f => f.empleadoId === vista.yo.id);
+  const ultimo = mios[mios.length - 1];
+  const tipo = (ultimo && ultimo.tipo === 'entrada') ? 'salida' : 'entrada';
+  try { await refrescar('fichar', { tipo }); aviso(tipo === 'entrada' ? '🟢 Entrada registrada. ¡Buen turno!' : '🔴 Salida registrada. ¡Hasta luego!'); }
+  catch (e) { aviso(e.message, true); }
+};
+$('#btn-agregar-pedido').onclick = async () => {
+  try { await refrescar('agregarPedido', { texto: $('#nuevo-pedido').value }); $('#nuevo-pedido').value = ''; aviso('🛒 Apuntado'); }
+  catch (e) { aviso(e.message, true); }
+};
+$('#btn-crear-emp').onclick = async () => {
+  try {
+    await refrescar('crearEmpleado', { nombre: $('#emp-nombre').value, email: $('#emp-email').value, clave: $('#emp-clave').value });
+    aviso('👥 Cuenta creada: dale el correo y la contraseña a esa persona');
+    $('#emp-nombre').value = ''; $('#emp-email').value = ''; $('#emp-clave').value = '';
+  } catch (e) { aviso(e.message, true); }
+};
+
+/* ---------- Reloj y refresco automático ---------- */
+setInterval(() => {
+  const d = new Date();
+  $('#reloj').textContent = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  $('#fecha-hoy').textContent = d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+}, 1000);
+setInterval(() => { if (vista) refrescar().catch(() => {}); }, 60000);   // cada minuto, lo último
+document.addEventListener('visibilitychange', () => { if (!document.hidden && vista) refrescar().catch(() => {}); });
+
+arrancar();
+</script>
+</body>
+</html>
