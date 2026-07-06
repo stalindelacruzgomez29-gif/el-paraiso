@@ -368,7 +368,7 @@ function configPorDefecto() {
   return {
     nombre: MARCA_DEFECTO.nombre, moneda: '€', objetivoFoodCost: 30,
     ivaVentaDefecto: 10, irpfPct: 20, aplicarDificil: true, dificilPct: 5,
-    modeloIA: 'claude-opus-4-8', buzonAuto: false,
+    modeloIA: 'claude-opus-4-8',
     razonSocial: MARCA_DEFECTO.razonSocial, cif: MARCA_DEFECTO.cif,
     direccion: MARCA_DEFECTO.direccion, telefono: MARCA_DEFECTO.telefono,
     logo: MARCA_DEFECTO.logo, marcaParaisoAplicada: true
@@ -625,8 +625,6 @@ function cargarDatos() {
       // Datos guardados con una versión anterior: completar lo que falte
       if (!Array.isArray(datos.facturas)) datos.facturas = [];
       if (!Array.isArray(datos.empleados)) datos.empleados = [];
-      if (!Array.isArray(datos.prestamos)) datos.prestamos = [];
-      if (!datos.adjuntos || typeof datos.adjuntos !== 'object' || Array.isArray(datos.adjuntos)) datos.adjuntos = {};
       // Primera vez con la conexión TPV: el historial se da por liquidado;
       // al TPV solo viajarán los gastos nuevos a partir de ahora
       if (localStorage.getItem(CLAVE_TPV_ENVIADOS) === null) {
@@ -659,7 +657,7 @@ function crearDatosVacios() {
   datos = {
     config: configPorDefecto(),
     sigId: 1,
-    ingredientes: [], platos: [], ventas: [], gastos: [], facturas: [], empleados: [], prestamos: [], adjuntos: {}
+    ingredientes: [], platos: [], ventas: [], gastos: [], facturas: [], empleados: []
   };
   guardarIdsEnviadosTPV(new Set());
   guardar();
@@ -678,8 +676,7 @@ function pintarGrafico(idCanvas, configuracion) {
 
 const TITULOS = {
   panel: 'Panel', ingredientes: 'Ingredientes', escandallos: 'Escandallos',
-  ventas: 'Ventas', gastos: 'Gastos', prestamos: 'Préstamos y financiación', facturas: 'Facturas de compra',
-  buzon: 'Buzón de facturas por correo',
+  ventas: 'Ventas', gastos: 'Gastos', facturas: 'Facturas de compra',
   balance: 'Balance de caja', personal: 'Personal y horarios',
   contabilidad: 'Contabilidad', informes: 'Informes', analisis: 'Análisis del negocio',
   impuestos: 'Impuestos y declaraciones', diagnostico: 'Diagnóstico del sistema',
@@ -700,9 +697,7 @@ function renderVista(nombre) {
   else if (nombre === 'escandallos') renderEscandallos();
   else if (nombre === 'ventas') renderVentas();
   else if (nombre === 'gastos') renderGastos();
-  else if (nombre === 'prestamos') renderPrestamos();
   else if (nombre === 'facturas') renderFacturas();
-  else if (nombre === 'buzon') renderBuzon();
   else if (nombre === 'balance') renderBalance();
   else if (nombre === 'personal') renderPersonal();
   else if (nombre === 'contabilidad') renderContabilidad();
@@ -889,7 +884,6 @@ function renderIngredientes() {
       <td class="num"><strong>${dinero(unitario)}</strong> / ${etiquetaUnidad}<br><small>con IVA: ${dinero(unitario * (1 + i.ivaPct / 100))}</small></td>
       <td class="num"><span class="precio-recomendado"><strong>${dinero(pvpRecomendadoIngrediente(i))}</strong></span></td>
       <td class="num">
-        ${botonAdj('ingrediente', i.id)}
         <button class="btn-icono btn-editar-ing" data-id="${i.id}" title="Editar">✏️</button>
         <button class="btn-icono btn-borrar-ing" data-id="${i.id}" title="Eliminar">🗑</button>
       </td>
@@ -1122,7 +1116,6 @@ function renderEscandallos() {
       <div class="plato-pie">
         <button class="btn btn-secundario btn-pequeno btn-editar-plato" data-id="${p.id}">✏️ Editar</button>
         <span>
-          ${botonAdj('plato', p.id)}
           <button class="btn-icono btn-duplicar-plato" data-id="${p.id}" title="Duplicar">⧉</button>
           <button class="btn-icono btn-borrar-plato" data-id="${p.id}" title="Eliminar">🗑</button>
         </span>
@@ -1369,7 +1362,6 @@ function renderVentas() {
       <td class="num">${v.ivaPct || 0}%</td>
       <td class="num"><strong>${dinero(v.total)}</strong></td>
       <td class="num">
-        ${botonAdj('venta', v.id)}
         <button class="btn-icono btn-editar-venta" data-id="${v.id}" title="Editar">✏️</button>
         <button class="btn-icono btn-borrar-venta" data-id="${v.id}" title="Eliminar">🗑</button>
       </td>
@@ -1681,7 +1673,7 @@ function renderGastos() {
       <td>${esc(g.descripcion)}</td>
       <td class="num">${g.ivaPct || 0}%</td>
       <td class="num"><strong>${dinero(g.monto)}</strong></td>
-      <td class="num">${botonAdj('gasto', g.id)}${g.facturaId
+      <td class="num">${g.facturaId
         ? `<button class="btn-icono btn-ver-factura" data-id="${g.facturaId}" title="Este gasto viene de una factura: ábrela para editarla">📑</button>`
         : `<button class="btn-icono btn-editar-gasto" data-id="${g.id}" title="Editar">✏️</button>
            <button class="btn-icono btn-borrar-gasto" data-id="${g.id}" title="Eliminar">🗑</button>`}
@@ -1841,384 +1833,6 @@ function aplicarFijosAlMes() {
   $('#modal-fijos').hidden = true;
   refrescar();
   aviso(`Gastos fijos en ${nombreMes(mes)}: ${añadidos} añadidos${saltados ? `, ${saltados} ya estaban` : ''}. 📌✅`);
-}
-
-/* ============ 13z. ADJUNTOS (fotos/PDF en cualquier registro) ============ */
-// Cada registro (gasto, venta, factura, ingrediente, plato, préstamo, empleado)
-// puede llevar documentos adjuntos. Se guardan en datos.adjuntos, con clave "tipo-id",
-// así viajan en la copia de seguridad y en la sincronización con la nube.
-
-let adjActual = null; // { tipo, id } del registro que se está viendo
-
-function asegurarAdjuntos() {
-  if (!datos.adjuntos || typeof datos.adjuntos !== 'object' || Array.isArray(datos.adjuntos)) datos.adjuntos = {};
-}
-function claveAdj(tipo, id) { return tipo + '-' + id; }
-function adjuntosDe(tipo, id) { asegurarAdjuntos(); return datos.adjuntos[claveAdj(tipo, id)] || []; }
-function nAdj(tipo, id) { const a = datos.adjuntos && datos.adjuntos[claveAdj(tipo, id)]; return (a && a.length) ? a.length : 0; }
-
-// Botón 📎 para poner en la columna de acciones de cualquier tabla
-function botonAdj(tipo, id) {
-  const n = nAdj(tipo, id);
-  return `<button class="btn-icono btn-adjuntos" data-tipo="${tipo}" data-id="${id}" title="Adjuntar o ver documentos (fotos, PDF)">📎${n ? `<span class="adj-num">${n}</span>` : ''}</button>`;
-}
-
-function abrirAdjuntos(tipo, id, titulo) {
-  asegurarAdjuntos();
-  adjActual = { tipo, id };
-  $('#titulo-modal-adjuntos').textContent = '📎 Documentos' + (titulo ? ': ' + titulo : '');
-  renderListaAdjuntos();
-  $('#modal-adjuntos').hidden = false;
-}
-
-function renderListaAdjuntos() {
-  if (!adjActual) return;
-  const lista = adjuntosDe(adjActual.tipo, adjActual.id);
-  const cont = $('#adj-lista');
-  if (lista.length === 0) {
-    cont.innerHTML = '<p class="nota-vista" style="margin:8px 0">Aún no hay documentos. Pulsa "Subir foto o PDF".</p>';
-  } else {
-    cont.innerHTML = lista.map((a, i) => `
-      <div class="adj-item">
-        ${a.t === 'img'
-          ? `<img class="adj-thumb" src="data:image/jpeg;base64,${a.d}" alt="">`
-          : `<div class="adj-thumb adj-pdf">PDF</div>`}
-        <span class="adj-nombre">${esc(a.n || 'documento')}</span>
-        <button class="btn-icono btn-adj-ver" data-i="${i}" title="Ver / abrir">👁</button>
-        <button class="btn-icono btn-adj-borrar" data-i="${i}" title="Quitar">🗑</button>
-      </div>`).join('');
-  }
-  const mb = (JSON.stringify(datos).length / 1024 / 1024);
-  const esp = $('#adj-espacio');
-  if (esp) esp.textContent = `Espacio usado: ${mb.toFixed(1)} MB (el navegador guarda hasta ~5 MB; descarga copias de seguridad a menudo).`;
-}
-
-async function subirAdjuntos(files) {
-  if (!adjActual) return;
-  asegurarAdjuntos();
-  const clave = claveAdj(adjActual.tipo, adjActual.id);
-  if (!datos.adjuntos[clave]) datos.adjuntos[clave] = [];
-  const nuevos = [];
-  for (const archivo of Array.from(files)) {
-    const nombre = (archivo.name || '').toLowerCase();
-    const esPDF = archivo.type === 'application/pdf' || nombre.endsWith('.pdf');
-    const esImg = !esPDF && (archivo.type.startsWith('image/') ||
-      /\.(jpe?g|png|gif|webp|heic|heif|bmp|tiff?|avif)$/.test(nombre) || archivo.type === '');
-    try {
-      if (esPDF) {
-        if (archivo.size > 3 * 1024 * 1024) { aviso(`"${archivo.name}" pesa demasiado (máx 3 MB por PDF). Hazle una foto o usa un PDF más ligero.`, true); continue; }
-        nuevos.push({ n: archivo.name || 'documento.pdf', t: 'pdf', d: await prepararPDF(archivo) });
-      } else if (esImg) {
-        nuevos.push({ n: archivo.name || 'foto.jpg', t: 'img', d: await prepararImagen(archivo) });
-      } else {
-        aviso('Solo se admiten fotos o archivos PDF.', true);
-      }
-    } catch (e) {
-      aviso('No se pudo adjuntar "' + (archivo.name || '') + '": ' + e.message, true);
-    }
-  }
-  if (nuevos.length === 0) return;
-  datos.adjuntos[clave].push(...nuevos);
-  try {
-    guardar();
-  } catch (e) {
-    // Sin espacio en el navegador: revertir
-    datos.adjuntos[clave].splice(datos.adjuntos[clave].length - nuevos.length, nuevos.length);
-    if (datos.adjuntos[clave].length === 0) delete datos.adjuntos[clave];
-    return aviso('No hay espacio para guardar el documento. Quita alguno, usa fotos más pequeñas o descarga una copia y borra datos antiguos.', true);
-  }
-  renderListaAdjuntos();
-  refrescar();
-  aviso(nuevos.length + ' documento(s) adjuntado(s). ✅');
-}
-
-function verAdjunto(i) {
-  const a = adjuntosDe(adjActual.tipo, adjActual.id)[i];
-  if (!a) return;
-  if (a.t === 'img') {
-    const w = window.open('', '_blank');
-    if (w) w.document.write(`<title>${esc(a.n)}</title><body style="margin:0;background:#111"><img src="data:image/jpeg;base64,${a.d}" style="max-width:100%;display:block;margin:auto"></body>`);
-    else aviso('El navegador bloqueó la ventana. Permite las ventanas emergentes.', true);
-  } else {
-    const bytes = Uint8Array.from(atob(a.d), c => c.charCodeAt(0));
-    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
-    window.open(url, '_blank');
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-  }
-}
-
-function borrarAdjunto(i) {
-  const clave = claveAdj(adjActual.tipo, adjActual.id);
-  const lista = datos.adjuntos[clave] || [];
-  if (!lista[i]) return;
-  if (!confirm('¿Quitar "' + (lista[i].n || 'documento') + '"? Esta acción no se puede deshacer.')) return;
-  lista.splice(i, 1);
-  if (lista.length === 0) delete datos.adjuntos[clave];
-  guardar();
-  renderListaAdjuntos();
-  refrescar();
-  aviso('Documento quitado.');
-}
-
-/* ============ 13a. PRÉSTAMOS Y FINANCIACIÓN ============ */
-
-// Redondeo a céntimos consistente para todos los cálculos de préstamo.
-function redondearEuros(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
-
-// Suma "meses" meses naturales a una fecha AAAA-MM-DD (respeta el día de pago).
-function sumarMeses(fechaISO, meses) {
-  const [a, m, d] = fechaISO.split('-').map(Number);
-  const base = new Date(a, m - 1 + meses, d);
-  return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`;
-}
-
-// Cuadro de amortización por el sistema francés (cuota mensual constante).
-// Devuelve una fila por cada cuota con su desglose interés/capital y el saldo pendiente.
-function cuadroAmortizacion(capital, tinAnual, plazoMeses, fechaInicio) {
-  const i = (tinAnual || 0) / 100 / 12;
-  const n = Math.max(1, Math.round(plazoMeses));
-  const cuota = i === 0 ? capital / n : capital * i / (1 - Math.pow(1 + i, -n));
-  const filas = [];
-  let saldo = capital;
-  for (let k = 1; k <= n; k++) {
-    const interes = redondearEuros(saldo * i);
-    let amortiza = redondearEuros(cuota - interes);
-    if (k === n) amortiza = redondearEuros(saldo); // la última cuota liquida el saldo exacto
-    saldo = redondearEuros(saldo - amortiza);
-    filas.push({
-      n: k,
-      fecha: sumarMeses(fechaInicio, k),
-      cuota: redondearEuros(amortiza + interes),
-      interes,
-      capital: amortiza,
-      pendiente: Math.max(0, saldo),
-      pagada: false,
-      gastoId: null
-    });
-  }
-  return filas;
-}
-
-// La cuota mensual del préstamo (la primera sin pagar, o la primera del cuadro).
-function cuotaPrestamo(p) {
-  const filas = p.cuadro || [];
-  const c = filas.find(x => !x.pagada) || filas[0];
-  return c ? c.cuota : 0;
-}
-
-// Capital que queda por devolver (suma del capital de las cuotas sin pagar).
-function pendientePrestamo(p) {
-  return redondearEuros((p.cuadro || []).filter(c => !c.pagada).reduce((s, c) => s + c.capital, 0));
-}
-
-function renderPrestamos() {
-  if (!Array.isArray(datos.prestamos)) datos.prestamos = [];
-  const lista = datos.prestamos.slice();
-  const anio = mesActual().slice(0, 4);
-
-  let deudaPendiente = 0, cuotaMensual = 0, interesAnio = 0;
-  datos.prestamos.forEach(p => {
-    const pend = pendientePrestamo(p);
-    deudaPendiente += pend;
-    if (pend > 0.005) cuotaMensual += cuotaPrestamo(p);
-    (p.cuadro || []).forEach(c => {
-      if (c.pagada && (c.fecha || '').slice(0, 4) === anio) interesAnio += c.interes;
-    });
-  });
-  $('#kpi-deuda-pendiente').textContent = dinero(redondearEuros(deudaPendiente));
-  $('#kpi-cuota-mensual').textContent = dinero(redondearEuros(cuotaMensual));
-  $('#kpi-interes-anio').textContent = dinero(redondearEuros(interesAnio));
-
-  const cuerpo = $('#cuerpo-prestamos');
-  if (lista.length === 0) {
-    cuerpo.innerHTML = `<tr class="fila-vacia"><td colspan="8">Todavía no tienes préstamos registrados. Pulsa <strong>"＋ Nuevo préstamo"</strong> para añadir el primero.</td></tr>`;
-    return;
-  }
-
-  cuerpo.innerHTML = lista.map(p => {
-    const pend = pendientePrestamo(p);
-    const total = (p.cuadro || []).length;
-    const pagadas = (p.cuadro || []).filter(c => c.pagada).length;
-    const liquidado = pend <= 0.005;
-    return `<tr>
-      <td><strong>${esc(p.entidad)}</strong>${p.concepto ? `<br><small>${esc(p.concepto)}</small>` : ''}</td>
-      <td>${fechaCorta(p.fechaInicio)}</td>
-      <td class="num">${dinero(p.capital)}</td>
-      <td class="num">${(p.tin || 0).toLocaleString('es-ES')}%</td>
-      <td class="num">${pagadas} / ${total}</td>
-      <td class="num">${dinero(cuotaPrestamo(p))}</td>
-      <td class="num">${liquidado
-        ? '<span class="badge badge-ok">✅ Liquidado</span>'
-        : `<strong class="negativo">${dinero(pend)}</strong>`}</td>
-      <td class="num">
-        ${botonAdj('prestamo', p.id)}
-        <button class="btn-icono btn-cuadro-prestamo" data-id="${p.id}" title="Ver cuadro y pagar cuotas">📅</button>
-        <button class="btn-icono btn-editar-prestamo" data-id="${p.id}" title="Editar">✏️</button>
-        <button class="btn-icono btn-borrar-prestamo" data-id="${p.id}" title="Eliminar">🗑</button>
-      </td>
-    </tr>`;
-  }).join('');
-}
-
-function actualizarPrevioPrestamo() {
-  const capital = num($('#prestamo-capital').value);
-  const tin = num($('#prestamo-tin').value);
-  const plazo = Math.round(num($('#prestamo-plazo').value));
-  if (capital > 0 && plazo > 0) {
-    const cuadro = cuadroAmortizacion(capital, tin, plazo, hoyISO());
-    const totalInteres = redondearEuros(cuadro.reduce((s, c) => s + c.interes, 0));
-    $('#previo-prestamo').innerHTML = `Cuota mensual: <strong>${dinero(cuadro[0].cuota)}</strong> · ${plazo} meses · `
-      + `Intereses totales: <strong>${dinero(totalInteres)}</strong> · A devolver: <strong>${dinero(redondearEuros(capital + totalInteres))}</strong>`;
-  } else {
-    $('#previo-prestamo').textContent = 'Rellena capital, interés y plazo para ver la cuota mensual.';
-  }
-}
-
-function abrirModalPrestamo(id = null) {
-  if (!Array.isArray(datos.prestamos)) datos.prestamos = [];
-  const p = id ? datos.prestamos.find(x => x.id === id) : null;
-  $('#titulo-modal-prestamo').textContent = p ? 'Editar préstamo' : 'Nuevo préstamo';
-  $('#prestamo-id').value = p ? p.id : '';
-  $('#prestamo-entidad').value = p ? p.entidad : '';
-  $('#prestamo-concepto').value = p ? (p.concepto || '') : '';
-  $('#prestamo-fecha').value = p ? p.fechaInicio : hoyISO();
-  $('#prestamo-capital').value = p ? p.capital : '';
-  $('#prestamo-tin').value = p ? p.tin : '';
-  $('#prestamo-plazo').value = p ? p.plazoMeses : '';
-  actualizarPrevioPrestamo();
-  $('#modal-prestamo').hidden = false;
-  $('#prestamo-entidad').focus();
-}
-
-function guardarPrestamo() {
-  if (!Array.isArray(datos.prestamos)) datos.prestamos = [];
-  const id = $('#prestamo-id').value ? parseInt($('#prestamo-id').value, 10) : null;
-  const entidad = $('#prestamo-entidad').value.trim();
-  const concepto = $('#prestamo-concepto').value.trim();
-  const fechaInicio = $('#prestamo-fecha').value;
-  const capital = num($('#prestamo-capital').value);
-  const tin = num($('#prestamo-tin').value);
-  const plazoMeses = Math.round(num($('#prestamo-plazo').value));
-
-  if (!entidad) return aviso('Escribe la entidad o el nombre del préstamo.', true);
-  if (!fechaInicio) return aviso('Elige la fecha de inicio.', true);
-  if (capital <= 0) return aviso('El capital debe ser mayor que 0.', true);
-  if (tin < 0) return aviso('El interés no puede ser negativo.', true);
-  if (plazoMeses <= 0) return aviso('El plazo debe ser de al menos 1 mes.', true);
-
-  if (id) {
-    const p = datos.prestamos.find(x => x.id === id);
-    const pagadasAntes = (p.cuadro || []).filter(c => c.pagada).map(c => ({ n: c.n, gastoId: c.gastoId }));
-    const nuevoCuadro = cuadroAmortizacion(capital, tin, plazoMeses, fechaInicio);
-    // Conservamos qué cuotas estaban pagadas (por su número) al recalcular el cuadro
-    pagadasAntes.forEach(pa => {
-      const nc = nuevoCuadro.find(x => x.n === pa.n);
-      if (nc) { nc.pagada = true; nc.gastoId = pa.gastoId; }
-    });
-    Object.assign(p, { entidad, concepto, fechaInicio, capital, tin, plazoMeses, cuadro: nuevoCuadro });
-    aviso('Préstamo actualizado. ✅');
-  } else {
-    datos.prestamos.push({
-      id: nuevoId(), entidad, concepto, fechaInicio, capital, tin, plazoMeses,
-      cuadro: cuadroAmortizacion(capital, tin, plazoMeses, fechaInicio)
-    });
-    aviso('Préstamo registrado. ✅');
-  }
-  guardar();
-  $('#modal-prestamo').hidden = true;
-  refrescar();
-}
-
-function borrarPrestamo(id) {
-  const p = datos.prestamos.find(x => x.id === id);
-  if (!p) return;
-  if (!confirm(`¿Eliminar el préstamo "${p.entidad}"? Se borrará su cuadro de amortización. Los gastos de intereses ya registrados NO se borran.`)) return;
-  datos.prestamos = datos.prestamos.filter(x => x.id !== id);
-  guardar();
-  refrescar();
-  aviso('Préstamo eliminado.');
-}
-
-let prestamoAbierto = null;
-
-function abrirCuadroPrestamo(id) {
-  const p = datos.prestamos.find(x => x.id === id);
-  if (!p) return;
-  prestamoAbierto = id;
-  renderCuadroPrestamo();
-  $('#modal-cuadro').hidden = false;
-}
-
-function renderCuadroPrestamo() {
-  const p = datos.prestamos.find(x => x.id === prestamoAbierto);
-  if (!p) return;
-  $('#titulo-modal-cuadro').textContent = `📅 ${p.entidad}${p.concepto ? ' — ' + p.concepto : ''}`;
-  const pend = pendientePrestamo(p);
-  const proxima = (p.cuadro || []).find(c => !c.pagada);
-  $('#cuadro-resumen').innerHTML = `Pendiente: <strong>${dinero(pend)}</strong> · Cuota: <strong>${dinero(cuotaPrestamo(p))}</strong> · `
-    + `Próximo pago: <strong>${proxima ? fechaCorta(proxima.fecha) : '— (liquidado)'}</strong>`;
-  $('#cuerpo-cuadro').innerHTML = (p.cuadro || []).map(c => `
-    <tr class="${c.pagada ? 'fila-pagada' : ''}">
-      <td class="num">${c.n}</td>
-      <td>${fechaCorta(c.fecha)}</td>
-      <td class="num"><strong>${dinero(c.cuota)}</strong></td>
-      <td class="num">${dinero(c.interes)}</td>
-      <td class="num">${dinero(c.capital)}</td>
-      <td class="num">${dinero(c.pendiente)}</td>
-      <td class="num">${c.pagada
-        ? `<span class="badge badge-ok">✅ Pagada</span> <button class="btn-icono btn-despagar-cuota" data-n="${c.n}" title="Deshacer pago">↩</button>`
-        : `<button class="btn btn-primario btn-pequeno btn-pagar-cuota" data-n="${c.n}">Pagar</button>`}
-      </td>
-    </tr>`).join('');
-}
-
-function pagarCuota(n) {
-  const p = datos.prestamos.find(x => x.id === prestamoAbierto);
-  if (!p) return;
-  const c = (p.cuadro || []).find(x => x.n === n);
-  if (!c || c.pagada) return;
-  c.pagada = true;
-  // El interés es gasto deducible; la devolución del capital NO es un gasto.
-  if (c.interes > 0) {
-    const gasto = {
-      id: nuevoId(), fecha: c.fecha, categoria: 'Otros',
-      descripcion: `Interés préstamo ${p.entidad} (cuota ${c.n}/${p.cuadro.length})`,
-      monto: c.interes, ivaPct: 0, caja: 'oficial', prestamoId: p.id
-    };
-    datos.gastos.push(gasto);
-    c.gastoId = gasto.id;
-  }
-  guardar();
-  renderCuadroPrestamo();
-  aviso(c.interes > 0
-    ? `Cuota ${c.n} pagada. El interés (${dinero(c.interes)}) se apuntó en Gastos. 💶`
-    : `Cuota ${c.n} pagada. ✅`);
-}
-
-function deshacerPagoCuota(n) {
-  const p = datos.prestamos.find(x => x.id === prestamoAbierto);
-  if (!p) return;
-  const c = (p.cuadro || []).find(x => x.n === n);
-  if (!c || !c.pagada) return;
-  c.pagada = false;
-  if (c.gastoId) {
-    datos.gastos = datos.gastos.filter(g => g.id !== c.gastoId);
-    c.gastoId = null;
-  }
-  guardar();
-  renderCuadroPrestamo();
-  aviso('Pago deshecho. El gasto de interés se ha quitado.');
-}
-
-function exportarCuadroCSV() {
-  const p = datos.prestamos.find(x => x.id === prestamoAbierto);
-  if (!p) return;
-  const filas = [['Cuota', 'Fecha', 'Cuota (€)', 'Interes (€)', 'Capital (€)', 'Pendiente (€)', 'Estado']];
-  (p.cuadro || []).forEach(c => filas.push([
-    c.n, c.fecha, numCSV(c.cuota), numCSV(c.interes), numCSV(c.capital), numCSV(c.pendiente), c.pagada ? 'Pagada' : 'Pendiente'
-  ]));
-  descargarCSV(`prestamo-${(p.entidad || 'prestamo').replace(/[^a-z0-9]/gi, '-')}.csv`, filas);
-  aviso('Cuadro de amortización exportado. 📄');
 }
 
 /* ============ 13b. FACTURAS DE COMPRA ============ */
@@ -2389,7 +2003,6 @@ function renderFacturas() {
           <button class="btn-icono btn-imprimir-factura" data-id="${f.id}" title="Imprimir / guardar en PDF">🖨️</button>
           <button class="btn-icono btn-descargar-factura" data-id="${f.id}" title="Descargar la factura">⬇️</button>
           <button class="btn-icono btn-enviar-factura" data-id="${f.id}" title="Enviar / compartir">📤</button>
-          ${botonAdj('factura', f.id)}
           <button class="btn-icono btn-editar-factura" data-id="${f.id}" title="Ver / editar">✏️</button>
           <button class="btn-icono btn-borrar-factura" data-id="${f.id}" title="Eliminar">🗑</button>
         </td>
@@ -2563,8 +2176,6 @@ function recalcularResumenFactura() {
 }
 
 function abrirModalFactura(id = null) {
-  // Si el usuario abre una factura por su cuenta, deja de estar "vinculada al buzón"
-  facturaDesdeBuzon = null;
   const f = id ? datos.facturas.find(x => x.id === id) : null;
 
   $('#titulo-modal-factura').textContent = f ? `Factura de ${f.proveedor}` : 'Nueva factura de compra';
@@ -2673,8 +2284,6 @@ function guardarFactura() {
 
   guardar();
   $('#modal-factura').hidden = true;
-  // Si esta factura venía del buzón de correo, la quitamos del buzón al guardarla
-  if (!id && facturaDesdeBuzon) { const bid = facturaDesdeBuzon; facturaDesdeBuzon = null; quitarItemBuzon(bid, true); }
   // Los filtros saltan al mes de la factura: así queda reflejada al instante
   $('#mes-facturas').value = mesDe(factura.fecha);
   $('#mes-gastos').value = mesDe(factura.fecha);
@@ -4136,7 +3745,6 @@ function renderPersonal() {
                value="${esc((emp.turnos || {})[dia] || '')}" placeholder="—" title="Entrada-salida, ej: 12-16 y 20-24"></td>`).join('')}
         <td class="num celda-horas-sem"><strong>${horasSem > 0 ? horasSem.toLocaleString('es-ES', { maximumFractionDigits: 1 }) + ' h' : '—'}</strong></td>
         <td class="num">
-          ${botonAdj('empleado', emp.id)}
           <button class="btn-icono btn-editar-empleado" data-id="${emp.id}" title="Editar">✏️</button>
           <button class="btn-icono btn-borrar-empleado" data-id="${emp.id}" title="Eliminar">🗑</button>
         </td>
@@ -5050,329 +4658,6 @@ function actualizarEstadoSync() {
     : '⚪ Sin sincronizar. Pon un código para ver los mismos datos en el móvil y el ordenador.';
 }
 
-/* ============ 13m. BUZÓN DE FACTURAS POR CORREO ============ */
-
-// El servidor mira un Gmail donde reenvías las facturas, guarda los adjuntos
-// y devuelve una cola. Aquí bajamos esa cola y metemos cada factura por la
-// MISMA tubería de IA que ya usamos (leer → crear → aplicar → TPV).
-const URL_BUZON = 'https://el-paraiso-eight.vercel.app/api/buzon';
-const CLAVE_BUZON_REG = 'paraiso_buzon_registradas'; // cuántas se han registrado desde el correo
-const CLAVE_BUZON_ULTIMA = 'paraiso_buzon_ultima';    // fecha/hora de la última revisión
-
-let buzonItems = [];          // cola de facturas del correo pendientes
-let buzonTimer = null;        // temporizador de revisión automática
-let revisandoBuzon = false;   // evita revisiones solapadas
-let facturaDesdeBuzon = null; // id del item del buzón que se está revisando en el modal
-let buzonConfigurado = true;  // el servidor tiene credenciales de correo (se sabe al consultar)
-
-function buzonRegistradas() { return parseInt(localStorage.getItem(CLAVE_BUZON_REG) || '0', 10) || 0; }
-function sumarBuzonRegistradas(n) { localStorage.setItem(CLAVE_BUZON_REG, String(buzonRegistradas() + n)); }
-function buzonUltima() { return localStorage.getItem(CLAVE_BUZON_ULTIMA) || ''; }
-function marcarBuzonUltima() { localStorage.setItem(CLAVE_BUZON_ULTIMA, new Date().toISOString()); }
-
-// El buzón usa el mismo código secreto que la sincronización
-function buzonListo() { return !!codigoSync(); }
-
-// Baja un adjunto del buzón (desde su URL en la nube) como un File normal,
-// listo para pasarlo por la IA — sin que el usuario descargue nada.
-async function itemBuzonAFile(item) {
-  const r = await fetch(item.url);
-  if (!r.ok) throw new Error('No se pudo bajar el adjunto del correo.');
-  const blob = await r.blob();
-  return new File([blob], item.nombre || 'factura', { type: item.tipo || blob.type || '' });
-}
-
-// Consulta la cola guardada (sin tocar el correo). Para refrescar la vista.
-async function consultarBuzon(silencioso) {
-  if (!buzonListo()) { pintarBuzon(); return; }
-  try {
-    const r = await fetch(URL_BUZON + '?codigo=' + encodeURIComponent(codigoSync()));
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.error || ('código ' + r.status));
-    buzonItems = Array.isArray(j.items) ? j.items : [];
-    buzonConfigurado = !!j.configurado;
-    pintarBuzon();
-  } catch (e) {
-    if (!silencioso) aviso('No se pudo consultar el buzón: ' + e.message, true);
-  }
-}
-
-// Revisa el correo AHORA: baja los mensajes nuevos y actualiza la cola.
-async function revisarBuzon(silencioso) {
-  if (revisandoBuzon) return;
-  if (!buzonListo()) {
-    if (!silencioso) aviso('Activa primero la sincronización en la nube (Configuración): el buzón usa ese mismo código.', true);
-    return;
-  }
-  revisandoBuzon = true;
-  const estado = $('#buzon-estado');
-  if (estado && !silencioso) estado.textContent = '🔄 Revisando el correo...';
-  try {
-    const r = await fetch(URL_BUZON, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ codigo: codigoSync(), accion: 'revisar' })
-    });
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.error || ('código ' + r.status));
-    buzonConfigurado = !!j.configurado;
-    buzonItems = Array.isArray(j.items) ? j.items : [];
-    marcarBuzonUltima();
-
-    if (!buzonConfigurado) {
-      pintarBuzon();
-      if (!silencioso) aviso('El buzón aún no tiene el correo configurado en el servidor. Mira "Cómo se configura" en Configuración.', true);
-      return;
-    }
-
-    const nuevos = j.nuevos || 0;
-    if (datos.config.buzonAuto && buzonItems.length > 0) {
-      // Modo automático: registrar todo lo que haya llegado
-      pintarBuzon();
-      await procesarLoteBuzon(buzonItems.slice());
-    } else {
-      pintarBuzon();
-      if (nuevos > 0) aviso(`📬 ${nuevos} factura(s) nueva(s) en el buzón. Revísalas en la pestaña Buzón.`);
-      else if (!silencioso) aviso('Buzón revisado: no hay facturas nuevas.');
-    }
-  } catch (e) {
-    if (!silencioso) aviso('No se pudo revisar el correo: ' + e.message, true);
-  } finally {
-    revisandoBuzon = false;
-    if (vistaActual === 'buzon') pintarBuzon();
-  }
-}
-
-// Quita un item de la cola del buzón (ya registrado o descartado)
-async function quitarItemBuzon(id, silencioso) {
-  buzonItems = buzonItems.filter(x => x.id !== id); // optimista
-  pintarBuzon();
-  if (!buzonListo()) return;
-  try {
-    const r = await fetch(URL_BUZON, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ codigo: codigoSync(), accion: 'quitar', id })
-    });
-    const j = await r.json();
-    if (r.ok && Array.isArray(j.items)) { buzonItems = j.items; pintarBuzon(); }
-  } catch (e) {
-    if (!silencioso) aviso('No se pudo actualizar el buzón: ' + e.message, true);
-  }
-}
-
-// Revisar y guardar UNA factura del buzón: abre el formulario relleno para que la confirmes
-async function importarItemBuzon(id) {
-  const item = buzonItems.find(x => x.id === id);
-  if (!item) return;
-  const fila = document.querySelector(`.buzon-item[data-id="${id}"]`);
-  if (fila) fila.classList.add('procesando');
-  try {
-    const file = await itemBuzonAFile(item);
-    mostrarVista('facturas');
-    procesarArchivoFactura(file);   // rellena el formulario (abre el modal si hace falta)
-    facturaDesdeBuzon = id;         // al guardar la factura, se quitará del buzón
-  } catch (e) {
-    aviso(e.message || 'No se pudo abrir la factura del correo.', true);
-    if (fila) fila.classList.remove('procesando');
-  }
-}
-
-// Descartar una factura del buzón sin registrarla
-function descartarItemBuzon(id) {
-  const item = buzonItems.find(x => x.id === id);
-  if (!item) return;
-  if (!confirm(`¿Descartar "${item.asunto || item.nombre}" del buzón?\n\nNo se registrará como factura. El correo original seguirá en tu bandeja.`)) return;
-  quitarItemBuzon(id, false);
-  aviso('Factura descartada del buzón.');
-}
-
-// Modo automático: registra en cadena todas las facturas del buzón, sin revisar una a una.
-async function procesarLoteBuzon(items) {
-  if (loteEnMarcha) return;
-  loteEnMarcha = true;
-  loteCancelado = false;
-  $('#btn-reintentar-fallidos').hidden = true;
-  $('#titulo-progreso').textContent = '📬 Registrando facturas del correo';
-  $('#lista-progreso').innerHTML = '';
-  $('#resumen-progreso').hidden = true;
-  $('#btn-cerrar-progreso').textContent = 'Cancelar';
-  $('#modal-progreso').hidden = false;
-
-  let ok = 0, duplicadas = 0, errores = 0, eurosTotal = 0, nuevos = 0, actualizados = 0, ultimoMes = null;
-
-  for (let i = 0; i < items.length; i++) {
-    if (loteCancelado) break;
-    const item = items[i];
-    pintarProgresoLote(`Leyendo ${i + 1} de ${items.length}: ${item.nombre || item.asunto}`, true);
-    try {
-      const file = await itemBuzonAFile(item);
-      const extraido = await extraerDatosFactura(file);
-      if (facturaDuplicada(extraido)) {
-        duplicadas++;
-        anotarResultadoLote('progreso-aviso', `⚠️ ${esc(item.asunto || item.nombre)}: ya estaba registrada — no se duplica.`);
-        await quitarItemBuzon(item.id, true);
-        continue;
-      }
-      const r = construirFacturaDesdeExtraccion(extraido);
-      datos.facturas.push(r.factura);
-      aplicarFactura(r.factura);
-      guardar();
-      enviarGastosTPV(datos.gastos.filter(g => g.facturaId === r.factura.id), true);
-      ok++;
-      eurosTotal += totalFactura(r.factura);
-      nuevos += r.creados;
-      actualizados += r.vinculadas;
-      ultimoMes = mesDe(r.factura.fecha);
-      anotarResultadoLote('progreso-ok',
-        `✅ ${esc(r.factura.proveedor)}${r.factura.numero ? ' nº ' + esc(r.factura.numero) : ''} (${fechaCorta(r.factura.fecha)}): ` +
-        `${dinero(totalFactura(r.factura))} · ${r.factura.lineas.length} línea(s)` +
-        (r.vinculadas ? ` · 🔄 ${r.vinculadas} precio(s)` : '') +
-        (r.creados ? ` · ✨ ${r.creados} nuevo(s)` : ''));
-      await quitarItemBuzon(item.id, true);
-      refrescar();
-    } catch (e) {
-      errores++;
-      anotarResultadoLote('progreso-error', `❌ <strong>${esc(item.asunto || item.nombre)}</strong>: ${esc(e.message || 'no se pudo leer')} — quedará en el buzón para revisarla a mano.`);
-    }
-  }
-
-  if (ok > 0) sumarBuzonRegistradas(ok);
-  if (ultimoMes) {
-    $('#mes-facturas').value = ultimoMes;
-    $('#mes-gastos').value = ultimoMes;
-    $('#mes-balance').value = ultimoMes;
-  }
-
-  pintarProgresoLote(loteCancelado ? 'Cancelado.' : '¡Listo!', false);
-  const resumen = $('#resumen-progreso');
-  resumen.hidden = false;
-  resumen.innerHTML =
-    `<strong>${ok} factura(s) registradas del correo</strong> por un total de <strong>${dinero(eurosTotal)}</strong><br>` +
-    `🔄 ${actualizados} precio(s) actualizados · ✨ ${nuevos} ingrediente(s) creados · ⚠️ ${duplicadas} ya estaban · ❌ ${errores} con error` +
-    (ok > 0 ? '<br><br>Ya están en Facturas, Gastos, Balance, Contabilidad e Impuestos.' : '');
-  $('#btn-cerrar-progreso').textContent = 'Cerrar';
-  loteEnMarcha = false;
-  refrescar();
-  if (ok > 0) aviso(`📬 ${ok} factura(s) del correo registradas: ${dinero(eurosTotal)}. ✅`);
-}
-
-// Cuántas facturas del buzón hay pendientes (para el globito del menú)
-function actualizarBadgeBuzon() {
-  const badge = $('#buzon-contador');
-  if (!badge) return;
-  const n = buzonItems.length;
-  badge.hidden = n === 0;
-  badge.textContent = n;
-}
-
-// Dibuja la vista del buzón a partir de la cola en memoria
-function pintarBuzon() {
-  actualizarBadgeBuzon();
-  if (vistaActual !== 'buzon') return;
-
-  $('#buzon-auto').checked = !!datos.config.buzonAuto;
-  $('#buzon-kpi-pendientes').textContent = buzonItems.length;
-  $('#buzon-kpi-registradas').textContent = buzonRegistradas();
-  const ultima = buzonUltima();
-  $('#buzon-kpi-ultima').textContent = ultima
-    ? new Date(ultima).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-    : 'nunca';
-
-  // Aviso si falta configuración
-  const cajaAviso = $('#buzon-aviso-config');
-  if (!buzonListo()) {
-    cajaAviso.hidden = false;
-    $('#buzon-aviso-config-texto').innerHTML = '⚙️ <strong>Falta un paso:</strong> activa la <strong>sincronización en la nube</strong> en Configuración (inventa un código). El buzón usa ese mismo código para guardar tus facturas de forma privada.';
-  } else if (!buzonConfigurado) {
-    cajaAviso.hidden = false;
-    $('#buzon-aviso-config-texto').innerHTML = '⚙️ <strong>Falta conectar el correo</strong> en el servidor (una sola vez). Ve a <strong>Configuración → Buzón de facturas por correo → "Cómo se configura"</strong>.';
-  } else {
-    cajaAviso.hidden = true;
-  }
-
-  const lista = $('#lista-buzon');
-  if (buzonItems.length === 0) {
-    lista.innerHTML = '<p class="buzon-vacio">No hay facturas esperando. Reenvía o manda una factura (PDF o foto) al correo del negocio y pulsa <strong>"Revisar correo ahora"</strong>.</p>';
-    return;
-  }
-
-  lista.innerHTML = buzonItems.map(item => {
-    const esImagen = (item.tipo || '').startsWith('image/') || /\.(jpe?g|png|gif|webp|heic|heif|bmp|tiff?|avif)$/i.test(item.nombre || '');
-    const mini = esImagen
-      ? `<span class="buzon-miniatura"><img src="${esc(item.url)}" alt="" loading="lazy"></span>`
-      : `<span class="buzon-miniatura">📄</span>`;
-    return `<div class="buzon-item" data-id="${esc(item.id)}">
-      ${mini}
-      <div class="buzon-datos">
-        <div class="buzon-asunto">${esc(item.asunto || item.nombre || 'Factura')}</div>
-        <div class="buzon-meta">📎 ${esc(item.nombre || '')}${item.de ? ' · de ' + esc(item.de) : ''}${item.fecha ? ' · ' + fechaCorta(item.fecha) : ''}</div>
-      </div>
-      <div class="buzon-acciones">
-        <button class="btn btn-primario btn-pequeno btn-buzon-revisar" data-id="${esc(item.id)}">📝 Revisar y guardar</button>
-        <button class="btn btn-secundario btn-pequeno btn-buzon-descartar" data-id="${esc(item.id)}">🗑 Descartar</button>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-// Punto de entrada de la vista: pinta, refresca desde el servidor y arranca la revisión automática
-function renderBuzon() {
-  pintarBuzon();
-  consultarBuzon(true);
-  iniciarPollBuzon();
-}
-
-// Revisa el correo solo cada pocos minutos mientras la app está abierta
-function iniciarPollBuzon() {
-  if (buzonTimer || !buzonListo()) return;
-  buzonTimer = setInterval(() => {
-    if (!buzonListo()) return;
-    revisarBuzon(true); // silencioso
-  }, 120000); // cada 2 minutos
-}
-
-// Prueba del buzón desde Configuración
-async function probarBuzon() {
-  const estado = $('#estado-buzon-config');
-  if (!buzonListo()) { estado.textContent = '⚠️ Activa primero la sincronización en la nube (el buzón usa ese código).'; return; }
-  estado.textContent = '🔌 Comprobando el buzón...';
-  try {
-    const r = await fetch(URL_BUZON + '?codigo=' + encodeURIComponent(codigoSync()));
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.error || ('código ' + r.status));
-    buzonConfigurado = !!j.configurado;
-    estado.textContent = j.configurado
-      ? `✅ Buzón listo. Hay ${(j.items || []).length} factura(s) en la cola. Reenvía facturas al correo y aparecerán en la pestaña 📬 Buzón.`
-      : '⚠️ El almacenamiento funciona, pero falta conectar el correo en el servidor. Pulsa "Cómo se configura".';
-    aviso(j.configurado ? 'Buzón conectado. 📬✅' : 'Falta conectar el correo en el servidor.', !j.configurado);
-  } catch (e) {
-    estado.textContent = '❌ ' + e.message;
-    aviso(e.message, true);
-  }
-}
-
-function ayudaBuzon() {
-  alert(
-    '📬 CÓMO CONECTAR EL BUZÓN DE FACTURAS (una sola vez)\n\n' +
-    '1) Crea (o elige) un Gmail solo para las facturas, por ejemplo\n' +
-    '   facturaselparaiso@gmail.com\n\n' +
-    '2) En ese Gmail activa la "verificación en 2 pasos" y crea una\n' +
-    '   "Contraseña de aplicación" (Google → Cuenta → Seguridad →\n' +
-    '   Contraseñas de aplicaciones). Copia esa contraseña de 16 letras.\n\n' +
-    '3) En Vercel (donde está publicada la app), entra al proyecto\n' +
-    '   el-paraiso → Settings → Environment Variables y añade:\n' +
-    '     BUZON_EMAIL      = el correo de facturas\n' +
-    '     BUZON_CLAVE_APP  = la contraseña de aplicación de 16 letras\n' +
-    '   Vuelve a desplegar (Redeploy).\n\n' +
-    '4) Aquí, activa la sincronización en la nube (si no lo has hecho)\n' +
-    '   y pulsa "Probar el buzón". ¡Listo!\n\n' +
-    'A partir de ahí, reenvía o manda tus facturas (PDF o foto) a ese\n' +
-    'correo y aparecerán solas en la pestaña 📬 Buzón para registrarlas\n' +
-    'sin descargar nada.\n\n' +
-    'Tus claves del correo viven solo en el servidor, nunca en este\n' +
-    'navegador ni en las copias de seguridad.'
-  );
-}
-
 /* ============ 13j. CUADRO DE CONTABILIDAD (libro detallado) ============ */
 
 // Base, cuota e importe total (con IVA) de una línea de factura
@@ -6146,10 +5431,6 @@ function renderConfig() {
     ? '🔑 Hay una clave guardada en este navegador. Usa "Probar conexión" para comprobarla.'
     : '🌐 Sin clave en este navegador: se usará la del servidor de la aplicación (si está puesta). Pulsa "Probar conexión" para comprobarlo.';
   actualizarEstadoSync();
-  $('#conf-buzon-auto').checked = !!datos.config.buzonAuto;
-  $('#estado-buzon-config').textContent = buzonListo()
-    ? 'Pulsa "Probar el buzón" para comprobar la conexión con el correo.'
-    : 'Activa primero la sincronización en la nube: el buzón usa ese mismo código.';
   $('#conf-num-datos').innerHTML = `
     📦 Información guardada en este navegador:<br>
     · ${datos.ingredientes.length} ingredientes · ${datos.platos.length} escandallos<br>
@@ -6305,7 +5586,7 @@ function borrarTodo() {
     return aviso('No se borró nada (tenías que escribir BORRAR).', true);
   }
   const config = { ...datos.config };
-  datos = { config, sigId: 1, ingredientes: [], platos: [], ventas: [], gastos: [], facturas: [], empleados: [], prestamos: [], adjuntos: {} };
+  datos = { config, sigId: 1, ingredientes: [], platos: [], ventas: [], gastos: [], facturas: [], empleados: [] };
   guardarIdsEnviadosTPV(new Set());
   guardar();
   refrescar();
@@ -6439,44 +5720,6 @@ function configurarEventos() {
     }
   });
 
-  // Préstamos
-  $('#btn-nuevo-prestamo').addEventListener('click', () => abrirModalPrestamo());
-  $('#btn-guardar-prestamo').addEventListener('click', guardarPrestamo);
-  ['#prestamo-capital', '#prestamo-tin', '#prestamo-plazo'].forEach(sel =>
-    $(sel).addEventListener('input', actualizarPrevioPrestamo));
-  $('#cuerpo-prestamos').addEventListener('click', e => {
-    const cuadro = e.target.closest('.btn-cuadro-prestamo');
-    const editar = e.target.closest('.btn-editar-prestamo');
-    const borrar = e.target.closest('.btn-borrar-prestamo');
-    if (cuadro) abrirCuadroPrestamo(parseInt(cuadro.dataset.id, 10));
-    if (editar) abrirModalPrestamo(parseInt(editar.dataset.id, 10));
-    if (borrar) borrarPrestamo(parseInt(borrar.dataset.id, 10));
-  });
-  $('#cuerpo-cuadro').addEventListener('click', e => {
-    const pagar = e.target.closest('.btn-pagar-cuota');
-    const despagar = e.target.closest('.btn-despagar-cuota');
-    if (pagar) pagarCuota(parseInt(pagar.dataset.n, 10));
-    if (despagar) deshacerPagoCuota(parseInt(despagar.dataset.n, 10));
-  });
-  $('#btn-csv-cuadro').addEventListener('click', exportarCuadroCSV);
-
-  // Adjuntos (documentos en cualquier registro) — botón 📎 delegado en todo el documento
-  document.addEventListener('click', e => {
-    const b = e.target.closest('.btn-adjuntos');
-    if (b) abrirAdjuntos(b.dataset.tipo, parseInt(b.dataset.id, 10), b.dataset.nombre || '');
-  });
-  $('#btn-adj-subir').addEventListener('click', () => $('#adj-archivo').click());
-  $('#adj-archivo').addEventListener('change', e => {
-    if (e.target.files.length) subirAdjuntos(e.target.files);
-    e.target.value = '';
-  });
-  $('#adj-lista').addEventListener('click', e => {
-    const ver = e.target.closest('.btn-adj-ver');
-    const borrar = e.target.closest('.btn-adj-borrar');
-    if (ver) verAdjunto(parseInt(ver.dataset.i, 10));
-    if (borrar) borrarAdjunto(parseInt(borrar.dataset.i, 10));
-  });
-
   // Facturas
   $('#mes-facturas').addEventListener('change', renderFacturas);
   $('#facturas-ambito').addEventListener('change', renderFacturas);
@@ -6497,22 +5740,6 @@ function configurarEventos() {
     else if (boton.classList.contains('btn-borrar-factura')) borrarFactura(id);
   });
   // (El desglose por mes salta de mes con el manejador global de ".btn-ir-mes")
-
-  // Buzón de facturas por correo
-  $('#btn-revisar-buzon').addEventListener('click', () => revisarBuzon(false));
-  $('#buzon-auto').addEventListener('change', e => {
-    datos.config.buzonAuto = e.target.checked;
-    guardar();
-    aviso(e.target.checked
-      ? 'Las facturas del correo se registrarán solas al llegar. 🤖'
-      : 'Ahora revisarás las facturas del correo antes de guardarlas.');
-  });
-  $('#lista-buzon').addEventListener('click', e => {
-    const revisar = e.target.closest('.btn-buzon-revisar');
-    const descartar = e.target.closest('.btn-buzon-descartar');
-    if (revisar) importarItemBuzon(revisar.dataset.id);
-    if (descartar) descartarItemBuzon(descartar.dataset.id);
-  });
 
   // Balance
   $('#mes-balance').addEventListener('change', renderBalance);
@@ -6683,18 +5910,6 @@ function configurarEventos() {
     aviso('Sincronización desactivada en este aparato (los datos siguen guardados aquí).');
   });
 
-  // Buzón de facturas por correo (Configuración)
-  $('#conf-buzon-auto').addEventListener('change', e => {
-    datos.config.buzonAuto = e.target.checked;
-    guardar();
-    if (vistaActual === 'buzon') pintarBuzon();
-    aviso(e.target.checked
-      ? 'Las facturas del correo se registrarán solas al llegar. 🤖'
-      : 'Ahora revisarás las facturas del correo antes de guardarlas.');
-  });
-  $('#btn-probar-buzon').addEventListener('click', probarBuzon);
-  $('#btn-ayuda-buzon').addEventListener('click', ayudaBuzon);
-
   // Conexión con el TPV
   $('#btn-guardar-tpv').addEventListener('click', () => {
     const url = $('#conf-tpv-url').value.trim();
@@ -6790,8 +6005,6 @@ function iniciar() {
   // Si la sincronización está activa, traemos los últimos datos de la nube al arrancar
   if (codigoSync()) {
     setTimeout(() => bajarDatosNube(true), 300);
-    // Buzón de correo: revisamos en segundo plano y dejamos la revisión automática en marcha
-    setTimeout(() => { consultarBuzon(true); revisarBuzon(true); iniciarPollBuzon(); }, 2500);
   } else if (primeraVez) {
     // Primera vez en este navegador: elegir entre empezar de cero o ver el ejemplo
     $('#modal-bienvenida').hidden = false;
