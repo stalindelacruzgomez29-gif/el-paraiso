@@ -117,9 +117,14 @@
   <img class="fondo-login" src="logo-fondo.png" alt="">
   <div class="caja-login">
     <img class="logo-login" id="logo-login" alt="" style="display:none">
-    <h1>El Paraíso · Equipo</h1>
+    <h1 id="titulo-login">Portal del Equipo</h1>
     <p class="sub" id="login-sub">Entra con tu correo y contraseña</p>
     <div class="error-login" id="login-error"></div>
+    <div id="selector-local" style="display:none">
+      <p style="text-align:center;font-size:15px;color:#555;margin-bottom:14px">¿Qué local quieres abrir?</p>
+      <button class="btn btn-primario" style="margin-bottom:10px" onclick="elegirLocal('paraiso')">🌴 El Paraíso Bar Restaurante</button>
+      <button class="btn btn-primario" style="background:#8d4a12" onclick="elegirLocal('sazon')">🍲 El Sazón de Quisqueya</button>
+    </div>
     <div id="form-login">
       <input class="campo" type="email" id="login-email" placeholder="Correo electrónico" autocomplete="username">
       <input class="campo" type="password" id="login-clave" placeholder="Contraseña" autocomplete="current-password">
@@ -132,6 +137,7 @@
       <input class="campo" type="password" id="jefe-clave" placeholder="Contraseña (mínimo 6)">
       <button class="btn btn-primario" id="btn-crear-jefe">Crear administrador</button>
     </div>
+    <p style="text-align:center;margin-top:12px"><a href="#" id="cambiar-local" style="font-size:13px;color:#1b5e20;display:none">↩ Cambiar de local</a></p>
     <div class="fiscal-login">DOMINICAN BALEARIC DRINKS SL · CIF B56661879<br>C/ General Riera 114, BJ · 07010 Palma (Illes Balears)</div>
   </div>
 </div>
@@ -178,7 +184,11 @@
           <button class="btn btn-borde btn-peq" id="btn-agregar-plantilla">➕ Guardar</button>
         </div>
         <div id="destinos-plantillas" style="margin-top:10px"></div>
-        <button class="btn btn-primario btn-peq" id="btn-mandar-plantillas" style="margin-top:10px">🚀 Mandar las funciones marcadas</button>
+        <div class="fila-acciones" style="margin-top:10px">
+          <button class="btn btn-primario btn-peq" id="btn-mandar-plantillas">🚀 Mandar ahora</button>
+          <button class="btn btn-verde btn-peq" id="btn-automatizar">🔁 Hacerlas automáticas cada día</button>
+        </div>
+        <div id="lista-automaticas" style="margin-top:10px"></div>
       </div>
       <div class="panel-crear solo-jefe" style="display:none">
         <h3>Nueva tarea (escrita a mano)</h3>
@@ -241,10 +251,43 @@
         <input class="campo" id="nuevo-pedido" placeholder="Ej.: 2 cajas de cerveza, limones, servilletas...">
         <div class="fila-acciones">
           <button class="btn btn-primario btn-peq" id="btn-agregar-pedido">➕ Añadir a la lista</button>
-          <button class="btn btn-verde btn-peq" id="btn-whatsapp-pedidos">📲 Enviar lista por WhatsApp</button>
+          <button class="btn btn-borde btn-peq" id="btn-foto-pedido">📷 Leer una foto de la libreta</button>
+          <input type="file" id="foto-pedido" accept="image/*" hidden>
+          <button class="btn btn-verde btn-peq" id="btn-whatsapp-pedidos">📲 Toda la lista por WhatsApp</button>
         </div>
       </div>
+      <div id="botones-proveedores"></div>
       <div id="lista-pedidos"></div>
+      <div class="panel-crear solo-jefe" id="panel-proveedores" style="display:none">
+        <h3>🚚 Mis proveedores</h3>
+        <p class="nota-turnos">Registra cada proveedor UNA vez con sus palabras. Los faltantes se clasifican solos
+        y te sale un botón por proveedor para mandarle SU pedido por WhatsApp con un toque.</p>
+        <div id="lista-proveedores" style="margin-bottom:10px"></div>
+        <input class="campo" id="prov-nombre" placeholder="Nombre (ej.: Distribuidor Coca-Cola)">
+        <input class="campo" id="prov-telefono" placeholder="Su WhatsApp con +34 (ej.: +34600111222)">
+        <input class="campo" id="prov-palabras" placeholder="Sus palabras, separadas por comas: coca cola, fanta, sprite, tónica">
+        <button class="btn btn-primario btn-peq" id="btn-guardar-prov">💾 Guardar proveedor</button>
+      </div>
+    </div>
+
+    <!-- STOCK -->
+    <div class="vista" id="vista-stock">
+      <h2 class="titulo-vista">📦 Stock</h2>
+      <div class="panel-crear">
+        <h3>Entrada de mercancía</h3>
+        <div class="fila-acciones">
+          <button class="btn btn-primario btn-peq" id="btn-foto-factura">📷 Foto de la factura o albarán</button>
+          <input type="file" id="foto-factura" accept="image/*" hidden>
+        </div>
+        <div class="fila-acciones" style="margin-top:8px">
+          <input class="campo" id="stock-nombre" placeholder="Producto (a mano)" style="flex:2;margin:0">
+          <input class="campo" id="stock-cantidad" type="number" min="0" placeholder="Cant." style="flex:1;margin:0;max-width:90px">
+          <button class="btn btn-borde btn-peq" id="btn-stock-manual">➕</button>
+        </div>
+        <p class="nota-turnos">La foto de la factura apunta sola los productos y cantidades que entran.
+        Con − y + se descuenta o suma lo que se gasta. Al llegar a 0 queda registrado cuándo se acabó.</p>
+      </div>
+      <div id="lista-stock"></div>
     </div>
 
     <!-- EQUIPO (solo jefe) -->
@@ -320,7 +363,21 @@
 const API = '/api/equipo';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
-const CLAVE_TOKEN = 'paraiso_equipo_token';
+
+/* ---------- Dos locales, una app: cada uno con sus datos separados ---------- */
+const LOCALES_APP = { paraiso: '🌴 El Paraíso', sazon: '🍲 El Sazón de Quisqueya' };
+function localActual() { return localStorage.getItem('equipo_local') || ''; }
+function claveToken() { return 'paraiso_equipo_token_' + (localActual() || 'paraiso'); }
+// migración: la sesión antigua (de antes de los dos locales) era de El Paraíso
+if (localStorage.getItem('paraiso_equipo_token') && !localStorage.getItem('paraiso_equipo_token_paraiso')) {
+  localStorage.setItem('paraiso_equipo_token_paraiso', localStorage.getItem('paraiso_equipo_token'));
+  localStorage.removeItem('paraiso_equipo_token');
+  if (!localActual()) localStorage.setItem('equipo_local', 'paraiso');
+}
+window.elegirLocal = clave => {
+  localStorage.setItem('equipo_local', clave);
+  arrancar();
+};
 
 let vista = null;          // datos que manda el servidor
 let pestanaActual = 'avisos';
@@ -351,8 +408,8 @@ function nombreDe(id) {
 
 /* ---------- Llamadas al servidor ---------- */
 async function llamar(accion, params = {}, conToken = true) {
-  const cuerpo = { accion, ...params };
-  if (conToken) cuerpo.token = localStorage.getItem(CLAVE_TOKEN) || '';
+  const cuerpo = { accion, local: localActual() || 'paraiso', ...params };
+  if (conToken) cuerpo.token = localStorage.getItem(claveToken()) || '';
   const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
   const j = await r.json().catch(() => ({ error: 'Respuesta rara del servidor.' }));
   if (!r.ok) {
@@ -364,38 +421,60 @@ async function llamar(accion, params = {}, conToken = true) {
 
 /* ---------- Sesión ---------- */
 function cerrarSesion() {
-  localStorage.removeItem(CLAVE_TOKEN);
+  localStorage.removeItem(claveToken());
   vista = null;
   $('#app').style.display = 'none';
   $('#pantalla-login').style.display = 'flex';
+  arrancar();
 }
 
 async function arrancar() {
-  // ¿Ya hay administrador creado?
+  // Paso 1: elegir local (si aún no está elegido)
+  if (!localActual()) {
+    $('#selector-local').style.display = 'block';
+    $('#form-login').style.display = 'none';
+    $('#form-jefe').style.display = 'none';
+    $('#cambiar-local').style.display = 'none';
+    $('#titulo-login').textContent = 'Portal del Equipo';
+    $('#login-sub').textContent = 'Dos locales, una aplicación';
+    return;
+  }
+  $('#selector-local').style.display = 'none';
+  $('#form-login').style.display = 'block';
+  $('#cambiar-local').style.display = 'inline';
+  $('#titulo-login').textContent = LOCALES_APP[localActual()] || 'Portal del Equipo';
+  $('#login-sub').textContent = 'Entra con tu correo y contraseña';
+
+  // ¿Ya hay administrador creado en ESTE local?
   try {
     const est = await llamar('estado', {}, false);
     if (!est.inicializado) {
       $('#form-login').style.display = 'none';
       $('#form-jefe').style.display = 'block';
-      $('#login-sub').textContent = 'Bienvenido: configura el portal';
+      $('#login-sub').textContent = 'Primer uso de este local: crea su administrador';
     }
   } catch (e) { /* seguimos con login normal */ }
 
-  // ¿Hay sesión guardada?
-  if (localStorage.getItem(CLAVE_TOKEN)) {
+  // ¿Hay sesión guardada de este local?
+  if (localStorage.getItem(claveToken())) {
     try {
       const r = await llamar('todo');
       entrar(r.vista);
     } catch (e) { /* la sesión no vale: se queda en login */ }
   }
 }
+$('#cambiar-local').onclick = e => {
+  e.preventDefault();
+  localStorage.removeItem('equipo_local');
+  arrancar();
+};
 
 function entrar(v) {
   vista = v;
   $('#pantalla-login').style.display = 'none';
   $('#app').style.display = 'block';
   $('#cab-nombre').textContent = '👋 ' + v.yo.nombre;
-  $('#cab-rol').textContent = v.yo.rol === 'jefe' ? 'Administrador' : 'Equipo · El Paraíso';
+  $('#cab-rol').textContent = (v.yo.rol === 'jefe' ? 'Administrador · ' : 'Equipo · ') + (LOCALES_APP[localActual()] || 'El Paraíso').replace(/^[^ ]+ /, '');
   $$('.solo-jefe').forEach(el => el.style.display = v.yo.rol === 'jefe' ? 'block' : 'none');
   montarBarra();
   pintarTodo();
@@ -421,7 +500,7 @@ function montarBarra() {
   const esJefe = vista.yo.rol === 'jefe';
   const tabs = [
     ['avisos', '📢', 'Avisos'], ['tareas', '✅', 'Tareas'], ['horario', '🕐', 'Horario'],
-    ['fichar', '⏱', 'Fichar'], ['pedidos', '🛒', 'Pedidos']
+    ['fichar', '⏱', 'Fichar'], ['pedidos', '🛒', 'Pedidos'], ['stock', '📦', 'Stock']
   ];
   if (esJefe) tabs.push(['equipo', '👥', 'Equipo']);
   $('#barra').innerHTML = tabs.map(([id, ico, txt]) =>
@@ -461,7 +540,7 @@ function comprobarTareasNuevas(esPrimeraCarga) {
 }
 
 /* ---------- Pintar cada sección ---------- */
-function pintarTodo() { pintarMiDia(); pintarAvisos(); pintarTareas(); pintarHorario(); pintarFichar(); pintarPedidos(); pintarEquipo(); if (chatCon != null) pintarChat(); }
+function pintarTodo() { pintarMiDia(); pintarAvisos(); pintarTareas(); pintarHorario(); pintarFichar(); pintarPedidos(); pintarStock(); pintarEquipo(); if (chatCon != null) pintarChat(); }
 
 // Panel "Mi día": el empleado entra y ve su puesto, su turno de hoy y sus
 // funciones como LISTA PARA MARCAR (al marcarlas queda la hora registrada)
@@ -584,7 +663,18 @@ function pintarPlantillas() {
   $('#destinos-plantillas').innerHTML = '<strong style="font-size:13.5px">¿A quién se las mandas?</strong><br>' +
     `<label style="${chip}"><input type="checkbox" data-d="todos" ${selDestinos.has('todos') ? 'checked' : ''} onchange="toggleDestino(this)" style="transform:scale(1.2)">👥 TODO EL EQUIPO</label>` +
     gente.map(e => `<label style="${chip}"><input type="checkbox" data-d="${e.id}" ${selDestinos.has(e.id) ? 'checked' : ''} onchange="toggleDestino(this)" style="transform:scale(1.2)">${esc(e.nombre)}</label>`).join('');
+  // Lista de funciones que ya se crean solas cada mañana
+  $('#lista-automaticas').innerHTML = (vista.automaticas || []).length ? `
+    <strong style="font-size:13.5px;color:var(--verde)">🔁 Cada mañana se crean solas (a las 8:00):</strong>
+    ${vista.automaticas.map(a => `
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:14px;padding:4px 0;border-bottom:1px dashed var(--borde)">
+        <span>${esc(a.funcion)} → <strong>${a.paraId ? esc(nombreDe(a.paraId)) : '👥 todo el equipo'}</strong></span>
+        <button class="btn btn-borde btn-peq" onclick="quitarAutomatica('${a.id}')">✕</button>
+      </div>`).join('')}` : '';
 }
+window.quitarAutomatica = async id => {
+  try { await refrescar('borrarAutomatica', { id }); aviso('🔁 Automática quitada'); } catch (e) { aviso(e.message, true); }
+};
 window.togglePlantilla = el => { el.checked ? selPlantillas.add(el.dataset.t) : selPlantillas.delete(el.dataset.t); };
 window.toggleDestino = el => {
   const d = el.dataset.d;
@@ -638,19 +728,22 @@ function fmtHoras(ms) {
   return Math.floor(m / 60) + 'h ' + String(m % 60).padStart(2, '0') + 'm';
 }
 function pintarFichar() {
-  const mios = (vista.fichajes || []).filter(f => f.empleadoId === vista.yo.id);
-  const ultimo = mios[mios.length - 1];
-  const dentro = ultimo && ultimo.tipo === 'entrada';
+  const dentro = vista.dentro;
   const btn = $('#btn-fichar');
   btn.className = 'boton-fichar ' + (dentro ? 'salida' : 'entrada');
   btn.innerHTML = dentro ? 'FICHAR<br>SALIDA' : 'FICHAR<br>ENTRADA';
 
   const esJefe = vista.yo.rol === 'jefe';
-  $('#titulo-fichajes').textContent = esJefe ? 'Fichajes del equipo (últimos)' : 'Mis últimos fichajes';
-  const listado = esJefe ? (vista.fichajes || []) : mios;
-  $('#lista-fichajes').innerHTML = [...listado].reverse().slice(0, 40).map(f => `
-    <div class="fich"><span>${f.tipo === 'entrada' ? '🟢 Entrada' : '🔴 Salida'}${esJefe ? ' · <strong>' + esc(nombreDe(f.empleadoId)) + '</strong>' : ''}${esJefe && f.dist != null ? ' <span style="color:#888;font-size:12px">📍 a ' + f.dist + ' m</span>' : ''}</span>
-    <span>${fechaBonita(f.ts)}</span></div>`).join('') || '<div class="vacio">Sin fichajes todavía.</div>';
+  // Las horas y el historial SOLO los ve el administrador
+  if (esJefe) {
+    $('#titulo-fichajes').textContent = 'Fichajes del equipo (últimos)';
+    $('#lista-fichajes').innerHTML = [...(vista.fichajes || [])].reverse().slice(0, 40).map(f => `
+      <div class="fich"><span>${f.tipo === 'entrada' ? '🟢 Entrada' : '🔴 Salida'} · <strong>${esc(nombreDe(f.empleadoId))}</strong>${f.dist != null ? ' <span style="color:#888;font-size:12px">📍 a ' + f.dist + ' m</span>' : ''}</span>
+      <span>${fechaBonita(f.ts)}</span></div>`).join('') || '<div class="vacio">Sin fichajes todavía.</div>';
+  } else {
+    $('#titulo-fichajes').textContent = '';
+    $('#lista-fichajes').innerHTML = `<div class="vacio">${dentro ? '🟢 Estás fichado. Cuando termines, ficha la salida.' : 'Ficha la entrada al llegar al local.'}</div>`;
+  }
 
   // Horas trabajadas (solo el jefe): hoy y esta semana, calculadas de los fichajes
   if (esJefe) {
@@ -687,7 +780,12 @@ function pintarFichar() {
   }
 }
 
+function nombreProveedor(id) {
+  const pr = (vista.proveedores || []).find(x => x.id === id);
+  return pr ? pr.nombre : '';
+}
 function pintarPedidos() {
+  const esJefe = vista.yo.rol === 'jefe';
   const pendientes = (vista.pedidos || []).filter(p => p.estado === 'pendiente');
   const comprados = (vista.pedidos || []).filter(p => p.estado === 'comprado').slice(-15);
   const fila = p => `
@@ -696,19 +794,195 @@ function pintarPedidos() {
         <span style="${p.estado==='comprado'?'text-decoration:line-through;color:#999':''}">${esc(p.texto)}</span>
         <span class="etiqueta ${p.estado==='comprado'?'et-hecha':'et-pendiente'}">${p.estado==='comprado'?'COMPRADO':'FALTA'}</span>
       </div>
-      <div class="meta">${esc(nombreDe(p.empleadoId))} · ${fechaBonita(p.fecha)}</div>
+      <div class="meta">${esc(nombreDe(p.empleadoId))} · ${fechaBonita(p.fecha)}${p.proveedorId ? ' · 🚚 ' + esc(nombreProveedor(p.proveedorId)) : ''}</div>
       <div class="fila-acciones">
         ${p.estado === 'pendiente' ? `<button class="btn btn-verde btn-peq" onclick="marcarPedido('${p.id}','comprado')">✔ Comprado</button>` :
           `<button class="btn btn-borde btn-peq" onclick="marcarPedido('${p.id}','pendiente')">↩ Vuelve a faltar</button>`}
-        ${vista.yo.rol === 'jefe' ? `<button class="btn btn-borde btn-peq" onclick="borrarPedido('${p.id}')">🗑</button>` : ''}
+        ${esJefe && p.estado === 'pendiente' && (vista.proveedores || []).length ? `
+          <select class="campo" style="margin:0;padding:6px;font-size:13px;max-width:150px" onchange="asignarProv('${p.id}', this.value)">
+            <option value="">🚚 proveedor...</option>
+            ${vista.proveedores.map(pr => `<option value="${pr.id}" ${p.proveedorId === pr.id ? 'selected' : ''}>${esc(pr.nombre)}</option>`).join('')}
+          </select>` : ''}
+        ${esJefe ? `<button class="btn btn-borde btn-peq" onclick="borrarPedido('${p.id}')">🗑</button>` : ''}
       </div>
     </div>`;
+
+  // Un botón por proveedor con faltantes: un toque y el pedido sale por WhatsApp
+  const conPedido = (vista.proveedores || []).map(pr => ({ pr, items: pendientes.filter(p => p.proveedorId === pr.id) })).filter(x => x.items.length);
+  const sinProv = pendientes.filter(p => !p.proveedorId).length;
+  $('#botones-proveedores').innerHTML = conPedido.length ? `
+    <div class="tarjeta" style="border-left:5px solid var(--verde-medio)">
+      <strong style="color:var(--verde)">📲 Pedidos listos para mandar</strong>
+      <div class="fila-acciones">
+        ${conPedido.map(x => `<button class="btn btn-verde btn-peq" onclick="mandarAProveedor('${x.pr.id}')">📲 ${esc(x.pr.nombre)} (${x.items.length})</button>`).join('')}
+      </div>
+      ${sinProv ? `<div class="meta">⚠️ ${sinProv} faltante(s) sin proveedor asignado — asígnalos abajo o se mandan con "Toda la lista".</div>` : ''}
+    </div>` : '';
+
+  // Gestor de proveedores (jefe)
+  if (esJefe) {
+    $('#lista-proveedores').innerHTML = (vista.proveedores || []).map(pr => `
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:14px;padding:5px 0;border-bottom:1px dashed var(--borde)">
+        <span><strong>${esc(pr.nombre)}</strong>${pr.telefono ? ' · ' + esc(pr.telefono) : ''}<br><span style="font-size:12px;color:#888">${esc(pr.palabras || 'sin palabras')}</span></span>
+        <span style="white-space:nowrap">
+          <button class="btn btn-borde btn-peq" onclick="editarProv('${pr.id}')">✏️</button>
+          <button class="btn btn-borde btn-peq" onclick="borrarProv('${pr.id}')">✕</button>
+        </span>
+      </div>`).join('') || '<div style="font-size:13.5px;color:#777">Aún no hay proveedores registrados.</div>';
+  }
+
   $('#lista-pedidos').innerHTML =
     (pendientes.length ? `<h3 style="font-size:15px;color:var(--rojo);margin:6px 0">Falta (${pendientes.length})</h3>` + pendientes.map(fila).join('') : '<div class="vacio">No falta nada apuntado. 👌</div>') +
     (comprados.length ? `<h3 style="font-size:15px;color:#888;margin:14px 0 6px">Ya comprado</h3>` + [...comprados].reverse().map(fila).join('') : '');
 }
 window.marcarPedido = async (id, estado) => { try { await refrescar('marcarPedido', { id, estado }); } catch (e) { aviso(e.message, true); } };
 window.borrarPedido = async id => { if (confirm('¿Quitar de la lista?')) try { await refrescar('borrarPedido', { id }); } catch (e) { aviso(e.message, true); } };
+window.asignarProv = async (id, proveedorId) => { try { await refrescar('asignarProveedor', { id, proveedorId: proveedorId || null }); } catch (e) { aviso(e.message, true); } };
+window.mandarAProveedor = prId => {
+  const pr = (vista.proveedores || []).find(x => x.id === prId);
+  if (!pr) return;
+  const items = (vista.pedidos || []).filter(p => p.estado === 'pendiente' && p.proveedorId === prId);
+  if (!items.length) return aviso('No hay nada pendiente de ese proveedor.', true);
+  const fecha = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+  const nombreLocal = (LOCALES_APP[localActual()] || 'El Paraíso').replace(/^[^ ]+ /, '');
+  const texto = `🛒 *PEDIDO · ${nombreLocal.toUpperCase()}*\n_${fecha}_\n\nHola${pr.nombre ? ' ' + pr.nombre : ''}, necesitamos:\n` +
+    items.map(p => `• ${p.texto}`).join('\n') + `\n\n¡Gracias!\n_${nombreLocal}_`;
+  const tel = String(pr.telefono || '').replace(/[^\d]/g, '');
+  window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(texto), '_blank');
+};
+let provEditando = null;
+window.editarProv = id => {
+  const pr = (vista.proveedores || []).find(x => x.id === id); if (!pr) return;
+  provEditando = id;
+  $('#prov-nombre').value = pr.nombre; $('#prov-telefono').value = pr.telefono || ''; $('#prov-palabras').value = pr.palabras || '';
+  $('#btn-guardar-prov').textContent = '💾 Guardar cambios de ' + pr.nombre;
+};
+window.borrarProv = async id => {
+  if (!confirm('¿Borrar este proveedor?')) return;
+  try { await refrescar('borrarProveedor', { id }); } catch (e) { aviso(e.message, true); }
+};
+$('#btn-guardar-prov').onclick = async () => {
+  try {
+    await refrescar('guardarProveedor', { id: provEditando, nombre: $('#prov-nombre').value, telefono: $('#prov-telefono').value, palabras: $('#prov-palabras').value });
+    provEditando = null;
+    $('#prov-nombre').value = ''; $('#prov-telefono').value = ''; $('#prov-palabras').value = '';
+    $('#btn-guardar-prov').textContent = '💾 Guardar proveedor';
+    aviso('🚚 Proveedor guardado: los faltantes se clasifican solos');
+  } catch (e) { aviso(e.message, true); }
+};
+
+/* ---------- Fotos con IA (libreta de faltantes y facturas de stock) ---------- */
+async function imagenABase64(archivo, maxLado = 1800) {
+  // SIN FileReader (el navegador del iPhone no lo tiene): bitmap + canvas
+  let bmp;
+  try { bmp = await createImageBitmap(archivo); }
+  catch (e) {
+    bmp = await new Promise((res, rej) => {
+      const img = new Image();
+      img.onload = () => res(img); img.onerror = rej;
+      img.src = URL.createObjectURL(archivo);
+    });
+  }
+  const w = bmp.width || bmp.naturalWidth, h = bmp.height || bmp.naturalHeight;
+  const escala = Math.min(1, maxLado / Math.max(w, h));
+  const c = document.createElement('canvas');
+  c.width = Math.round(w * escala); c.height = Math.round(h * escala);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', .85).split(',')[1];
+}
+async function leerFotoConIA(instrucciones, b64) {
+  const r = await fetch('/api/leer', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      max_tokens: 4000,
+      messages: [{ role: 'user', content: [
+        { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
+        { type: 'text', text: instrucciones }
+      ]}]
+    })
+  });
+  const j = await r.json().catch(() => ({}));
+  if (j.error) throw new Error(j.error.message || 'La IA no pudo leer la foto.');
+  const texto = (j.content || []).map(b => b.text || '').join('');
+  const m = texto.match(/\[[\s\S]*\]/);
+  if (!m) throw new Error('No pude sacar la lista de esa foto. Prueba con una foto más clara.');
+  return JSON.parse(m[0]);
+}
+$('#btn-foto-pedido').onclick = () => $('#foto-pedido').click();
+$('#foto-pedido').onchange = async e => {
+  const archivo = e.target.files[0]; e.target.value = '';
+  if (!archivo) return;
+  aviso('📷 Leyendo la lista de la foto...');
+  try {
+    const b64 = await imagenABase64(archivo);
+    const lista = await leerFotoConIA(
+      'Esta foto es una lista escrita a mano (libreta u hoja) de cosas que faltan en un bar restaurante en España. ' +
+      'Devuélveme SOLO un JSON: un array de textos, cada uno un artículo con su cantidad si aparece. ' +
+      'Ejemplo: ["2 cajas de cerveza","limones","3 kg de pollo"]. Nada de explicaciones.', b64);
+    const textos = lista.map(x => String(x)).filter(Boolean);
+    if (!textos.length) throw new Error('No encontré artículos en la foto.');
+    await refrescar('agregarPedidos', { textos });
+    aviso('📷 ¡Leída! ' + textos.length + ' faltante(s) apuntados');
+  } catch (err) { aviso(err.message, true); }
+};
+
+/* ---------- Stock ---------- */
+function pintarStock() {
+  const items = [...(vista.stock || [])].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  $('#lista-stock').innerHTML = items.length ? items.map(s => {
+    const ult = (s.historial || [])[(s.historial || []).length - 1];
+    const info = ult ? `${ult.motivo} ${ult.cambio > 0 ? '+' + ult.cambio : ult.cambio} · ${fechaBonita(ult.fecha)}` : '';
+    const agotado = (Number(s.cantidad) || 0) <= 0;
+    return `
+    <div class="tarjeta" style="${agotado ? 'border-left:5px solid var(--rojo)' : ''}">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <span><strong>${esc(s.nombre)}</strong>${agotado ? ' <span class="etiqueta et-pendiente">AGOTADO</span>' : ''}<br>
+          <span style="font-size:12px;color:#888">${esc(info)}</span></span>
+        <span style="white-space:nowrap;display:flex;align-items:center;gap:6px">
+          <button class="btn btn-borde btn-peq" onclick="cambiarStock('${s.id}', -1)">−</button>
+          <strong style="font-size:19px;min-width:44px;text-align:center">${s.cantidad}${s.unidad ? '<span style="font-size:11px;color:#888"> ' + esc(s.unidad) + '</span>' : ''}</strong>
+          <button class="btn btn-borde btn-peq" onclick="cambiarStock('${s.id}', 1)">+</button>
+          ${vista.yo.rol === 'jefe' ? `<button class="btn btn-borde btn-peq" onclick="borrarStock('${s.id}')">🗑</button>` : ''}
+        </span>
+      </div>
+    </div>`;
+  }).join('') : '<div class="vacio">El stock está vacío: sube una foto de una factura o añade productos a mano.</div>';
+}
+window.cambiarStock = async (id, delta) => {
+  const s = (vista.stock || []).find(x => x.id === id); if (!s) return;
+  try { await refrescar('ajustarStock', { id, cantidad: Math.max(0, (Number(s.cantidad) || 0) + delta) }); }
+  catch (e) { aviso(e.message, true); }
+};
+window.borrarStock = async id => {
+  if (!confirm('¿Quitar este producto del stock?')) return;
+  try { await refrescar('borrarStock', { id }); } catch (e) { aviso(e.message, true); }
+};
+$('#btn-stock-manual').onclick = async () => {
+  const nombre = $('#stock-nombre').value.trim(), cantidad = Number($('#stock-cantidad').value);
+  if (!nombre || !(cantidad > 0)) return aviso('Pon el producto y la cantidad que entra.', true);
+  try {
+    await refrescar('entradaStock', { items: [{ nombre, cantidad }], origen: 'manual' });
+    $('#stock-nombre').value = ''; $('#stock-cantidad').value = '';
+    aviso('📦 Entrada apuntada');
+  } catch (e) { aviso(e.message, true); }
+};
+$('#btn-foto-factura').onclick = () => $('#foto-factura').click();
+$('#foto-factura').onchange = async e => {
+  const archivo = e.target.files[0]; e.target.value = '';
+  if (!archivo) return;
+  aviso('📷 Leyendo la factura...');
+  try {
+    const b64 = await imagenABase64(archivo);
+    const items = await leerFotoConIA(
+      'Esta foto es una factura o albarán de un proveedor de un bar restaurante en España. ' +
+      'Extrae las líneas de productos con sus cantidades. Devuelve SOLO un JSON: ' +
+      '[{"nombre":"nombre corto del producto","cantidad":numero,"unidad":"uds/cajas/kg/l/botellas"}]. ' +
+      'Nada de explicaciones.', b64);
+    if (!items.length) throw new Error('No encontré productos en la factura.');
+    await refrescar('entradaStock', { items, origen: 'factura' });
+    aviso('📦 ¡Factura leída! ' + items.length + ' producto(s) entrados al stock');
+  } catch (err) { aviso(err.message, true); }
+};
 
 function pintarEquipo() {
   if (vista.yo.rol !== 'jefe') return;
@@ -782,7 +1056,7 @@ $('#btn-entrar').onclick = async () => {
   $('#login-error').style.display = 'none';
   try {
     const r = await llamar('login', { email: $('#login-email').value, clave: $('#login-clave').value }, false);
-    localStorage.setItem(CLAVE_TOKEN, r.token);
+    localStorage.setItem(claveToken(), r.token);
     entrar(r.vista);
   } catch (e) { $('#login-error').textContent = e.message; $('#login-error').style.display = 'block'; }
 };
@@ -792,7 +1066,7 @@ $('#btn-crear-jefe').onclick = async () => {
   $('#login-error').style.display = 'none';
   try {
     const r = await llamar('crearJefe', { nombre: $('#jefe-nombre').value, email: $('#jefe-email').value, clave: $('#jefe-clave').value }, false);
-    localStorage.setItem(CLAVE_TOKEN, r.token);
+    localStorage.setItem(claveToken(), r.token);
     entrar(r.vista);
   } catch (e) { $('#login-error').textContent = e.message; $('#login-error').style.display = 'block'; }
 };
@@ -841,9 +1115,7 @@ function miUbicacion() {
   });
 }
 $('#btn-fichar').onclick = async () => {
-  const mios = (vista.fichajes || []).filter(f => f.empleadoId === vista.yo.id);
-  const ultimo = mios[mios.length - 1];
-  const tipo = (ultimo && ultimo.tipo === 'entrada') ? 'salida' : 'entrada';
+  const tipo = vista.dentro ? 'salida' : 'entrada';
   let ubi = null;
   if (vista.config && vista.config.controlUbicacion) {
     aviso('📍 Comprobando que estás en el local...');
@@ -886,6 +1158,16 @@ $('#btn-mandar-plantillas').onclick = async () => {
     await refrescar('crearTarea', params);
     const cuantos = selDestinos.has('todos') ? 'todo el equipo' : [...selDestinos].map(nombreDe).join(', ');
     aviso('🚀 ' + selPlantillas.size + ' función(es) mandadas a ' + cuantos);
+    selPlantillas.clear(); selDestinos.clear(); pintarPlantillas();
+  } catch (e) { aviso(e.message, true); }
+};
+
+$('#btn-automatizar').onclick = async () => {
+  if (!selPlantillas.size) return aviso('Marca al menos una función del banco.', true);
+  if (!selDestinos.size) return aviso('Marca a quién (o TODO EL EQUIPO).', true);
+  try {
+    await refrescar('guardarAutomatica', { funciones: [...selPlantillas], paraIds: selDestinos.has('todos') ? null : [...selDestinos] });
+    aviso('🔁 Hecho: esas funciones se crearán SOLAS cada mañana');
     selPlantillas.clear(); selDestinos.clear(); pintarPlantillas();
   } catch (e) { aviso(e.message, true); }
 };

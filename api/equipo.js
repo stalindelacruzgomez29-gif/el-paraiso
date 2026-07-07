@@ -10,7 +10,11 @@
 const crypto = require('crypto');
 
 const REPO_DATOS = 'stalindelacruzgomez29-gif/el-paraiso-equipo-datos';
-const ARCHIVO_DATOS = 'datos.json';
+// Cada local es un negocio COMPLETO y separado (equipo, stock, pedidos, todo)
+const LOCALES = {
+  paraiso: { archivo: 'datos.json', nombre: 'El Paraíso' },
+  sazon: { archivo: 'datos-sazon.json', nombre: 'El Sazón de Quisqueya' }
+};
 
 // El secreto firma los pases de acceso (tokens)
 function secreto() {
@@ -23,7 +27,11 @@ function datosVacios() {
     empleados: [], avisos: [], tareas: [], horario: { turnos: {}, notas: '', actualizado: null },
     fichajes: [], pedidos: [], funcionesHechas: [],
     plantillas: [],     // banco de funciones guardadas del jefe (para mandarlas con un clic)
+    automaticas: [],    // funciones que se convierten en tarea SOLAS cada mañana [{id, funcion, paraId}]
+    cronDia: null,      // último día en que el programador creó las tareas automáticas
     mensajes: [],       // mensajes privados jefe <-> empleado (amonestaciones, avisos personales)
+    stock: [],          // control de stock [{id, nombre, unidad, cantidad, actualizado, historial}]
+    proveedores: [],    // [{id, nombre, telefono, palabras}] para clasificar y mandar pedidos por WhatsApp
     config: { local: null, radioM: 100 }   // local = {lat,lng} del restaurante para el control de fichaje
   };
 }
@@ -39,6 +47,33 @@ function distanciaM(a, b) {
 // La fecha de "hoy" en España (el servidor va en UTC)
 function hoyEspana() {
   return new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Madrid' });
+}
+
+function normalizarNombre(t) {
+  return String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+// ¿A qué proveedor corresponde este texto? (por sus palabras clave)
+function proveedorPara(datos, texto) {
+  const t = normalizarNombre(texto);
+  for (const pr of (datos.proveedores || [])) {
+    const palabras = String(pr.palabras || '').split(/,|;/).map(normalizarNombre).filter(Boolean);
+    if (palabras.some(pal => t.includes(pal))) return pr.id;
+  }
+  return null;
+}
+
+// Aviso al WhatsApp del Paraíso (CallMeBot), sin romper nada si falla
+async function avisarWhatsApp(msg) {
+  if (!process.env.WHATSAPP_TELEFONO || !process.env.WHATSAPP_APIKEY) return;
+  try {
+    const url = 'https://api.callmebot.com/whatsapp.php?phone=' + encodeURIComponent(process.env.WHATSAPP_TELEFONO) +
+                '&apikey=' + encodeURIComponent(process.env.WHATSAPP_APIKEY) + '&text=' + encodeURIComponent(msg);
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 5000);
+    await fetch(url, { signal: ctl.signal }).catch(() => {});
+    clearTimeout(t);
+  } catch (e) { /* el dato queda guardado igual */ }
 }
 
 async function gh(metodo, ruta, cuerpo) {
@@ -57,8 +92,8 @@ async function gh(metodo, ruta, cuerpo) {
 }
 
 // Devuelve { datos, sha } — el sha es la "versión" del archivo
-async function leerDatos() {
-  const r = await gh('GET', `/repos/${REPO_DATOS}/contents/${ARCHIVO_DATOS}?ref=main&t=${Date.now()}`);
+async function leerDatos(archivo) {
+  const r = await gh('GET', `/repos/${REPO_DATOS}/contents/${archivo}?ref=main&t=${Date.now()}`);
   if (r.status === 404) return { datos: datosVacios(), sha: null };
   if (!r.ok) throw new Error('No pude leer los datos del equipo (código ' + r.status + ').');
   const j = await r.json();
@@ -67,8 +102,8 @@ async function leerDatos() {
 }
 
 // Guarda con la versión (sha) leída; si otro guardó antes, avisa para reintentar
-async function guardarDatos(datos, sha) {
-  const r = await gh('PUT', `/repos/${REPO_DATOS}/contents/${ARCHIVO_DATOS}`, {
+async function guardarDatos(archivo, datos, sha) {
+  const r = await gh('PUT', `/repos/${REPO_DATOS}/contents/${archivo}`, {
     message: 'actualización del portal',
     content: Buffer.from(JSON.stringify(datos)).toString('base64'),
     branch: 'main',
@@ -125,18 +160,24 @@ function empleadoPublico(e) {
 
 function vistaPara(datos, yo) {
   const esJefe = yo.rol === 'jefe';
+  const misFichajes = datos.fichajes.filter(f => f.empleadoId === yo.id);
   return {
     yo: empleadoPublico(yo),
     empleados: datos.empleados.map(empleadoPublico),
     avisos: datos.avisos.slice(-100),
     tareas: esJefe ? datos.tareas : datos.tareas.filter(t => !t.paraId || t.paraId === yo.id),
     horario: datos.horario,
-    fichajes: esJefe ? datos.fichajes.slice(-1000) : datos.fichajes.filter(f => f.empleadoId === yo.id).slice(-200),
+    // Las horas hechas SOLO las ve el jefe; el empleado solo sabe si está fichado o no
+    dentro: misFichajes.length ? misFichajes[misFichajes.length - 1].tipo === 'entrada' : false,
+    fichajes: esJefe ? datos.fichajes.slice(-1000) : [],
+    stock: datos.stock || [],
     pedidos: datos.pedidos.slice(-300),
     funcionesHechas: esJefe ? (datos.funcionesHechas || []).slice(-1000) : (datos.funcionesHechas || []).filter(f => f.empleadoId === yo.id).slice(-100),
     plantillas: datos.plantillas || [],
+    automaticas: esJefe ? (datos.automaticas || []) : [],
     // Privados: cada uno ve SOLO sus conversaciones (el jefe las ve todas)
     mensajes: esJefe ? (datos.mensajes || []).slice(-600) : (datos.mensajes || []).filter(m => m.paraId === yo.id || m.deId === yo.id).slice(-200),
+    proveedores: datos.proveedores || [],
     config: { radioM: (datos.config && datos.config.radioM) || 100, controlUbicacion: !!(datos.config && datos.config.local) }
   };
 }
@@ -146,6 +187,44 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
+
+  // ── Llamada del programador de Vercel (cada mañana, GET con clave secreta):
+  //    convierte las funciones automáticas en las tareas del día, sin que nadie toque nada
+  if (req.method === 'GET') {
+    const auth = req.headers['authorization'] || '';
+    if (!process.env.CRON_SECRET || auth !== 'Bearer ' + process.env.CRON_SECRET) {
+      return res.status(401).json({ error: 'No autorizado' });
+    }
+    try {
+      const resultado = {};
+      for (const clave of Object.keys(LOCALES)) {
+        const archivo = LOCALES[clave].archivo;
+        for (let intento = 1; intento <= 3; intento++) {
+          const { datos, sha } = await leerDatos(archivo);
+          const hoy = hoyEspana();
+          if (datos.cronDia === hoy) { resultado[clave] = 'ya estaban'; break; }
+          let creadas = 0;
+          (datos.automaticas || []).forEach(a => {
+            const repetida = datos.tareas.some(t => t.estado === 'pendiente' && t.titulo === a.funcion && (t.paraId || null) === (a.paraId || null));
+            if (repetida) return;   // si ayer no la hicieron, no se duplica
+            datos.tareas.push({
+              id: id(), titulo: a.funcion, detalle: '', paraId: a.paraId || null,
+              fechaLimite: hoy, creada: ahora(), estado: 'pendiente', hechaPor: null, hechaEn: null
+            });
+            creadas++;
+          });
+          datos.cronDia = hoy;
+          if (!await guardarDatos(archivo, datos, sha)) continue;
+          resultado[clave] = creadas;
+          break;
+        }
+      }
+      return res.status(200).json({ ok: true, resultado });
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
   if (!process.env.EQUIPO_GITHUB_TOKEN) {
     return res.status(503).json({ error: 'El portal del equipo no está configurado en el servidor.' });
@@ -153,11 +232,14 @@ module.exports = async (req, res) => {
 
   const p = req.body || {};
   const accion = limpio(p.accion);
+  // ¿De qué local es la petición? (paraiso si no se indica)
+  const localClave = LOCALES[limpio(p.local)] ? limpio(p.local) : 'paraiso';
+  const archivoLocal = LOCALES[localClave].archivo;
 
   try {
     // Hasta 3 intentos: si dos personas guardan a la vez, se relee y se repite
     for (let intento = 1; intento <= 3; intento++) {
-    const { datos, sha } = await leerDatos();
+    const { datos, sha } = await leerDatos(archivoLocal);
 
     // ---------- Acciones sin sesión ----------
     if (accion === 'estado') {
@@ -173,7 +255,7 @@ module.exports = async (req, res) => {
       }
       const jefe = { id: id(), nombre, email, rol: 'jefe', activo: true, creado: ahora(), ...crearCredencial(clave) };
       datos.empleados.push(jefe);
-      if (!await guardarDatos(datos, sha)) continue;
+      if (!await guardarDatos(archivoLocal, datos, sha)) continue;
       return res.status(200).json({ token: crearToken(jefe), vista: vistaPara(datos, jefe) });
     }
 
@@ -280,6 +362,26 @@ module.exports = async (req, res) => {
       case 'borrarPlantilla': {
         if (!esJefe) soloJefe();
         datos.plantillas = (datos.plantillas || []).filter(t => t !== p.texto);
+        break;
+      }
+
+      // ----- Funciones automáticas: cada mañana se crean solas como tareas -----
+      case 'guardarAutomatica': {
+        if (!esJefe) soloJefe();
+        const funciones = Array.isArray(p.funciones) ? p.funciones.map(limpio).filter(Boolean) : [];
+        if (!funciones.length) { const e = new Error('Marca qué funciones quieres automatizar.'); e.codigo = 400; throw e; }
+        const destinos = Array.isArray(p.paraIds) && p.paraIds.length ? p.paraIds : [null];   // null = todo el equipo
+        datos.automaticas = datos.automaticas || [];
+        funciones.forEach(f => destinos.forEach(d => {
+          if (!datos.automaticas.some(a => a.funcion === f && (a.paraId || null) === (d || null))) {
+            datos.automaticas.push({ id: id(), funcion: f, paraId: d || null });
+          }
+        }));
+        break;
+      }
+      case 'borrarAutomatica': {
+        if (!esJefe) soloJefe();
+        datos.automaticas = (datos.automaticas || []).filter(a => a.id !== p.id);
         break;
       }
 
@@ -390,20 +492,79 @@ module.exports = async (req, res) => {
       case 'agregarPedido': {
         const texto = limpio(p.texto);
         if (!texto) { const e = new Error('Escribe qué hace falta.'); e.codigo = 400; throw e; }
-        datos.pedidos.push({ id: id(), texto, empleadoId: yo.id, fecha: ahora(), estado: 'pendiente', compradoEn: null });
-        // Aviso automático al WhatsApp del Paraíso (si está configurado con CallMeBot)
-        if (process.env.WHATSAPP_TELEFONO && process.env.WHATSAPP_APIKEY) {
-          try {
-            const pendientes = datos.pedidos.filter(x => x.estado === 'pendiente').length;
-            const msg = `🛒 *EL PARAÍSO · Pedidos*\n${yo.nombre} apuntó: *${texto}*\n(${pendientes} cosa(s) pendientes en la lista)`;
-            const url = 'https://api.callmebot.com/whatsapp.php?phone=' + encodeURIComponent(process.env.WHATSAPP_TELEFONO) +
-                        '&apikey=' + encodeURIComponent(process.env.WHATSAPP_APIKEY) + '&text=' + encodeURIComponent(msg);
-            const ctl = new AbortController();
-            const t = setTimeout(() => ctl.abort(), 5000);
-            await fetch(url, { signal: ctl.signal }).catch(() => {});
-            clearTimeout(t);
-          } catch (e) { /* si WhatsApp falla, el pedido queda guardado igual */ }
-        }
+        datos.pedidos.push({ id: id(), texto, empleadoId: yo.id, fecha: ahora(), estado: 'pendiente', compradoEn: null, proveedorId: proveedorPara(datos, texto) });
+        const pendientes = datos.pedidos.filter(x => x.estado === 'pendiente').length;
+        await avisarWhatsApp(`🛒 *${LOCALES[localClave].nombre.toUpperCase()} · Pedidos*\n${yo.nombre} apuntó: *${texto}*\n(${pendientes} cosa(s) pendientes en la lista)`);
+        break;
+      }
+      case 'agregarPedidos': {
+        // Varios de golpe (por ejemplo, leídos de la foto de la libreta)
+        const textos = (Array.isArray(p.textos) ? p.textos : []).map(limpio).filter(Boolean);
+        if (!textos.length) { const e = new Error('No hay nada que apuntar.'); e.codigo = 400; throw e; }
+        textos.forEach(texto => datos.pedidos.push({ id: id(), texto, empleadoId: yo.id, fecha: ahora(), estado: 'pendiente', compradoEn: null, proveedorId: proveedorPara(datos, texto) }));
+        await avisarWhatsApp(`🛒 *${LOCALES[localClave].nombre.toUpperCase()} · Pedidos*\n${yo.nombre} apuntó ${textos.length} cosas:\n` + textos.map(t => '• ' + t).join('\n'));
+        break;
+      }
+      case 'asignarProveedor': {
+        const pd = datos.pedidos.find(x => x.id === p.id);
+        if (pd) pd.proveedorId = p.proveedorId || null;
+        break;
+      }
+
+      // ----- Proveedores (para mandar los pedidos por WhatsApp por categoría) -----
+      case 'guardarProveedor': {
+        if (!esJefe) soloJefe();
+        const nombre = limpio(p.nombre), telefono = limpio(p.telefono).replace(/[^\d+]/g, ''), palabras = limpio(p.palabras);
+        if (!nombre) { const e = new Error('El proveedor necesita un nombre.'); e.codigo = 400; throw e; }
+        datos.proveedores = datos.proveedores || [];
+        const ex = p.id && datos.proveedores.find(x => x.id === p.id);
+        if (ex) Object.assign(ex, { nombre, telefono, palabras });
+        else datos.proveedores.push({ id: id(), nombre, telefono, palabras });
+        // Reclasificar los pedidos pendientes sin proveedor
+        datos.pedidos.forEach(pd => { if (pd.estado === 'pendiente' && !pd.proveedorId) pd.proveedorId = proveedorPara(datos, pd.texto); });
+        break;
+      }
+      case 'borrarProveedor': {
+        if (!esJefe) soloJefe();
+        datos.proveedores = (datos.proveedores || []).filter(x => x.id !== p.id);
+        datos.pedidos.forEach(pd => { if (pd.proveedorId === p.id) pd.proveedorId = null; });
+        break;
+      }
+
+      // ----- Control de stock -----
+      case 'entradaStock': {
+        // Entra mercancía (de una foto de factura o a mano): suma cantidades
+        const items = (Array.isArray(p.items) ? p.items : [])
+          .map(i => ({ nombre: limpio(i.nombre), cantidad: Number(i.cantidad) || 0, unidad: limpio(i.unidad) }))
+          .filter(i => i.nombre && i.cantidad > 0);
+        if (!items.length) { const e = new Error('No encontré productos con cantidades.'); e.codigo = 400; throw e; }
+        datos.stock = datos.stock || [];
+        items.forEach(i => {
+          const ex = datos.stock.find(s => normalizarNombre(s.nombre) === normalizarNombre(i.nombre));
+          const mov = { fecha: ahora(), cambio: +i.cantidad, motivo: p.origen === 'factura' ? 'entrada (factura)' : 'entrada' };
+          if (ex) {
+            ex.cantidad = (Number(ex.cantidad) || 0) + i.cantidad;
+            if (i.unidad && !ex.unidad) ex.unidad = i.unidad;
+            ex.actualizado = ahora();
+            ex.historial = (ex.historial || []).concat(mov).slice(-20);
+          } else {
+            datos.stock.push({ id: id(), nombre: i.nombre, unidad: i.unidad, cantidad: i.cantidad, actualizado: ahora(), historial: [mov] });
+          }
+        });
+        break;
+      }
+      case 'ajustarStock': {
+        const s = (datos.stock || []).find(x => x.id === p.id);
+        if (!s) { const e = new Error('No encuentro ese producto.'); e.codigo = 404; throw e; }
+        const nueva = Math.max(0, Number(p.cantidad) || 0);
+        const mov = { fecha: ahora(), cambio: nueva - (Number(s.cantidad) || 0), motivo: nueva === 0 ? 'se acabó' : 'ajuste' };
+        s.cantidad = nueva; s.actualizado = ahora();
+        s.historial = (s.historial || []).concat(mov).slice(-20);
+        break;
+      }
+      case 'borrarStock': {
+        if (!esJefe) soloJefe();
+        datos.stock = (datos.stock || []).filter(x => x.id !== p.id);
         break;
       }
       case 'marcarPedido': {
@@ -422,7 +583,7 @@ module.exports = async (req, res) => {
       }
     }
 
-    if (hayCambios && !await guardarDatos(datos, sha)) continue;
+    if (hayCambios && !await guardarDatos(archivoLocal, datos, sha)) continue;
     return res.status(200).json({ ok: true, vista: vistaPara(datos, yo) });
     }
     return res.status(503).json({ error: 'Hay mucha gente guardando a la vez. Espera un momento y vuelve a intentarlo.' });
