@@ -18,7 +18,7 @@
 
   /* ---------- Login ---------- */
   .pantalla-login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; background: #fff; position: relative; }
-  .fondo-login { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: contain; padding: 2vmin; opacity: .45; pointer-events: none; }
+  .fondo-login { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: contain; padding: 2vmin; opacity: .55; pointer-events: none; }
   .caja-login { background: rgba(255,255,255,.82); backdrop-filter: blur(2px); border: 1px solid var(--borde); border-radius: 16px; padding: 28px 24px; width: 100%; max-width: 400px; box-shadow: 0 12px 40px rgba(27,94,32,.18); position: relative; }
   .caja-login h1 { color: var(--verde); font-size: 24px; text-align: center; }
   .caja-login .sub { text-align: center; color: #777; font-size: 14px; margin: 6px 0 18px; }
@@ -96,7 +96,7 @@
 
   /* ---------- Marca El Paraíso ---------- */
   #marca-agua { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 0; pointer-events: none; }
-  #marca-agua img { width: 100%; height: 100%; object-fit: contain; padding: 2vmin; opacity: .22; }
+  #marca-agua img { width: 100%; height: 100%; object-fit: contain; padding: 2vmin; opacity: .32; }
   .tarjeta, .panel-crear, .kpi, .modal, .caja-login, .trabajando-ahora, .tabla-horario td { color: var(--texto); }
   .contenido { position: relative; z-index: 1; }
   .logo-login { display: block; width: 120px; height: 120px; margin: 0 auto 12px; border-radius: 24px; box-shadow: 0 6px 18px rgba(0,0,0,.35); }
@@ -154,6 +154,7 @@
       </div>
     </div>
     <div>
+      <button id="btn-local" title="Cambiar de local">🏪</button>
       <button id="btn-clave">🔑</button>
       <button id="btn-salir">Salir</button>
     </div>
@@ -1072,6 +1073,12 @@ $('#btn-crear-jefe').onclick = async () => {
 };
 
 $('#btn-salir').onclick = () => { if (confirm('¿Cerrar sesión?')) cerrarSesion(); };
+$('#btn-local').onclick = () => {
+  const otro = localActual() === 'sazon' ? 'paraiso' : 'sazon';
+  if (!confirm('¿Cambiar a ' + LOCALES_APP[otro] + '? Cada local tiene sus propios empleados, tareas, stock y pedidos.')) return;
+  localStorage.setItem('equipo_local', otro);
+  location.reload();
+};
 $('#btn-clave').onclick = () => { $('#modal-clave').style.display = 'flex'; };
 $('#btn-cerrar-clave').onclick = () => { $('#modal-clave').style.display = 'none'; };
 $('#btn-guardar-clave').onclick = async () => {
