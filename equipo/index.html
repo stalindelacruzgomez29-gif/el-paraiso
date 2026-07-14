@@ -275,6 +275,7 @@
     <div class="vista activa" id="vista-avisos">
       <div id="mi-dia"></div>
       <div id="zona-reservas"></div>
+      <div id="zona-fidelidad"></div>
       <h2 class="titulo-vista">📢 Avisos</h2>
       <div class="panel-crear solo-jefe" style="display:none">
         <h3>Publicar un aviso para todo el equipo</h3>
@@ -349,6 +350,7 @@
             <a class="btn btn-borde btn-peq" id="btn-hp-google" target="_blank" rel="noopener">🗺️ Abrir Google del local</a>
             <button class="btn btn-borde btn-peq" id="btn-resena">💬 Responder una reseña con IA</button>
             <button class="btn btn-borde btn-peq" id="btn-enlace-reservas">📅 Copiar enlace de reservas</button>
+            <button class="btn btn-borde btn-peq" id="btn-enlace-fidelidad">🎁 Copiar enlace de sellos</button>
             <a class="btn btn-borde btn-peq" id="btn-hp-facebook" target="_blank" rel="noopener">📘 Abrir Facebook</a>
           </div>
         </div>
@@ -901,7 +903,7 @@ function comprobarTareasNuevas(esPrimeraCarga) {
 }
 
 /* ---------- Pintar cada sección ---------- */
-function pintarTodo() { pintarPanel(); pintarMiDia(); pintarAvisos(); pintarTareas(); pintarHorario(); pintarFichar(); pintarVacaciones(); pintarPedidos(); pintarStock(); pintarEquipo(); if (chatCon != null) pintarChat(); try { aplicarLogoPersonalizado(); pintarFirmaRegistro(); pintarReservas(); } catch (e) {} }
+function pintarTodo() { pintarPanel(); pintarMiDia(); pintarAvisos(); pintarTareas(); pintarHorario(); pintarFichar(); pintarVacaciones(); pintarPedidos(); pintarStock(); pintarEquipo(); if (chatCon != null) pintarChat(); try { aplicarLogoPersonalizado(); pintarFirmaRegistro(); pintarReservas(); pintarFidelidad(); } catch (e) {} }
 
 /* ---------- Panel con gráficos (solo jefe) ---------- */
 const graficos = {};
@@ -1982,6 +1984,67 @@ $('#btn-enlace-reservas').onclick = async () => {
   const url = location.origin + '/reservas.html?l=' + (localActual() || 'paraiso');
   try { await navigator.clipboard.writeText(url); aviso('📋 Enlace copiado: ponlo en Google, Instagram o WhatsApp.\n' + url); }
   catch (e) { aviso('Tu enlace de reservas:\n' + url); }
+};
+
+/* ---------- Fidelización: tarjeta de sellos digital ---------- */
+function pintarFidelidad() {
+  const z = $('#zona-fidelidad'); if (!z || !vista) return;
+  const esJefe = vista.yo.rol === 'jefe';
+  const fid = vista.fidelidad || { premio: '', sellosNecesarios: 10, clientes: [] };
+  if (!fid.premio && !esJefe) { z.innerHTML = ''; return; }
+  let html = `<div class="tarjeta"><strong style="color:var(--verde)">🎁 Sellos de fidelidad</strong>`;
+  if (esJefe) {
+    html += `<div class="fila-acciones" style="align-items:center;flex-wrap:wrap;margin-top:8px">
+      <input class="campo" id="fid-premio" placeholder="Premio (ej.: Una copa gratis)" value="${esc(fid.premio)}" style="margin:0;flex:1;min-width:150px">
+      <label style="font-size:13px">cada <input class="campo" type="number" id="fid-sellos" min="2" max="50" value="${fid.sellosNecesarios}" style="width:64px;margin:0 4px;padding:8px"> sellos</label>
+      <button class="btn btn-borde btn-peq" id="btn-fid-config">Guardar</button>
+    </div>`;
+  }
+  if (fid.premio) {
+    html += `<div class="fila-acciones" style="align-items:center;flex-wrap:wrap;margin-top:8px">
+      <input class="campo" id="fid-tel" type="tel" placeholder="Teléfono del cliente" style="margin:0;flex:1;min-width:140px">
+      <button class="btn btn-primario btn-peq" id="btn-fid-sello">➕ Sello</button>
+      <button class="btn btn-verde btn-peq" id="btn-fid-canjear">🎁 Canjear premio</button>
+    </div>
+    <div id="fid-resultado" style="font-size:14px;margin-top:6px"></div>
+    <div class="meta">Premio actual: <strong>${esc(fid.premio)}</strong> cada ${fid.sellosNecesarios} sellos. El cliente mira su tarjeta en el enlace público (🕐 Horario → 🎁 Copiar enlace de sellos).</div>`;
+  } else if (esJefe) {
+    html += `<div class="meta">Pon el premio y guarda para activar la tarjeta de sellos.</div>`;
+  }
+  z.innerHTML = html + '</div>';
+  const cfg = $('#btn-fid-config');
+  if (cfg) cfg.onclick = async () => {
+    try { await refrescar('configurarFidelidad', { premio: $('#fid-premio').value, sellos: $('#fid-sellos').value }); aviso('🎁 Fidelidad guardada'); }
+    catch (e) { aviso(e.message, true); }
+  };
+  const sello = $('#btn-fid-sello');
+  if (sello) sello.onclick = async () => {
+    const telefono = $('#fid-tel').value.trim();
+    if (!telefono) return aviso('Pon el teléfono del cliente.', true);
+    try {
+      const r = await llamar('ponerSello', { telefono });
+      vista = r.vista; pintarFidelidad();
+      $('#fid-resultado').innerHTML = r.sello.premio
+        ? `🎉 <strong>¡PREMIO!</strong> Este cliente se lleva: <strong>${esc(vista.fidelidad.premio)}</strong> (dáselo ya o queda pendiente)`
+        : `✅ Sello puesto: lleva <strong>${r.sello.sellos}</strong> de ${vista.fidelidad.sellosNecesarios}${r.sello.premiosPendientes ? ' · 🎁 tiene ' + r.sello.premiosPendientes + ' premio(s) pendiente(s)' : ''}`;
+      if ($('#fid-tel')) $('#fid-tel').value = telefono;
+    } catch (e) { aviso(e.message, true); }
+  };
+  const canje = $('#btn-fid-canjear');
+  if (canje) canje.onclick = async () => {
+    const telefono = $('#fid-tel').value.trim();
+    if (!telefono) return aviso('Pon el teléfono del cliente.', true);
+    if (!confirm('¿Entregar el premio a este cliente y descontarlo?')) return;
+    try {
+      await refrescar('canjearPremio', { telefono });
+      $('#fid-resultado').innerHTML = '🎁 Premio entregado. ¡A por el siguiente!';
+    } catch (e) { aviso(e.message, true); }
+  };
+}
+$('#btn-enlace-fidelidad').onclick = async () => {
+  const url = location.origin + '/fidelidad.html?l=' + (localActual() || 'paraiso');
+  try { await navigator.clipboard.writeText(url); aviso('📋 Enlace copiado: el cliente ve ahí sus sellos.\n' + url); }
+  catch (e) { aviso('Tu enlace de sellos:\n' + url); }
 };
 
 /* ---------- Exportar a Excel (CSV que Excel abre directamente) ---------- */

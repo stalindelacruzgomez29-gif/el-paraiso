@@ -181,7 +181,7 @@ module.exports = async (req, res) => {
 
     // 2) Traer el código fuente (en paralelo)
     const RUTAS = ['index.html', 'css/estilos.css', 'js/app.js', 'lib/chart.umd.min.js',
-      'api/leer.js', 'api/datos.js', 'api/equipo.js', 'equipo/index.html', 'carta.html', 'reservas.html', 'vercel.json', 'package.json',
+      'api/leer.js', 'api/datos.js', 'api/equipo.js', 'equipo/index.html', 'carta.html', 'reservas.html', 'fidelidad.html', 'vercel.json', 'package.json',
       'clonador/logo-988.png', 'clonador/logo-512.png', 'clonador/logo-192.png', 'clonador/logo-180.png', 'clonador/logo-48.png'];
     const fuentes = {};
     await Promise.all(RUTAS.map(async ruta => { fuentes[ruta] = await leerFuente(ruta); }));
@@ -235,6 +235,12 @@ module.exports = async (req, res) => {
       ['<h1 id="nombre-negocio">El Paraíso Bar Restaurante</h1>', `<h1 id="nombre-negocio">${nombre}</h1>`, 'nombre en reservas (html)']
     ], avisos, 'reservas.html');
 
+    const fidelidadHtml = personalizar(b64aTexto(fuentes['fidelidad.html']), [
+      [/const NOMBRES = \{[^\n]*\};/, `const NOMBRES = { paraiso: ${JSON.stringify(nombre)} };`, 'nombre en fidelidad (js)'],
+      [/const LOGOS_FIJOS = \{[^\n]*\};/, `const LOGOS_FIJOS = { paraiso: '/equipo/logo-fondo.png' };`, 'logos en fidelidad'],
+      ['<h1 id="nombre-negocio">El Paraíso Bar Restaurante</h1>', `<h1 id="nombre-negocio">${nombre}</h1>`, 'nombre en fidelidad (html)']
+    ], avisos, 'fidelidad.html');
+
     // vercel.json del cliente: igual que el nuestro pero SIN la parte del clonador
     const vercelJson = JSON.parse(b64aTexto(fuentes['vercel.json']));
     delete vercelJson.functions;
@@ -284,6 +290,7 @@ module.exports = async (req, res) => {
       { file: 'equipo/index.html', data: textoAB64(portal) },
       { file: 'carta.html', data: fuentes['carta.html'] },
       { file: 'reservas.html', data: textoAB64(reservasHtml) },
+      { file: 'fidelidad.html', data: textoAB64(fidelidadHtml) },
       { file: 'equipo/logo-fondo.png', data: fuentes['clonador/logo-988.png'] },
       { file: 'favicon.png', data: fuentes['clonador/logo-48.png'] },
       { file: 'apple-touch-icon.png', data: fuentes['clonador/logo-180.png'] },

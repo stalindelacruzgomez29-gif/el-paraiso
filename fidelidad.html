@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mi tarjeta de sellos</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --verde: #1b5e20; }
+  body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; background: #f6f9f4; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .caja { background: #fff; border-radius: 18px; box-shadow: 0 10px 32px rgba(27,94,32,.14); max-width: 420px; width: 100%; padding: 26px; text-align: center; }
+  .logo { max-height: 84px; max-width: 65%; margin-bottom: 8px; }
+  h1 { font-size: 20px; color: var(--verde); }
+  .sub { color: #789; font-size: 14px; margin: 6px 0 16px; }
+  .campo { width: 100%; padding: 13px; border: 1.5px solid #d7e3d7; border-radius: 10px; font-size: 17px; text-align: center; }
+  .btn { width: 100%; margin-top: 14px; padding: 14px; border: 0; border-radius: 12px; background: var(--verde); color: #fff; font-size: 17px; font-weight: 700; cursor: pointer; }
+  .sellos { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 18px 0 8px; }
+  .sello { width: 46px; height: 46px; border-radius: 50%; border: 2.5px dashed #cfdccf; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+  .sello.lleno { border-style: solid; border-color: var(--verde); background: #e8f5e9; }
+  .premio-caja { background: #fff8e1; border: 1.5px solid #ffe082; border-radius: 12px; padding: 12px; margin-top: 12px; font-size: 15px; }
+  .msj { display: none; margin-top: 12px; padding: 11px; border-radius: 10px; font-size: 14px; background: #fde8e8; color: #9b1c1c; }
+</style>
+</head>
+<body>
+<div class="caja">
+  <img class="logo" id="logo" alt="">
+  <h1 id="nombre-negocio">El Paraíso Bar Restaurante</h1>
+  <p class="sub" id="texto-arriba">Pon tu teléfono y mira cuántos sellos llevas</p>
+
+  <div id="paso-telefono">
+    <input class="campo" id="f-telefono" type="tel" placeholder="Tu teléfono" autocomplete="tel">
+    <button class="btn" id="btn-ver">🎁 Ver mi tarjeta</button>
+  </div>
+
+  <div id="tarjeta" style="display:none">
+    <div class="sellos" id="sellos"></div>
+    <div id="progreso" style="font-size:14.5px;color:#555"></div>
+    <div class="premio-caja" id="premio-caja" style="display:none"></div>
+  </div>
+  <div class="msj" id="msj"></div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const params = new URLSearchParams(location.search);
+const local = ['paraiso', 'sazon'].includes(params.get('l')) ? params.get('l') : 'paraiso';
+const NOMBRES = { paraiso: 'El Paraíso Bar Restaurante', sazon: 'El Sazón de Quisqueya' };
+const LOGOS_FIJOS = { paraiso: '/equipo/logo-fondo.png', sazon: '/equipo/logo-sazon.png' };
+$('#nombre-negocio').textContent = NOMBRES[local] || NOMBRES.paraiso;
+$('#logo').src = '/api/equipo?logo=' + local;
+$('#logo').onerror = () => { $('#logo').onerror = null; $('#logo').src = LOGOS_FIJOS[local] || LOGOS_FIJOS.paraiso; };
+
+$('#btn-ver').onclick = async () => {
+  const btn = $('#btn-ver'); btn.disabled = true; btn.textContent = 'Buscando...';
+  $('#msj').style.display = 'none';
+  try {
+    const r = await fetch('/api/equipo', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accion: 'verFidelidad', local, telefono: $('#f-telefono').value }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'No se pudo consultar.');
+    if (!j.activa) throw new Error('La tarjeta de sellos no está activa todavía. ¡Pregunta en el bar!');
+    $('#tarjeta').style.display = 'block';
+    $('#texto-arriba').textContent = j.existe ? '¡Aquí está tu tarjeta!' : 'Aún no tienes sellos: pide que te pongan el primero 😉';
+    $('#sellos').innerHTML = Array.from({ length: j.necesarios }, (_, i) =>
+      `<div class="sello ${i < j.sellos ? 'lleno' : ''}">${i < j.sellos ? '🍺' : ''}</div>`).join('');
+    $('#progreso').innerHTML = `Llevas <strong>${j.sellos}</strong> de <strong>${j.necesarios}</strong> sellos · Premio: <strong>${j.premio}</strong>`;
+    if (j.premiosPendientes > 0) {
+      $('#premio-caja').style.display = 'block';
+      $('#premio-caja').innerHTML = `🎉 ¡Tienes <strong>${j.premiosPendientes} premio(s)</strong> por recoger: <strong>${j.premio}</strong>!<br>Enséñale esta pantalla al camarero.`;
+    } else $('#premio-caja').style.display = 'none';
+  } catch (e) { const m = $('#msj'); m.style.display = 'block'; m.textContent = e.message; }
+  btn.disabled = false; btn.textContent = '🎁 Ver mi tarjeta';
+};
+</script>
+</body>
+</html>

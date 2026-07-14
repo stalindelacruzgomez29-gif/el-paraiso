@@ -38,6 +38,7 @@ function datosVacios() {
     cambiosTurno: [],   // intercambios de turno [{id, deId, conId, dia, semana, estado, creada, respondida, resuelta}]
     documentos: [],     // carpeta laboral [{id, empleadoId, nombre, ruta, tipo, tam, subido, subidoPor}] (el archivo vive en el repo)
     reservas: [],       // reservas de mesa [{id, nombre, telefono, personas, fecha, hora, nota, estado, creada, resueltaPor}]
+    fidelidad: { premio: '', sellosNecesarios: 10, clientes: [] },   // tarjeta de sellos [{telefono, nombre, sellos, premios, creado, ultimo}]
     avisosFichajeHechos: {},  // para no repetir el aviso de retraso/salida del mismo día
     config: { local: null, radioM: 100 }   // local = {lat,lng} del restaurante para el control de fichaje
   };
@@ -386,6 +387,12 @@ function vistaPara(datos, yo) {
     cambiosTurno: (datos.cambiosTurno || []).filter(c => esJefe || c.deId === yo.id || c.conId === yo.id).slice(-100),
     // Documentos: cada uno los suyos; el jefe todos (solo la ficha; el archivo se pide aparte)
     documentos: (datos.documentos || []).filter(d => esJefe || d.empleadoId === yo.id).slice(-300),
+    // Fidelización: la config para todos; los clientes con sellos, para poder atender en barra
+    fidelidad: {
+      premio: (datos.fidelidad && datos.fidelidad.premio) || '',
+      sellosNecesarios: (datos.fidelidad && datos.fidelidad.sellosNecesarios) || 10,
+      clientes: ((datos.fidelidad && datos.fidelidad.clientes) || []).slice(-150)
+    },
     // Reservas de mesa: todo el equipo ve las de hoy en adelante (y las de ayer, por si acaso)
     reservas: (datos.reservas || []).filter(r => {
       const ayer = new Date(); ayer.setDate(ayer.getDate() - 1);
@@ -555,6 +562,19 @@ module.exports = async (req, res) => {
       if (!await guardarDatos(archivoLocal, datos, sha)) continue;
       await avisarWhatsApp(`📅 *${LOCALES[localClave].nombre.toUpperCase()} · Reserva nueva*\n${nombre} · ${personas} pers.\n${fecha} a las ${hora}\n📞 ${telefono}${nota ? '\n📝 ' + nota : ''}\n(confírmala en el portal)`);
       return res.status(200).json({ ok: true, mensaje: '¡Reserva apuntada! Te llamaremos o escribiremos para confirmarla.' });
+    }
+
+    if (accion === 'verFidelidad') {
+      // El cliente consulta su tarjeta de sellos desde la página pública (solo con su teléfono)
+      const tel = limpio(p.telefono).replace(/\D/g, '');
+      if (tel.length < 9) return res.status(400).json({ error: 'Pon el teléfono con el que te apuntamos los sellos.' });
+      const fid = datos.fidelidad || {};
+      if (!fid.premio) return res.status(200).json({ activa: false });
+      const cli = (fid.clientes || []).find(c => c.telefono === tel);
+      return res.status(200).json({
+        activa: true, premio: fid.premio, necesarios: fid.sellosNecesarios || 10,
+        sellos: cli ? cli.sellos : 0, premiosPendientes: cli ? (cli.premios || 0) : 0, existe: !!cli
+      });
     }
 
     if (accion === 'login') {
@@ -1050,6 +1070,59 @@ module.exports = async (req, res) => {
         if (!r.ok) { const e = new Error('No pude guardar la firma (código ' + r.status + ').'); e.codigo = 500; throw e; }
         datos.documentos.push({ id: docId, empleadoId: yo.id, nombre: 'Registro firmado ' + mes, ruta, tipo: 'image/png',
           tam: Math.round(base64.length * 3 / 4), subido: ahora(), subidoPor: yo.id, firmaMes: mes });
+        break;
+      }
+
+      // ----- Fidelización: tarjeta de sellos digital -----
+      case 'configurarFidelidad': {
+        if (!esJefe) soloJefe();
+        datos.fidelidad = datos.fidelidad || { clientes: [] };
+        datos.fidelidad.premio = limpio(p.premio).slice(0, 80);
+        const n = Math.round(Number(p.sellos));
+        datos.fidelidad.sellosNecesarios = (n >= 2 && n <= 50) ? n : 10;
+        break;
+      }
+      case 'ponerSello': {
+        const fid = datos.fidelidad = datos.fidelidad || { premio: '', sellosNecesarios: 10, clientes: [] };
+        if (!fid.premio) { const e = new Error('Primero configura el premio (lo hace el administrador).'); e.codigo = 400; throw e; }
+        const tel = limpio(p.telefono).replace(/\D/g, '');
+        if (tel.length < 9) { const e = new Error('Pon el teléfono del cliente (mínimo 9 números).'); e.codigo = 400; throw e; }
+        fid.clientes = fid.clientes || [];
+        let cli = fid.clientes.find(c => c.telefono === tel);
+        if (!cli) {
+          cli = { telefono: tel, nombre: limpio(p.nombre).slice(0, 40), sellos: 0, premios: 0, creado: ahora(), ultimo: null };
+          fid.clientes.push(cli);
+          if (fid.clientes.length > 2000) fid.clientes = fid.clientes.slice(-1500);
+        }
+        if (limpio(p.nombre)) cli.nombre = limpio(p.nombre).slice(0, 40);
+        // Freno anti-doble-toque: máximo un sello por cliente cada 2 minutos
+        if (cli.ultimo && Date.now() - new Date(cli.ultimo) < 2 * 60000) {
+          const e = new Error('A este cliente ya se le puso un sello hace un momento.'); e.codigo = 429; throw e;
+        }
+        cli.sellos = (cli.sellos || 0) + 1;
+        cli.ultimo = ahora();
+        let premio = false;
+        if (cli.sellos >= (fid.sellosNecesarios || 10)) { cli.sellos = 0; cli.premios = (cli.premios || 0) + 1; premio = true; }
+        if (!await guardarDatos(archivoLocal, datos, sha)) continue;
+        return res.status(200).json({ ok: true, vista: vistaPara(datos, yo), sello: { telefono: tel, sellos: cli.sellos, premio, premiosPendientes: cli.premios } });
+      }
+      case 'canjearPremio': {
+        const fid = datos.fidelidad || {};
+        const tel = limpio(p.telefono).replace(/\D/g, '');
+        const cli = (fid.clientes || []).find(c => c.telefono === tel);
+        if (!cli || !(cli.premios > 0)) { const e = new Error('Este cliente no tiene ningún premio pendiente.'); e.codigo = 404; throw e; }
+        cli.premios--;
+        cli.ultimo = ahora();
+        break;
+      }
+      case 'ajustarSellos': {
+        if (!esJefe) soloJefe();
+        const fid = datos.fidelidad || {};
+        const tel = limpio(p.telefono).replace(/\D/g, '');
+        const cli = (fid.clientes || []).find(c => c.telefono === tel);
+        if (!cli) { const e = new Error('No encuentro a ese cliente.'); e.codigo = 404; throw e; }
+        const n = Math.round(Number(p.sellos));
+        if (n >= 0 && n <= 50) cli.sellos = n;
         break;
       }
 
