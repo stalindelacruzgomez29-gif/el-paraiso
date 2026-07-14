@@ -181,6 +181,13 @@
       var LOGOS = { paraiso: 'logo-fondo.png', sazon: 'logo-sazon.png' };
       if (loc && LOGOS[loc]) document.getElementById('splash-logo').src = LOGOS[loc];
       if (loc === 'sazon') document.getElementById('splash').style.background = '#123a63';
+      // Si el negocio subió su propio logo, se usa ese (guardado la última vez)
+      var propio = localStorage.getItem('equipo_logo_' + (loc || 'paraiso'));
+      if (propio) {
+        document.getElementById('splash-logo').src = propio;
+        var fondoLogin = document.querySelector('.fondo-login');
+        if (fondoLogin) fondoLogin.src = propio;
+      }
     } catch (e) {}
   })();
 </script>
@@ -370,7 +377,11 @@
           <input class="campo" type="month" id="mes-informe" style="margin:0;width:auto;padding:8px">
           <button class="btn btn-primario btn-peq" id="btn-informe-gestoria">🖨 Horas para la gestoría</button>
           <button class="btn btn-borde btn-peq" id="btn-registro-legal">🖨 Registro horario (firmable)</button>
+          <button class="btn btn-borde btn-peq" onclick="excelInforme()">⬇️ Mes en Excel</button>
+          <button class="btn btn-borde btn-peq" onclick="excelFichajes()">⬇️ Fichajes en Excel</button>
+          <button class="btn btn-borde btn-peq" onclick="verBancoHoras()">🏦 Banco de horas</button>
         </div>
+        <div id="banco-horas"></div>
         <p class="nota-turnos">El <strong>registro horario</strong> es el documento que exige la ley: imprímelo (o guárdalo como PDF) cada mes y que cada trabajador lo firme. Los fichajes antiguos se guardan solos en el archivo del año, no se pierden.</p>
       </div>
       <div class="lista-fichajes">
@@ -410,7 +421,7 @@
 
     <!-- PEDIDOS -->
     <div class="vista" id="vista-pedidos">
-      <h2 class="titulo-vista">🛒 Pedidos · lo que falta</h2>
+      <h2 class="titulo-vista">🛒 Pedidos · lo que falta <button class="btn btn-borde btn-peq" onclick="excelPedidos()" style="float:right">⬇️ Excel</button></h2>
       <div class="panel-crear">
         <h3>Apuntar algo que falta</h3>
         <input class="campo" id="nuevo-pedido" placeholder="Ej.: 2 cajas de cerveza, limones, servilletas...">
@@ -438,7 +449,7 @@
 
     <!-- STOCK -->
     <div class="vista" id="vista-stock">
-      <h2 class="titulo-vista" id="titulo-stock">📦 Stock</h2>
+      <h2 class="titulo-vista" style="display:flex;justify-content:space-between;align-items:center"><span id="titulo-stock">📦 Stock</span> <button class="btn btn-borde btn-peq" onclick="excelStock()">⬇️ Excel</button></h2>
       <div class="panel-crear">
         <h3>Entrada de mercancía</h3>
         <div class="fila-acciones">
@@ -472,6 +483,15 @@
         <button class="btn btn-primario btn-peq" id="btn-crear-emp">➕ Crear cuenta</button>
       </div>
       <div id="lista-empleados"></div>
+      <div class="panel-crear">
+        <h3>🎨 Tu marca</h3>
+        <input type="file" id="logo-archivo" accept="image/*" hidden>
+        <div class="fila-acciones">
+          <button class="btn btn-primario btn-peq" id="btn-subir-logo">🖼 Cambiar el logo del negocio</button>
+          <button class="btn btn-borde btn-peq" onclick="excelEquipo()">⬇️ Equipo en Excel</button>
+        </div>
+        <p class="nota-turnos">Sube tu logo (foto o PNG) y aparecerá en la pantalla de entrada, la cabecera y el arranque de la app — sin tocar código.</p>
+      </div>
     </div>
 
   </div>
@@ -833,7 +853,7 @@ function comprobarTareasNuevas(esPrimeraCarga) {
 }
 
 /* ---------- Pintar cada sección ---------- */
-function pintarTodo() { pintarPanel(); pintarMiDia(); pintarAvisos(); pintarTareas(); pintarHorario(); pintarFichar(); pintarVacaciones(); pintarPedidos(); pintarStock(); pintarEquipo(); if (chatCon != null) pintarChat(); }
+function pintarTodo() { pintarPanel(); pintarMiDia(); pintarAvisos(); pintarTareas(); pintarHorario(); pintarFichar(); pintarVacaciones(); pintarPedidos(); pintarStock(); pintarEquipo(); if (chatCon != null) pintarChat(); try { aplicarLogoPersonalizado(); } catch (e) {} }
 
 /* ---------- Panel con gráficos (solo jefe) ---------- */
 const graficos = {};
@@ -1674,7 +1694,7 @@ function pintarVacaciones() {
       <span style="color:#666">del ${a.desde} al ${a.hasta}</span></span><span class="est est-aprobada">aprobada</span></div>`).join('')
     : '<div class="vacio">Nadie tiene ausencias próximas.</div>';
   // Mis peticiones (o el historial completo si soy el jefe)
-  $('#vac-mias-titulo').textContent = esJefe ? 'Historial' : 'Mis peticiones';
+  $('#vac-mias-titulo').innerHTML = esJefe ? 'Historial <button class="btn btn-borde btn-peq" onclick="excelAusencias()" style="margin-left:8px">⬇️ Excel</button>' : 'Mis peticiones';
   const mias = esJefe ? [...aus].reverse().slice(0, 30) : [...aus.filter(a => a.empleadoId === vista.yo.id)].reverse();
   $('#vac-mias').innerHTML = mias.length ? mias.map(a => `
     <div class="aus"><span>${esJefe ? '<strong>' + esc(nombreDe(a.empleadoId)) + '</strong> · ' : ''}${TIPO_AUSENCIA[a.tipo] || a.tipo}<br>
@@ -1876,6 +1896,118 @@ window.borrarDoc = async id => {
   if (!confirm('¿Borrar este documento para siempre?')) return;
   try { await refrescar('borrarDocumento', { id }); pintarDocsModal(); aviso('🗑 Documento borrado'); }
   catch (e) { aviso(e.message, true); }
+};
+
+/* ---------- Exportar a Excel (CSV que Excel abre directamente) ---------- */
+function descargarCSV(nombre, filas) {
+  const csv = '﻿' + filas.map(f => f.map(c => {
+    const t = String(c == null ? '' : c).replace(/"/g, '""');
+    return /[;"\n]/.test(t) ? '"' + t + '"' : t;
+  }).join(';')).join('\n');
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = nombre + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  aviso('⬇️ Descargado: ' + nombre + '.csv (se abre con Excel)');
+}
+window.excelFichajes = () => {
+  const filas = [['Trabajador/a', 'Tipo', 'Fecha', 'Hora', 'Distancia (m)']];
+  (vista.fichajes || []).forEach(f => {
+    const d = new Date(f.ts);
+    filas.push([nombreDe(f.empleadoId), f.tipo, d.toLocaleDateString('es-ES'), d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }), f.dist != null ? f.dist : '']);
+  });
+  descargarCSV('fichajes', filas);
+};
+window.excelEquipo = () => {
+  const filas = [['Nombre', 'Correo', 'Puesto', 'Contrato (h/semana)', 'Vacaciones (días/año)', 'Coste (€/hora)', 'Activo']];
+  vista.empleados.filter(e => e.rol !== 'jefe').forEach(e =>
+    filas.push([e.nombre, e.email, e.puesto || '', e.horasContrato || '', e.diasVacaciones || '', (vista.costesHora || {})[e.id] || '', e.activo ? 'sí' : 'no']));
+  descargarCSV('equipo', filas);
+};
+window.excelAusencias = () => {
+  const filas = [['Trabajador/a', 'Tipo', 'Desde', 'Hasta', 'Días', 'Estado', 'Motivo']];
+  (vista.ausencias || []).forEach(a => filas.push([nombreDe(a.empleadoId), a.tipo, a.desde, a.hasta, diasDe(a), a.estado, a.motivo || '']));
+  descargarCSV('vacaciones-y-ausencias', filas);
+};
+window.excelStock = () => {
+  const filas = [['Producto', 'Cantidad', 'Unidad', 'Actualizado']];
+  (vista.stock || []).forEach(s => filas.push([s.nombre, s.cantidad, s.unidad || '', s.actualizado ? new Date(s.actualizado).toLocaleDateString('es-ES') : '']));
+  descargarCSV('stock', filas);
+};
+window.excelPedidos = () => {
+  const filas = [['Qué', 'Estado', 'Apuntado por', 'Fecha', 'Proveedor']];
+  (vista.pedidos || []).forEach(p => filas.push([p.texto, p.estado, nombreDe(p.empleadoId), new Date(p.fecha).toLocaleDateString('es-ES'),
+    (vista.proveedores || []).find(x => x.id === p.proveedorId)?.nombre || '']));
+  descargarCSV('pedidos', filas);
+};
+window.excelInforme = async () => {
+  const mes = $('#mes-informe').value || new Date().toLocaleDateString('sv-SE').slice(0, 7);
+  try {
+    const r = await llamar('informeMes', { mes });
+    const filas = [['Trabajador/a', 'Fecha', 'Entrada', 'Salida', 'Minutos', 'Horas del día', 'Total del mes (h)']];
+    r.informe.empleados.forEach(e => {
+      const fechas = Object.keys(e.dias).sort();
+      fechas.forEach(f => e.dias[f].tramos.forEach(t =>
+        filas.push([e.nombre, f, t.e, t.s || '(sin salida)', t.min, fmtMin(e.dias[f].minutos), (e.totalMin / 60).toFixed(2)])));
+      if (!fechas.length) filas.push([e.nombre, '(sin fichajes)', '', '', '', '', '0']);
+    });
+    descargarCSV('horas-' + mes, filas);
+  } catch (e) { aviso(e.message, true); }
+};
+
+/* ---------- Banco de horas (saldo del año, orientativo) ---------- */
+window.verBancoHoras = async () => {
+  try {
+    const r = await llamar('bancoHoras', {});
+    const signo = m => (m >= 0 ? '+' : '−') + fmtMin(Math.abs(m));
+    $('#banco-horas').innerHTML = r.banco.length ? `<div class="tarjeta" style="margin-top:8px">
+      <strong style="color:var(--verde)">🏦 Banco de horas ${r.anio}</strong>
+      ${r.banco.map(b => `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:14px;border-bottom:1px dashed var(--borde)">
+        <span>${esc(b.nombre)} <span style="color:#888;font-size:12px">(${b.horasContrato} h/sem desde ${b.desde})</span></span>
+        <strong style="color:${b.saldoMin >= 0 ? 'var(--verde)' : 'var(--rojo)'}">${signo(b.saldoMin)}</strong></div>`).join('')}
+      <div class="meta">Fichado vs. contrato, descontando vacaciones y bajas aprobadas. Orientativo: la última palabra la tiene la gestoría.</div></div>`
+      : '<div class="vacio">Pon las horas de contrato en las fichas (👥 Equipo → ✏️) para calcular el banco de horas.</div>';
+  } catch (e) { aviso(e.message, true); }
+};
+
+/* ---------- Logo personalizable sin código ---------- */
+async function logoABase64(archivo) {
+  let bmp;
+  try { bmp = await createImageBitmap(archivo); }
+  catch (e) {
+    bmp = await new Promise((res, rej) => { const img = new Image(); img.onload = () => res(img); img.onerror = rej; img.src = URL.createObjectURL(archivo); });
+  }
+  const w = bmp.width || bmp.naturalWidth, h = bmp.height || bmp.naturalHeight;
+  const escala = Math.min(1, 512 / Math.max(w, h));
+  const c = document.createElement('canvas');
+  c.width = Math.round(w * escala); c.height = Math.round(h * escala);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  return c.toDataURL('image/png').split(',')[1];   // PNG: conserva la transparencia
+}
+function aplicarLogoPersonalizado() {
+  if (!vista) return;
+  const loc = localActual() || 'paraiso';
+  const v = vista.config && vista.config.logoPersonalizado;
+  if (!v) { localStorage.removeItem('equipo_logo_' + loc); return; }
+  const url = API + '?logo=' + loc + '&v=' + v;
+  localStorage.setItem('equipo_logo_' + loc, url);   // para que el arranque y la entrada lo usen la próxima vez
+  const cab = $('#logo-cab'); if (cab) { cab.src = url; cab.style.display = ''; }
+  const fondo = document.querySelector('.fondo-login'); if (fondo) fondo.src = url;
+  const lg = $('#logo-login'); if (lg && lg.style.display !== 'none') lg.src = url;
+}
+$('#btn-subir-logo').onclick = () => $('#logo-archivo').click();
+$('#logo-archivo').onchange = async function () {
+  const archivo = this.files && this.files[0];
+  this.value = '';
+  if (!archivo) return;
+  try {
+    aviso('🖼 Preparando el logo...');
+    const base64 = await logoABase64(archivo);
+    await refrescar('subirLogo', { base64 });
+    aplicarLogoPersonalizado();
+    aviso('✅ Logo cambiado: se verá en la entrada, la cabecera y el arranque');
+  } catch (e) { aviso(e.message, true); }
 };
 
 /* ---------- Botones ---------- */

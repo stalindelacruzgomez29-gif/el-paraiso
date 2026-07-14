@@ -97,6 +97,56 @@ function ausenteEse(datos, empleadoId, fecha) {
   return (datos.ausencias || []).some(a => a.empleadoId === empleadoId && a.estado === 'aprobada' && a.desde <= fecha && a.hasta >= fecha);
 }
 
+// Minutos trabajados por un empleado entre dos fechas ('YYYY-MM-DD', ambas incluidas),
+// emparejando entradas y salidas
+function minutosEnRango(fichajes, empleadoId, desde, hasta) {
+  let total = 0, abierta = null;
+  for (const f of fichajes.filter(x => x.empleadoId === empleadoId)) {
+    const fecha = fechaHoraEspana(f.ts).slice(0, 10);
+    if (f.tipo === 'entrada') { abierta = (fecha >= desde && fecha <= hasta) ? f : null; continue; }
+    if (abierta) { total += Math.max(0, Math.round((new Date(f.ts) - new Date(abierta.ts)) / 60000)); abierta = null; }
+  }
+  return total;
+}
+
+// Informe semanal del negocio: los lunes por la mañana, un WhatsApp al jefe con el
+// resumen de la semana pasada (horas, coste de personal, tareas, ausencias que vienen)
+async function informeSemanal(datos, localClave) {
+  if (!process.env.WHATSAPP_TELEFONO || !process.env.WHATSAPP_APIKEY) return false;
+  const hoy = hoyEspana();
+  if (new Date(hoy + 'T12:00:00Z').getUTCDay() !== 1) return false;   // solo los lunes
+  const semana = lunesDe(hoy);
+  if (datos.informeSemanaEnviado === semana) return false;            // ya se mandó
+  const desde = new Date(semana + 'T12:00:00Z'); desde.setUTCDate(desde.getUTCDate() - 7);
+  const lunAnt = desde.toISOString().slice(0, 10);
+  const domAnt = new Date(semana + 'T12:00:00Z'); domAnt.setUTCDate(domAnt.getUTCDate() - 1);
+  const hastaAnt = domAnt.toISOString().slice(0, 10);
+  const gente = datos.empleados.filter(e => e.rol !== 'jefe' && e.activo !== false);
+  let totalMin = 0, coste = 0; const lineas = [];
+  gente.forEach(e => {
+    const min = minutosEnRango(datos.fichajes, e.id, lunAnt, hastaAnt);
+    if (!min) return;
+    totalMin += min;
+    if (e.costeHora) coste += (min / 60) * e.costeHora;
+    lineas.push(`• ${e.nombre}: ${Math.floor(min / 60)}h ${String(min % 60).padStart(2, '0')}m`);
+  });
+  const tareasHechas = datos.tareas.filter(t => t.hechaEn && t.hechaEn.slice(0, 10) >= lunAnt && t.hechaEn.slice(0, 10) <= hastaAnt).length;
+  const comprado = datos.pedidos.filter(p => p.compradoEn && p.compradoEn.slice(0, 10) >= lunAnt && p.compradoEn.slice(0, 10) <= hastaAnt).length;
+  const finSemana = new Date(semana + 'T12:00:00Z'); finSemana.setUTCDate(finSemana.getUTCDate() + 6);
+  const ausencias = (datos.ausencias || []).filter(a => a.estado === 'aprobada' && a.desde <= finSemana.toISOString().slice(0, 10) && a.hasta >= semana)
+    .map(a => `• ${nombreEmpleado(datos, a.empleadoId)} (${a.tipo}: ${a.desde} → ${a.hasta})`);
+  const msg = `📊 *${LOCALES[localClave].nombre.toUpperCase()} · Resumen semanal*\n(semana del ${lunAnt} al ${hastaAnt})\n\n` +
+    `⏳ Horas del equipo: *${Math.floor(totalMin / 60)}h ${String(totalMin % 60).padStart(2, '0')}m*\n` +
+    (coste ? `💶 Coste de personal: *${Math.round(coste)} €*\n` : '') +
+    (lineas.length ? lineas.join('\n') + '\n' : '') +
+    `\n✅ Tareas completadas: ${tareasHechas}\n🛒 Compras hechas: ${comprado}\n` +
+    (ausencias.length ? `\n🏖 Esta semana faltan:\n${ausencias.join('\n')}\n` : '') +
+    `\n_Los detalles, en tu portal (⏱ Fichar → Informes)._`;
+  await avisarWhatsApp(msg);
+  datos.informeSemanaEnviado = semana;
+  return true;
+}
+
 // Avisos de fichaje: si alguien no ha fichado a su hora o se dejó la salida abierta,
 // le llega un WhatsApp al jefe. Se comprueba "de paso" cada vez que alguien usa el portal.
 async function comprobarAvisosFichaje(datos, localClave) {
@@ -301,7 +351,7 @@ function vistaPara(datos, yo) {
     documentos: (datos.documentos || []).filter(d => esJefe || d.empleadoId === yo.id).slice(-300),
     // Lo que cuesta la hora de cada uno: SOLO lo ve el jefe
     ...(esJefe ? { costesHora: Object.fromEntries(datos.empleados.filter(e => e.costeHora).map(e => [e.id, e.costeHora])) } : {}),
-    config: { radioM: (datos.config && datos.config.radioM) || 100, controlUbicacion: !!(datos.config && datos.config.local), avisosFichaje: !!(datos.config && datos.config.avisosFichaje) }
+    config: { radioM: (datos.config && datos.config.radioM) || 100, controlUbicacion: !!(datos.config && datos.config.local), avisosFichaje: !!(datos.config && datos.config.avisosFichaje), logoPersonalizado: (datos.config && datos.config.logoPersonalizado) || null }
   };
 }
 
@@ -310,6 +360,21 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
+
+  // ── El logo personalizado del negocio (público: la pantalla de entrada lo pide antes de iniciar sesión)
+  if (req.method === 'GET' && req.query && req.query.logo) {
+    try {
+      const clave = LOCALES[limpio(req.query.logo)] ? limpio(req.query.logo) : 'paraiso';
+      const r = await fetch(`https://api.github.com/repos/${REPO_DATOS}/contents/marca/logo-${clave}.png?ref=main`, {
+        headers: { 'Authorization': 'Bearer ' + process.env.EQUIPO_GITHUB_TOKEN, 'Accept': 'application/vnd.github.raw', 'User-Agent': 'el-paraiso-equipo' }
+      });
+      if (!r.ok) return res.status(404).end();
+      const buf = Buffer.from(await r.arrayBuffer());
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      return res.status(200).send(buf);
+    } catch (e) { return res.status(404).end(); }
+  }
 
   // ── Llamada del programador de Vercel (cada mañana, GET con clave secreta):
   //    convierte las funciones automáticas en las tareas del día, sin que nadie toque nada
@@ -337,6 +402,9 @@ module.exports = async (req, res) => {
             creadas++;
           });
           datos.cronDia = hoy;
+
+          // Los lunes: informe semanal del negocio por WhatsApp
+          try { await informeSemanal(datos, clave); } catch (e) { /* sin romper el cron */ }
 
           // Archivar los fichajes de meses cerrados en el archivo del año
           // (así el registro horario legal se conserva años sin que crezca el archivo principal)
@@ -820,6 +888,53 @@ module.exports = async (req, res) => {
         const ausenciasMes = (datos.ausencias || []).filter(a => a.estado === 'aprobada' && a.desde.slice(0, 7) <= mes && a.hasta.slice(0, 7) >= mes)
           .map(a => ({ empleadoId: a.empleadoId, nombre: nombreEmpleado(datos, a.empleadoId), tipo: a.tipo, desde: a.desde, hasta: a.hasta }));
         return res.status(200).json({ ok: true, informe: { mes, empleados: empleadosInforme, ausencias: ausenciasMes, generado: ahora() } });
+      }
+
+      // ----- Banco de horas: saldo acumulado del año (fichado vs contrato, orientativo) -----
+      case 'bancoHoras': {
+        if (!esJefe) soloJefe();
+        const hoy = hoyEspana();
+        const anio = hoy.slice(0, 4);
+        // Todos los fichajes del año: los vivos + los archivados
+        let delAnio = datos.fichajes.filter(f => fechaHoraEspana(f.ts).slice(0, 4) === anio);
+        try {
+          const { lista } = await leerLista(nombreArchivoFichajes(archivoLocal, anio));
+          const yaIds = new Set(delAnio.map(f => f.id));
+          lista.forEach(f => { if (!yaIds.has(f.id)) delAnio.push(f); });
+        } catch (e) { /* sin archivo todavía */ }
+        delAnio.sort((a, b) => a.ts < b.ts ? -1 : 1);
+        const banco = datos.empleados.filter(e => e.rol !== 'jefe' && e.activo !== false && e.horasContrato).map(e => {
+          const inicio = [anio + '-01-01', (e.creado || '').slice(0, 10)].sort()[1] || anio + '-01-01';
+          const fichadoMin = minutosEnRango(delAnio, e.id, inicio, hoy);
+          // Contrato esperado: semanas transcurridas × horas de contrato, descontando vacaciones aprobadas
+          const dias = Math.max(1, Math.round((new Date(hoy) - new Date(inicio)) / 86400000) + 1);
+          const diasVac = (datos.ausencias || []).filter(a => a.empleadoId === e.id && a.estado === 'aprobada' && a.tipo !== 'otro')
+            .reduce((s, a) => {
+              const d1 = a.desde < inicio ? inicio : a.desde, d2 = a.hasta > hoy ? hoy : a.hasta;
+              return d2 >= d1 ? s + Math.round((new Date(d2) - new Date(d1)) / 86400000) + 1 : s;
+            }, 0);
+          const esperadoMin = Math.round(Math.max(0, dias - diasVac) / 7 * e.horasContrato * 60);
+          return { id: e.id, nombre: e.nombre, horasContrato: e.horasContrato, fichadoMin, esperadoMin, saldoMin: fichadoMin - esperadoMin, desde: inicio };
+        });
+        return res.status(200).json({ ok: true, banco, anio });
+      }
+
+      // ----- Marca personalizable sin código: el jefe sube su logo -----
+      case 'subirLogo': {
+        if (!esJefe) soloJefe();
+        const base64 = String(p.base64 || '');
+        if (!base64) { const e = new Error('No me llegó la imagen.'); e.codigo = 400; throw e; }
+        if (base64.length > 700000) { const e = new Error('La imagen es demasiado grande: usa una de hasta ~500 KB.'); e.codigo = 400; throw e; }
+        const ruta = `marca/logo-${localClave}.png`;
+        const rGet = await gh('GET', `/repos/${REPO_DATOS}/contents/${ruta}?ref=main`);
+        const shaLogo = rGet.ok ? (await rGet.json()).sha : undefined;
+        const r = await gh('PUT', `/repos/${REPO_DATOS}/contents/${ruta}`, {
+          message: 'logo del negocio', content: base64, branch: 'main', ...(shaLogo ? { sha: shaLogo } : {})
+        });
+        if (!r.ok) { const e = new Error('No pude guardar el logo (código ' + r.status + ').'); e.codigo = 500; throw e; }
+        datos.config = datos.config || {};
+        datos.config.logoPersonalizado = Date.now();   // sirve de "versión" para refrescar la imagen
+        break;
       }
 
       // ----- Fichajes (control horario, con control de ubicación) -----
