@@ -3519,7 +3519,66 @@ function rangoBalance() {
   return { tipo: 'mes', desde: m + '-01', hasta: m + '-31', etiqueta: 'de ' + nombreMes(m), archivo: m };
 }
 
+// ── Previsión de caja: cómo pinta el dinero en 30/60/90 días, contando los impuestos ──
+function vencimientosFiscalesProximos() {
+  const anio = new Date().getFullYear();
+  const lista = [];
+  for (const a of [anio - 1, anio, anio + 1]) {
+    lista.push({ t: 1, a, fecha: `${a}-04-20` });
+    lista.push({ t: 2, a, fecha: `${a}-07-20` });
+    lista.push({ t: 3, a, fecha: `${a}-10-20` });
+    lista.push({ t: 4, a, fecha: `${a + 1}-01-30` });
+  }
+  return lista.filter(f => f.fecha >= hoyISO()).sort((x, y) => (x.fecha < y.fecha ? -1 : 1));
+}
+function renderPrevisionCaja() {
+  const caja = document.getElementById('prevision-caja');
+  if (!caja) return;
+  try {
+    const hoy = hoyISO();
+    const hace28 = new Date(Date.now() - 28 * 86400000).toISOString().slice(0, 10);
+    const movs = movimientosEntre(hace28, hoy, 'todas');
+    if (movs.length < 5) { caja.innerHTML = ''; return; }   // sin ritmo reciente no hay previsión seria
+    const entradas = movs.filter(m => m.tipo === 'entrada').reduce((s, m) => s + m.monto, 0);
+    const salidas = movs.filter(m => m.tipo === 'salida').reduce((s, m) => s + m.monto, 0);
+    const netoDia = (entradas - salidas) / 28;
+    // Impuestos que vencen en los próximos 90 días (estimados con lo registrado hasta hoy)
+    const impuestos = vencimientosFiscalesProximos()
+      .filter(f => (new Date(f.fecha) - new Date(hoy)) / 86400000 <= 90)
+      .map(f => {
+        let total = 0;
+        try {
+          const iva = calcular303(f.a, f.t);
+          const irpf = calcular130(f.a, f.t);
+          total = Math.max(0, (iva && iva.resultado) || 0) + Math.max(0, (irpf && irpf.resultado) || 0);
+        } catch (e) { /* sin datos de ese trimestre */ }
+        return { ...f, total: Math.round(total * 100) / 100 };
+      })
+      .filter(f => f.total > 0);
+    const proyeccion = dias => {
+      const impHasta = impuestos.filter(f => (new Date(f.fecha) - new Date(hoy)) / 86400000 <= dias)
+        .reduce((s, f) => s + f.total, 0);
+      return netoDia * dias - impHasta;
+    };
+    const pinta = v => `<span class="kpi-valor ${v >= 0 ? 'positivo' : 'negativo'}" style="font-size:22px">${dinero(v)}</span>`;
+    const fBonita = f => f.split('-').reverse().join('/');
+    caja.innerHTML = `<div class="tarjeta" style="margin-bottom:14px">
+      <h3 style="margin-bottom:4px">🔮 Previsión de caja</h3>
+      <p style="font-size:13.5px;color:#777;margin-bottom:10px">Con el ritmo de tus últimos 28 días — entra una media de <strong>${dinero(entradas / 28)}</strong>/día y sale <strong>${dinero(salidas / 28)}</strong>/día — y descontando los impuestos que vencen:</p>
+      <div class="rejilla-kpis rejilla-kpis-3">
+        <div class="tarjeta kpi"><div class="kpi-etiqueta">Dentro de 30 días</div>${pinta(proyeccion(30))}</div>
+        <div class="tarjeta kpi"><div class="kpi-etiqueta">Dentro de 60 días</div>${pinta(proyeccion(60))}</div>
+        <div class="tarjeta kpi"><div class="kpi-etiqueta">Dentro de 90 días</div>${pinta(proyeccion(90))}</div>
+      </div>
+      ${impuestos.length ? `<p style="font-size:13px;color:#666;margin-top:8px">🧾 Impuestos ya descontados: ${impuestos.map(f => `<strong>${dinero(f.total)}</strong> el ${fBonita(f.fecha)} (T${f.t} ${f.a})`).join(' · ')} <em>(estimados con lo registrado hasta hoy)</em></p>` : ''}
+      ${proyeccion(90) < 0 ? '<p style="font-size:13.5px;color:#c62828;margin-top:6px"><strong>⚠️ Ojo:</strong> a este ritmo la caja se queda corta antes de 90 días. Revisa gastos o refuerza ventas antes de que llegue el impuesto.</p>' : ''}
+      <p style="font-size:12px;color:#aaa;margin-top:6px">Orientativa: proyecta tu ritmo reciente y los impuestos trimestrales. No adivina gastos extraordinarios (averías, obras...).</p>
+    </div>`;
+  } catch (e) { caja.innerHTML = ''; }
+}
+
 function renderBalance() {
+  renderPrevisionCaja();
   const tipo = ($('#bal-tipo') && $('#bal-tipo').value) || 'mes';
   $('#grupo-bal-dia').hidden = tipo !== 'dia';
   $('#grupo-bal-mes').hidden = tipo !== 'mes';
