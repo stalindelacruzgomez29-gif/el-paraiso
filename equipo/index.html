@@ -228,6 +228,7 @@
     </div>
     <div>
       <button id="btn-instalar" title="Instalar la app en el inicio" onclick="instalarApp()">📲</button>
+      <button id="btn-buzon" title="Mensajes privados" style="position:relative">💬<span id="buzon-num" style="display:none;position:absolute;top:-5px;right:-5px;background:#e53935;color:#fff;border-radius:10px;font-size:10px;font-weight:700;padding:1px 5px;border:2px solid #fff;line-height:1.3"></span></button>
       <button id="btn-ayuda" title="Guía: cómo funciona">❓</button>
       <button id="btn-local" title="Cambiar de local">🏪</button>
       <button id="btn-clave">🔑</button>
@@ -498,6 +499,15 @@
 
 <!-- Zona de impresión de informes (solo se ve al imprimir) -->
 <div id="zona-imprimir"></div>
+
+<!-- Modal buzón de mensajes (lista de conversaciones del jefe) -->
+<div class="modal-fondo" id="modal-buzon">
+  <div class="modal" style="max-width:440px">
+    <h3>💬 Buzón de mensajes</h3>
+    <div id="buzon-lista" style="max-height:50vh;overflow-y:auto"></div>
+    <div class="fila-acciones" style="margin-top:8px"><button class="btn btn-borde btn-peq" id="btn-buzon-cerrar">Cerrar</button></div>
+  </div>
+</div>
 
 <!-- Modal carpeta de documentos (contratos, nóminas...) -->
 <div class="modal-fondo" id="modal-docs">
@@ -803,12 +813,16 @@ function marcarTareasVistas() {
   localStorage.setItem(claveTareasVistas(), JSON.stringify(idsTareasPendientes()));
   const p = $('#punto-tareas'); if (p) p.style.display = 'none';
 }
+const tareasAnunciadas = new Set();   // para no repetir el mismo aviso en cada comprobación
 function comprobarTareasNuevas(esPrimeraCarga) {
   if (!vista || vista.yo.rol === 'jefe') return;   // el jefe crea las tareas, no se autoavisa
   const vistas = new Set(JSON.parse(localStorage.getItem(claveTareasVistas()) || '[]'));
   const nuevas = idsTareasPendientes().filter(id => !vistas.has(id));
   const p = $('#punto-tareas'); if (p) p.style.display = nuevas.length ? 'block' : 'none';
   if (!nuevas.length) return;
+  const sinAnunciar = nuevas.filter(id => !tareasAnunciadas.has(id));
+  nuevas.forEach(id => tareasAnunciadas.add(id));
+  if (!sinAnunciar.length) return;
   const primera = (vista.tareas || []).find(t => t.id === nuevas[0]);
   const texto = nuevas.length === 1 ? '📋 ¡Tarea nueva!: ' + (primera ? primera.titulo : '') : '📋 ¡Tienes ' + nuevas.length + ' tareas nuevas!';
   if (pestanaActual === 'tareas') { marcarTareasVistas(); return; }
@@ -1900,6 +1914,7 @@ const GUIA_COMUN = `
   <p><strong>🏖 Libres</strong> — Pide vacaciones, días libres o avisa de una baja. El jefe lo aprueba o rechaza y te aparece el estado. También ves las ausencias próximas del equipo, cuántos días de vacaciones te quedan y <strong>tus documentos</strong> (contrato, nóminas...) para descargarlos cuando quieras.</p>
   <p><strong>🛒 Pedidos</strong> — Apunta lo que falta o se está acabando (ej.: "2 cajas de cerveza"). También puedes hacer una foto de la libreta y lo apunta solo. Le llega un aviso al jefe.</p>
   <p><strong>📦 Stock</strong> — Lo que hay en el almacén. Con − y + se descuenta o suma lo que se gasta; al llegar a 0 se apunta solo en Pedidos.</p>
+  <p><strong>💬 Buzón</strong> — El botón 💬 de arriba está en todas las pantallas: si te llega un mensaje privado, verás un número rojo. Tócalo para leerlo y responder al momento. La app comprueba sola si hay mensajes nuevos.</p>
   <p><strong>🔑 Tu contraseña</strong> — Con el botón 🔑 de arriba puedes poner o cambiar tu contraseña cuando quieras.</p>`;
 const GUIA_JEFE = `
   <p style="background:#e8f5e9;padding:8px 10px;border-radius:8px"><strong>Eres el ADMINISTRADOR.</strong> Además de lo de abajo, tú lo gestionas todo:</p>
@@ -2085,13 +2100,20 @@ function actualizarPuntoPrivados() {
   const n = privadosNoVistos().length;
   const p = $('#punto-' + (vista.yo.rol === 'jefe' ? 'equipo' : 'avisos'));
   if (p) p.style.display = n ? 'block' : 'none';
+  // El número rojo del buzón 💬 de la cabecera (visible en todas las pestañas)
+  const b = $('#buzon-num');
+  if (b) { b.textContent = n; b.style.display = n ? 'block' : 'none'; }
 }
+const privadosAnunciados = new Set();   // para no repetir el mismo aviso en cada comprobación
 function comprobarPrivadosNuevos(esPrimeraCarga) {
   if (!vista) return;
   const nuevos = privadosNoVistos();
   actualizarPuntoPrivados();
   if (!nuevos.length) return;
   if (chatCon != null && nuevos.every(m => m.deId === chatCon)) { marcarPrivadosVistos(); return; }
+  const sinAnunciar = nuevos.filter(m => !privadosAnunciados.has(m.id));
+  nuevos.forEach(m => privadosAnunciados.add(m.id));
+  if (!sinAnunciar.length) return;
   const texto = '💬 Mensaje privado de ' + nombreDe(nuevos[nuevos.length - 1].deId);
   aviso(texto);
   if (!esPrimeraCarga && 'Notification' in window && Notification.permission === 'granted') {
@@ -2127,6 +2149,54 @@ $('#btn-chat-enviar').onclick = async () => {
   } catch (e) { aviso(e.message, true); }
 };
 $('#btn-chat-cerrar').onclick = () => { $('#modal-chat').style.display = 'none'; chatCon = null; };
+
+/* ---------- Buzón 💬 de la cabecera: leer y responder desde cualquier pestaña ---------- */
+$('#btn-buzon').onclick = () => {
+  if (!vista) return;
+  if (vista.yo.rol !== 'jefe') {
+    // El empleado habla siempre con el jefe: directo al chat
+    const jefe = vista.empleados.find(e => e.rol === 'jefe');
+    if (jefe) abrirChat(jefe.id, jefe.nombre);
+    return;
+  }
+  pintarBuzon();
+  $('#modal-buzon').style.display = 'flex';
+};
+$('#btn-buzon-cerrar').onclick = () => { $('#modal-buzon').style.display = 'none'; };
+function pintarBuzon() {
+  const noVistos = privadosNoVistos();
+  const gente = vista.empleados.filter(e => e.rol !== 'jefe');
+  // Primero las conversaciones con mensajes nuevos, luego por último mensaje
+  const filas = gente.map(e => {
+    const conv = mensajesCon(e.id);
+    const ult = conv[conv.length - 1];
+    return { e, ult, nuevos: noVistos.filter(m => m.deId === e.id).length };
+  }).sort((a, b) => (b.nuevos - a.nuevos) || ((b.ult ? b.ult.fecha : '') < (a.ult ? a.ult.fecha : '') ? -1 : 1));
+  $('#buzon-lista').innerHTML = filas.map(({ e, ult, nuevos }) => `
+    <div class="aus" style="cursor:pointer" onclick="abrirChatDesdeBuzon('${e.id}','${esc(e.nombre)}')">
+      <span><strong>${esc(e.nombre)}</strong>${nuevos ? ' <span class="est est-rechazada">' + nuevos + ' nuevo(s)</span>' : ''}${e.activo === false ? ' <span style="color:#999;font-size:11px">(desactivado)</span>' : ''}<br>
+      <span style="color:#666;font-size:12.5px">${ult ? (ult.deId === vista.yo.id ? 'Tú: ' : '') + esc(ult.texto.slice(0, 48)) + (ult.texto.length > 48 ? '…' : '') : 'Sin mensajes todavía'}</span></span>
+      <span style="color:#999;font-size:11.5px;white-space:nowrap">${ult ? fechaBonita(ult.fecha) : ''}</span></div>`).join('')
+    || '<div class="vacio">No hay trabajadores dados de alta.</div>';
+}
+window.abrirChatDesdeBuzon = (id, nombre) => { $('#modal-buzon').style.display = 'none'; abrirChat(id, nombre); };
+
+/* Vigilante de novedades: cada 45 s (solo con la app a la vista) comprueba si entraron
+   mensajes, tareas o avisos nuevos — sin repintar las pantallas, para no borrar lo que escribes */
+async function comprobarNovedades() {
+  if (!vista || document.visibilityState !== 'visible') return;
+  try {
+    const r = await llamar('todo', {});
+    vista = r.vista;
+    comprobarPrivadosNuevos(false);
+    comprobarTareasNuevas(false);
+    if (chatCon != null) pintarChat();
+    if ($('#modal-buzon').style.display === 'flex') pintarBuzon();
+    if (pestanaActual === 'avisos') pintarAvisos();
+  } catch (e) { /* sin red: se reintenta en el siguiente ciclo */ }
+}
+setInterval(comprobarNovedades, 45000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') comprobarNovedades(); });
 
 $('#btn-agregar-pedido').onclick = async () => {
   try { await refrescar('agregarPedido', { texto: $('#nuevo-pedido').value }); $('#nuevo-pedido').value = ''; aviso('🛒 Apuntado'); }
