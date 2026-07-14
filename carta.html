@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Carta</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --marron: #6d3f12; --crema: #fdf8ef; --dorado: #b8860b; }
+  body { font-family: Georgia, 'Times New Roman', serif; background: var(--crema); color: #2b2018; min-height: 100vh; }
+  .hoja { max-width: 560px; margin: 0 auto; padding: 26px 20px 60px; }
+  .cabecera-carta { text-align: center; border-bottom: 3px double var(--dorado); padding-bottom: 16px; margin-bottom: 6px; }
+  .cabecera-carta h1 { font-size: 30px; color: var(--marron); letter-spacing: 1px; }
+  .cabecera-carta p { font-size: 14px; color: #7a6a55; margin-top: 6px; font-style: italic; }
+  h2.cat { font-size: 15px; color: var(--dorado); letter-spacing: 3px; text-transform: uppercase; text-align: center; margin: 26px 0 10px; }
+  h2.cat::before, h2.cat::after { content: " · "; color: #d8c9a8; }
+  .plato { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px dotted #e2d5bd; }
+  .plato .n { font-size: 16.5px; }
+  .plato .d { font-size: 13px; color: #8a7a63; font-style: italic; margin-top: 2px; }
+  .plato .p { font-size: 16.5px; font-weight: 700; color: var(--marron); white-space: nowrap; }
+  .pie-carta { text-align: center; font-size: 12px; color: #a4937c; margin-top: 30px; }
+  .aviso-carta { text-align: center; padding: 60px 20px; font-family: -apple-system, sans-serif; color: #666; }
+
+  /* ---- Editor (solo lo ve el dueño en su navegador) ---- */
+  .editor { font-family: -apple-system, 'Segoe UI', sans-serif; max-width: 640px; margin: 0 auto; padding: 20px 16px 80px; }
+  .editor h1 { font-size: 22px; color: var(--marron); margin-bottom: 4px; }
+  .editor .sub { color: #777; font-size: 14px; margin-bottom: 16px; }
+  .campo { width: 100%; padding: 10px 12px; border: 1.5px solid #e0d2b8; border-radius: 10px; font-size: 15px; margin-bottom: 10px; background: #fff; }
+  .fila-plato { background: #fff; border: 1px solid #e8ddc8; border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+  .fila-plato label { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; }
+  .fila-plato input[type=checkbox] { width: 20px; height: 20px; }
+  .fila-plato .precio { margin-left: auto; color: var(--marron); font-weight: 700; white-space: nowrap; }
+  .fila-plato .desc { width: 100%; margin-top: 8px; padding: 8px 10px; border: 1px solid #eee3cd; border-radius: 8px; font-size: 13.5px; display: none; }
+  .fila-plato.activa .desc { display: block; }
+  .btn { border: 0; border-radius: 10px; padding: 12px 18px; font-size: 16px; font-weight: 700; cursor: pointer; }
+  .btn-pub { background: var(--marron); color: #fff; width: 100%; margin-top: 14px; }
+  .resultado { display: none; background: #eef7ee; border: 1px solid #cde3cd; border-radius: 12px; padding: 14px; margin-top: 14px; font-size: 14.5px; line-height: 1.6; }
+  .resultado img { display: block; margin: 10px auto; background: #fff; padding: 8px; border-radius: 8px; }
+  .resultado a { color: var(--marron); font-weight: 700; word-break: break-all; }
+  @media print { .no-imprimir { display: none !important; } }
+</style>
+</head>
+<body>
+<div id="contenido"><div class="aviso-carta">Cargando la carta…</div></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const params = new URLSearchParams(location.search);
+const esc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ================= CARTA PÚBLICA (con ?c=...) ================= */
+async function verCarta(id) {
+  try {
+    const r = await fetch('/api/datos?carta=' + encodeURIComponent(id));
+    const j = await r.json();
+    if (!j.existe) { $('#contenido').innerHTML = '<div class="aviso-carta">Esta carta todavía no está publicada.</div>'; return; }
+    const c = j.carta;
+    document.title = (c.nombre || 'Carta') + ' · Carta';
+    const cats = {};
+    c.platos.forEach(p => { (cats[p.categoria || 'Otros'] = cats[p.categoria || 'Otros'] || []).push(p); });
+    $('#contenido').innerHTML = `<div class="hoja">
+      <div class="cabecera-carta"><h1>${esc(c.nombre || 'Nuestra carta')}</h1>${c.nota ? '<p>' + esc(c.nota) + '</p>' : ''}</div>
+      ${Object.keys(cats).map(cat => `<h2 class="cat">${esc(cat)}</h2>` +
+        cats[cat].map(p => `<div class="plato"><div><div class="n">${esc(p.nombre)}</div>${p.descripcion ? '<div class="d">' + esc(p.descripcion) + '</div>' : ''}</div>
+          <div class="p">${p.precio.toFixed(2).replace('.', ',')} €</div></div>`).join('')).join('')}
+      <div class="pie-carta">IVA incluido · ${c.actualizado ? 'Actualizada el ' + new Date(c.actualizado).toLocaleDateString('es-ES') : ''}<br>Si tienes alguna alergia o intolerancia, pregúntanos.</div>
+    </div>`;
+  } catch (e) { $('#contenido').innerHTML = '<div class="aviso-carta">No se pudo cargar la carta. Prueba de nuevo.</div>'; }
+}
+
+/* ================= EDITOR (el dueño, en el navegador de su contabilidad) ================= */
+const CLAVE_DATOS = 'paraiso_gestion_es_v2';
+const CLAVE_SYNC = 'paraiso_sync_codigo';
+const CLAVE_CARTA = 'paraiso_carta_config';
+
+function editor() {
+  let datos = null;
+  try { datos = JSON.parse(localStorage.getItem(CLAVE_DATOS) || 'null'); } catch (e) {}
+  if (!datos || !Array.isArray(datos.platos) || !datos.platos.length) {
+    $('#contenido').innerHTML = `<div class="aviso-carta">📖 <strong>Editor de la carta</strong><br><br>
+      Aquí se prepara la carta digital con QR a partir de tus escandallos, pero en este navegador no encuentro los platos.<br><br>
+      Abre esta página desde el navegador y ordenador donde usas la <strong>app de contabilidad</strong> (donde están tus escandallos).</div>`;
+    return;
+  }
+  const cfg = JSON.parse(localStorage.getItem(CLAVE_CARTA) || '{}');
+  cfg.sel = cfg.sel || {};
+  const porCat = {};
+  datos.platos.forEach(p => { (porCat[p.categoria || 'Otros'] = porCat[p.categoria || 'Otros'] || []).push(p); });
+
+  $('#contenido').innerHTML = `<div class="editor">
+    <h1>📖 Tu carta digital con QR</h1>
+    <p class="sub">Marca los platos que quieres en la carta (con su precio de tus escandallos), añade una descripción apetitosa si quieres, y publica. El QR lo pones en las mesas.</p>
+    <input class="campo" id="carta-nombre" placeholder="Nombre del negocio (sale arriba)" value="${esc(cfg.nombre || '')}">
+    <input class="campo" id="carta-nota" placeholder="Frase de bienvenida (ej.: Cocina casera desde 2015)" value="${esc(cfg.nota || '')}">
+    ${Object.keys(porCat).map(cat => `<h2 class="cat">${esc(cat)}</h2>` + porCat[cat].map(p => {
+      const s = cfg.sel[p.id] || {};
+      return `<div class="fila-plato ${s.en ? 'activa' : ''}" id="fp-${p.id}">
+        <label><input type="checkbox" data-id="${p.id}" ${s.en ? 'checked' : ''}> ${esc(p.nombre)}
+          <span class="precio">${(Number(p.precioVenta) || 0).toFixed(2).replace('.', ',')} €</span></label>
+        <input class="desc" data-desc="${p.id}" placeholder="Descripción (opcional): ej. Con alioli casero" value="${esc(s.desc || '')}">
+      </div>`;
+    }).join('')).join('')}
+    <button class="btn btn-pub" id="btn-publicar">🌐 Publicar la carta</button>
+    <div class="resultado" id="resultado"></div>
+  </div>`;
+
+  const guardarCfg = () => {
+    cfg.nombre = $('#carta-nombre').value; cfg.nota = $('#carta-nota').value;
+    localStorage.setItem(CLAVE_CARTA, JSON.stringify(cfg));
+  };
+  document.querySelectorAll('input[type=checkbox][data-id]').forEach(ch => ch.onchange = () => {
+    const id = ch.dataset.id;
+    cfg.sel[id] = cfg.sel[id] || {};
+    cfg.sel[id].en = ch.checked;
+    document.getElementById('fp-' + id).classList.toggle('activa', ch.checked);
+    guardarCfg();
+  });
+  document.querySelectorAll('input[data-desc]').forEach(inp => inp.onchange = () => {
+    const id = inp.dataset.desc;
+    cfg.sel[id] = cfg.sel[id] || {};
+    cfg.sel[id].desc = inp.value;
+    guardarCfg();
+  });
+
+  $('#btn-publicar').onclick = async () => {
+    guardarCfg();
+    const codigo = localStorage.getItem(CLAVE_SYNC) || '';
+    if (!codigo) return alert('Primero activa la sincronización en la app de contabilidad (ajustes): la carta usa ese mismo código.');
+    const platos = datos.platos.filter(p => cfg.sel[p.id] && cfg.sel[p.id].en).map(p => ({
+      nombre: p.nombre, categoria: p.categoria || 'Otros', precio: Number(p.precioVenta) || 0,
+      descripcion: (cfg.sel[p.id].desc || '').trim()
+    }));
+    if (!platos.length) return alert('Marca al menos un plato.');
+    const btn = $('#btn-publicar'); btn.disabled = true; btn.textContent = 'Publicando...';
+    try {
+      const r = await fetch('/api/datos', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo, carta: { nombre: $('#carta-nombre').value.trim(), nota: $('#carta-nota').value.trim(), platos } }) });
+      const j = await r.json();
+      if (!r.ok || !j.publicada) throw new Error(j.error || 'No se pudo publicar.');
+      const url = location.origin + '/carta.html?c=' + j.id;
+      const qr = 'https://api.qrserver.com/v1/create-qr-code/?size=380x380&data=' + encodeURIComponent(url);
+      $('#resultado').style.display = 'block';
+      $('#resultado').innerHTML = `✅ <strong>Carta publicada</strong> con ${j.platos} plato(s).<br>
+        🌐 <a href="${url}" target="_blank">${url}</a><br>
+        <img src="${qr}" alt="QR de la carta" width="190" height="190">
+        <div style="text-align:center" class="no-imprimir">
+          <button class="btn" style="background:#2e7d32;color:#fff" onclick="window.print()">🖨 Imprimir el cartel del QR</button>
+        </div>
+        <div style="text-align:center;font-size:12px;color:#888;margin-top:6px" class="no-imprimir">Los cambios que publiques después salen solos en el mismo enlace (tarda 1-2 minutos).</div>`;
+      $('#resultado').scrollIntoView({ behavior: 'smooth' });
+    } catch (e) { alert(e.message); }
+    btn.disabled = false; btn.textContent = '🌐 Publicar la carta';
+  };
+}
+
+const idCarta = params.get('c');
+if (idCarta) verCarta(idCarta); else editor();
+</script>
+</body>
+</html>

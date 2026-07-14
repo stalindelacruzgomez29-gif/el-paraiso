@@ -1018,6 +1018,51 @@ module.exports = async (req, res) => {
         break;
       }
 
+      // ----- Cuadrante inteligente: la IA propone los turnos de una semana -----
+      case 'sugerirCuadrante': {
+        if (!esJefe) soloJefe();
+        const semana = /^\d{4}-\d{2}-\d{2}$/.test(limpio(p.semana)) ? lunesDe(limpio(p.semana)) : lunesDe(hoyEspana());
+        const gente = datos.empleados.filter(e => e.rol !== 'jefe' && e.activo !== false);
+        if (!gente.length) { const e = new Error('No hay trabajadores activos.'); e.codigo = 400; throw e; }
+        const finSem = new Date(semana + 'T12:00:00Z'); finSem.setUTCDate(finSem.getUTCDate() + 6);
+        const fin = finSem.toISOString().slice(0, 10);
+        const ausSemana = (datos.ausencias || []).filter(a => a.estado === 'aprobada' && a.desde <= fin && a.hasta >= semana)
+          .map(a => ({ empleadoId: a.empleadoId, desde: a.desde, hasta: a.hasta, tipo: a.tipo }));
+        const semanasPrevias = Object.keys(datos.horario.semanas || {}).filter(s => s < semana).sort().slice(-2);
+        const contexto = {
+          semana_del_lunes: semana,
+          empleados: gente.map(e => ({ id: e.id, nombre: e.nombre, puesto: e.puesto || '', contrato_h_semana: e.horasContrato || null })),
+          ausencias_aprobadas_esa_semana: ausSemana,
+          horario_de_apertura_al_publico: (datos.horarioPublico && datos.horarioPublico.dias) || {},
+          semana_tipo: datos.horario.turnos || {},
+          ejemplos_semanas_anteriores: Object.fromEntries(semanasPrevias.map(s => [s, datos.horario.semanas[s]]))
+        };
+        const r = await llamarIA(
+          `Eres el encargado de hacer el cuadrante semanal de un bar-restaurante en España. Datos:\n${JSON.stringify(contexto)}\n\n` +
+          `Haz el cuadrante de la semana indicada. Reglas: 1) Quien tenga una ausencia aprobada ese día, libra (omite el día). 2) Acércate a las horas de contrato semanales de cada uno. 3) Cubre el horario de apertura al público, con más gente en horas de comidas y cenas. 4) Reparte los días libres de forma justa. 5) Inspírate en la semana tipo y las semanas anteriores.\n\n` +
+          `Devuelve SOLO un JSON válido, sin explicaciones ni comillas de código, con esta forma exacta (los días son lun,mar,mie,jue,vie,sab,dom; omite los días libres):\n` +
+          `{"<idEmpleado>":{"lun":{"e":"12:00","s":"16:00"},"mar":{"e":"12:00","s":"16:00"}}}`, 1800);
+        // Interpretar la respuesta con cuidado (por si envuelve el JSON en algo)
+        let bruto = null;
+        try { bruto = JSON.parse(r.replace(/```json|```/gi, '').trim()); }
+        catch (e) { const m = r.match(/\{[\s\S]*\}/); if (m) { try { bruto = JSON.parse(m[0]); } catch (e2) {} } }
+        if (!bruto || typeof bruto !== 'object') { const e = new Error('La IA no devolvió un cuadrante válido. Vuelve a intentarlo.'); e.codigo = 502; throw e; }
+        const DIAS_OK = ['lun', 'mar', 'mie', 'jue', 'vie', 'sab', 'dom'];
+        const okHora = h => /^\d{1,2}:\d{2}$/.test(String(h || ''));
+        const propuesta = {};
+        gente.forEach(e => {
+          const suyo = bruto[e.id];
+          if (!suyo || typeof suyo !== 'object') return;
+          propuesta[e.id] = {};
+          DIAS_OK.forEach(d => {
+            const t = suyo[d];
+            if (t && typeof t === 'object' && okHora(t.e) && okHora(t.s)) propuesta[e.id][d] = { e: t.e, s: t.s };
+          });
+        });
+        if (!Object.keys(propuesta).length) { const e = new Error('La IA no devolvió turnos utilizables. Vuelve a intentarlo.'); e.codigo = 502; throw e; }
+        return res.status(200).json({ ok: true, semana, propuesta });
+      }
+
       // ----- Banco de horas: saldo acumulado del año (fichado vs contrato, orientativo) -----
       case 'bancoHoras': {
         if (!esJefe) soloJefe();

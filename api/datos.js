@@ -14,6 +14,12 @@ function rutaDe(codigo) {
   return `negocios/${hash}.json`;
 }
 
+// La carta pública usa OTRO nombre distinto: enseñar la carta no debe
+// dar ninguna pista del archivo privado del negocio
+function idCartaDe(codigo) {
+  return crypto.createHash('sha256').update('carta:' + codigo).digest('hex');
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -22,6 +28,22 @@ module.exports = async (req, res) => {
 
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     return res.status(503).json({ error: 'La sincronización no está configurada en el servidor.' });
+  }
+
+  // ── La carta pública del negocio (la lee cualquiera con el enlace del QR) ──
+  if (req.method === 'GET' && req.query && req.query.carta) {
+    const id = String(req.query.carta);
+    if (!/^[a-f0-9]{64}$/.test(id)) return res.status(400).json({ error: 'Enlace de carta no válido.' });
+    try {
+      const ruta = `carta/${id}.json`;
+      const { blobs } = await list({ prefix: ruta });
+      const blob = blobs.find(b => b.pathname === ruta);
+      if (!blob) return res.status(200).json({ existe: false });
+      const r = await fetch(blob.url + '?t=' + Date.now());
+      const carta = await r.json();
+      res.setHeader('Cache-Control', 'public, max-age=60');
+      return res.status(200).json({ existe: true, carta });
+    } catch (e) { return res.status(500).json({ error: 'No pude leer la carta.' }); }
   }
 
   // El código viene en la query (?codigo=...) o en el cuerpo
@@ -40,6 +62,30 @@ module.exports = async (req, res) => {
       const r = await fetch(blob.url);
       const datos = await r.json();
       return res.status(200).json({ existe: true, actualizado: blob.uploadedAt, datos });
+    }
+
+    if (req.method === 'POST' && req.body && req.body.carta) {
+      // Publicar la carta del negocio (requiere el código de sincronización, como los datos)
+      const c = req.body.carta;
+      if (!Array.isArray(c.platos) || !c.platos.length) {
+        return res.status(400).json({ error: 'La carta no tiene platos.' });
+      }
+      const carta = {
+        nombre: String(c.nombre || '').slice(0, 60),
+        nota: String(c.nota || '').slice(0, 200),
+        actualizado: new Date().toISOString(),
+        platos: c.platos.slice(0, 200).map(p => ({
+          nombre: String(p.nombre || '').slice(0, 80),
+          categoria: String(p.categoria || 'Otros').slice(0, 40),
+          precio: Math.max(0, Number(p.precio) || 0),
+          descripcion: String(p.descripcion || '').slice(0, 160)
+        })).filter(p => p.nombre && p.precio > 0)
+      };
+      const id = idCartaDe(String(codigo));
+      await put(`carta/${id}.json`, JSON.stringify(carta), {
+        access: 'public', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json'
+      });
+      return res.status(200).json({ publicada: true, id, platos: carta.platos.length });
     }
 
     if (req.method === 'POST') {

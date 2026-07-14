@@ -147,7 +147,7 @@ module.exports = async (req, res) => {
 
     // 2) Traer el código fuente (en paralelo)
     const RUTAS = ['index.html', 'css/estilos.css', 'js/app.js', 'lib/chart.umd.min.js',
-      'api/leer.js', 'api/datos.js', 'api/equipo.js', 'equipo/index.html', 'vercel.json', 'package.json',
+      'api/leer.js', 'api/datos.js', 'api/equipo.js', 'equipo/index.html', 'carta.html', 'vercel.json', 'package.json',
       'clonador/logo-988.png', 'clonador/logo-512.png', 'clonador/logo-192.png', 'clonador/logo-180.png', 'clonador/logo-48.png'];
     const fuentes = {};
     await Promise.all(RUTAS.map(async ruta => { fuentes[ruta] = await leerFuente(ruta); }));
@@ -242,6 +242,7 @@ module.exports = async (req, res) => {
       { file: 'api/datos.js', data: fuentes['api/datos.js'] },
       { file: 'api/equipo.js', data: textoAB64(apiEquipo) },
       { file: 'equipo/index.html', data: textoAB64(portal) },
+      { file: 'carta.html', data: fuentes['carta.html'] },
       { file: 'equipo/logo-fondo.png', data: fuentes['clonador/logo-988.png'] },
       { file: 'favicon.png', data: fuentes['clonador/logo-48.png'] },
       { file: 'apple-touch-icon.png', data: fuentes['clonador/logo-180.png'] },

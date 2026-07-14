@@ -1222,7 +1222,7 @@ function pintarHorario() {
     <strong style="font-size:14px">Semana del ${fmtDiaCorto(semanaVista)} al ${fmtDiaCorto(finV.toLocaleDateString('sv-SE'))}${esEsta ? ' (esta semana)' : ''}</strong>
     <button class="btn btn-borde btn-peq" onclick="cambiarSemana(7)">▶</button>
     <span class="est ${esConcreta ? 'est-aprobada' : 'est-pendiente'}">${esConcreta ? 'publicada' : 'semana tipo'}</span>
-    ${esJefe ? '<button class="btn btn-borde btn-peq" onclick="copiarSemanaAnterior()">📋 Copiar semana anterior</button>' : ''}
+    ${esJefe ? '<button class="btn btn-borde btn-peq" onclick="copiarSemanaAnterior()">📋 Copiar semana anterior</button> <button class="btn btn-borde btn-peq" onclick="sugerirCuadranteIA()">🪄 Proponer con IA</button>' : ''}
   </div>`;
   $('#horario-actualizado').textContent = vista.horario.actualizado ? 'Última actualización: ' + fechaBonita(vista.horario.actualizado) : 'Aún no se ha publicado ningún horario.';
   $('#tabla-horario').innerHTML =
@@ -2264,6 +2264,18 @@ window.cambiarSemana = d => {
   const x = new Date(semanaVista + 'T12:00:00'); x.setDate(x.getDate() + d);
   semanaVista = x.toLocaleDateString('sv-SE');
   pintarHorario();
+};
+window.sugerirCuadranteIA = async () => {
+  if (!confirm('La IA te propone los turnos de la semana del ' + fmtDiaCorto(semanaVista) + ' (respetando contratos, ausencias y tu horario de apertura). Tú los revisas y publicas. ¿Seguimos?')) return;
+  aviso('🪄 Pensando el cuadrante... (unos segundos)');
+  try {
+    const r = await llamar('sugerirCuadrante', { semana: semanaVista });
+    $$('#tabla-horario .hin').forEach(inp => {
+      const t = (r.propuesta[inp.dataset.emp] || {})[inp.dataset.dia];
+      inp.value = t ? (t[inp.dataset.t] || '') : '';
+    });
+    aviso('🪄 Propuesta puesta en la tabla: revísala, ajusta lo que quieras y dale a 💾 Publicar');
+  } catch (e) { aviso(e.message, true); }
 };
 window.copiarSemanaAnterior = async () => {
   const ant = new Date(semanaVista + 'T12:00:00'); ant.setDate(ant.getDate() - 7);
