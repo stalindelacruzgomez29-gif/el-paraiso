@@ -4,7 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>El Paraíso · Equipo</title>
-<meta name="theme-color" content="#1b5e20">
+<meta name="theme-color" content="#1b5e20" id="meta-theme">
+<link rel="icon" type="image/png" id="lnk-icon" href="/favicon.png?v=3">
+<link rel="shortcut icon" type="image/png" href="/favicon.png?v=3">
+<link rel="apple-touch-icon" id="lnk-apple" href="/apple-touch-icon.png?v=3">
+<link rel="manifest" id="lnk-manifest" href="/manifest-paraiso.webmanifest?v=3">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="El Paraíso">
 <style>
   :root {
     --verde: #1b5e20; --verde-claro: #e8f5e9; --verde-medio: #43a047;
@@ -81,12 +87,26 @@
   .tabla-horario td:first-child { font-weight: 700; text-align: left; }
   .tabla-horario tr.yo { background: var(--verde-claro); }
   .tabla-horario input { width: 100%; border: 1px solid #cfd8cf; border-radius: 6px; padding: 5px 3px; font-size: 13px; text-align: center; }
+  .tabla-horario .hin { margin: 1px 0; }
+  .tabla-horario .hin[data-t="e"] { border-left: 3px solid var(--verde-medio); }
+  .tabla-horario .hin[data-t="s"] { border-left: 3px solid var(--rojo); }
   .scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
   .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px; }
   .kpi { background: rgba(255,255,255,.84); border: 1px solid var(--borde); border-radius: 12px; padding: 12px; text-align: center; }
   .kpi .num { font-size: 26px; font-weight: 800; color: var(--verde); }
   .kpi .txt { font-size: 12.5px; color: #777; }
+  .kpi.acento-ambar .num { color: #ef6c00; } .kpi.acento-rojo .num { color: var(--rojo); } .kpi.acento-azul .num { color: #1565c0; }
+
+  /* ---------- Panel / gráficos ---------- */
+  .panel-saludo { background: linear-gradient(135deg, var(--verde), #2e7d32); color:#fff; border-radius:16px; padding:16px 18px; margin-bottom:14px; box-shadow:0 8px 24px rgba(27,94,32,.22); }
+  .panel-saludo h2 { font-size:20px; margin:0 0 2px; color:#fff; }
+  .panel-saludo p { font-size:13.5px; opacity:.9; margin:0; }
+  .graficos { display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:12px; margin-bottom:14px; }
+  .grafico-caja { background: rgba(255,255,255,.92); border:1px solid var(--borde); border-radius:14px; padding:14px; box-shadow:0 4px 14px rgba(27,94,32,.06); }
+  .grafico-caja h3 { font-size:14.5px; color:var(--verde); margin:0 0 10px; display:flex; align-items:center; gap:6px; }
+  .grafico-lienzo { position:relative; height:220px; }
+  .grafico-vacio { display:flex; align-items:center; justify-content:center; height:220px; color:#aaa; font-size:14px; text-align:center; }
 
   .aviso-flotante { position: fixed; left: 50%; transform: translateX(-50%); bottom: 90px; background: #263238; color: #fff; padding: 11px 18px; border-radius: 24px; font-size: 14.5px; z-index: 50; max-width: 90%; text-align: center; display: none; }
   .modal-fondo { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 40; display: none; align-items: center; justify-content: center; padding: 20px; }
@@ -108,9 +128,42 @@
   .mi-dia .puesto-mio { font-size: 17px; font-weight: 800; color: var(--verde); }
   .mi-dia .dato { margin-top: 6px; font-size: 14.5px; }
   .nota-turnos { font-size: 12.5px; color: #888; margin-top: 6px; }
+
+  /* ---------- Bloques por persona ---------- */
+  .bloque-persona { background: rgba(255,255,255,.55); border: 1px solid var(--borde); border-radius: 14px; padding: 10px 10px 4px; margin-bottom: 14px; box-shadow: 0 3px 10px rgba(27,94,32,.05); }
+  .bloque-cab { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 6px; font-weight: 800; color: var(--verde); font-size: 15.5px; padding: 2px 4px 8px; border-bottom: 2px solid var(--verde-claro); margin-bottom: 8px; }
+  .bloque-estado { font-size: 12.5px; font-weight: 700; }
+
+  /* ---------- Pantalla de bienvenida (splash) con el logo del local ---------- */
+  #splash { position: fixed; inset: 0; z-index: 9999; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity .5s ease; }
+  #splash.oculto { opacity: 0; pointer-events: none; }
+  #splash img { width: 66%; max-width: 340px; max-height: 55vh; object-fit: contain; animation: splashEntra .6s ease; }
+  @keyframes splashEntra { from { transform: scale(.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .splash-puntos { display: flex; gap: 9px; margin-top: 28px; }
+  .splash-puntos span { width: 12px; height: 12px; border-radius: 50%; background: var(--verde-medio); animation: splashSalta 1s infinite; }
+  .splash-puntos span:nth-child(2) { animation-delay: .15s; }
+  .splash-puntos span:nth-child(3) { animation-delay: .3s; }
+  @keyframes splashSalta { 0%, 100% { transform: translateY(0); opacity: .4; } 50% { transform: translateY(-10px); opacity: 1; } }
 </style>
 </head>
 <body>
+
+<!-- Pantalla de bienvenida con el logo del local (se ve al abrir y desaparece al cargar) -->
+<div id="splash">
+  <img id="splash-logo" src="logo-fondo.png" alt="Cargando…">
+  <div class="splash-puntos"><span></span><span></span><span></span></div>
+</div>
+<script>
+  (function () {
+    try {
+      var p = new URLSearchParams(location.search);
+      var loc = p.get('l') || p.get('local') || localStorage.getItem('equipo_local');
+      var LOGOS = { paraiso: 'logo-fondo.png', sazon: 'logo-sazon.png' };
+      if (loc && LOGOS[loc]) document.getElementById('splash-logo').src = LOGOS[loc];
+      if (loc === 'sazon') document.getElementById('splash').style.background = '#123a63';
+    } catch (e) {}
+  })();
+</script>
 
 <!-- ============ LOGIN / PRIMER USO ============ -->
 <div class="pantalla-login" id="pantalla-login">
@@ -154,6 +207,8 @@
       </div>
     </div>
     <div>
+      <button id="btn-instalar" title="Instalar la app en el inicio" onclick="instalarApp()">📲</button>
+      <button id="btn-ayuda" title="Guía: cómo funciona">❓</button>
       <button id="btn-local" title="Cambiar de local">🏪</button>
       <button id="btn-clave">🔑</button>
       <button id="btn-salir">Salir</button>
@@ -162,6 +217,22 @@
 
   <div class="contenido">
 
+    <!-- PANEL (solo jefe) -->
+    <div class="vista" id="vista-panel">
+      <div class="panel-saludo">
+        <h2 id="panel-titulo">📊 Panel de control</h2>
+        <p id="panel-sub">Resumen de hoy</p>
+      </div>
+      <div class="kpis" id="panel-kpis"></div>
+      <div class="graficos">
+        <div class="grafico-caja"><h3>⏳ Horas esta semana</h3><div class="grafico-lienzo" id="lienzo-horas"></div></div>
+        <div class="grafico-caja"><h3>🟢 Entradas por día (7 días)</h3><div class="grafico-lienzo" id="lienzo-fichajes"></div></div>
+        <div class="grafico-caja"><h3>✅ Tareas</h3><div class="grafico-lienzo" id="lienzo-tareas"></div></div>
+        <div class="grafico-caja"><h3>📦 Stock más bajo</h3><div class="grafico-lienzo" id="lienzo-stock"></div></div>
+      </div>
+      <div id="panel-detalle"></div>
+    </div>
+
     <!-- AVISOS -->
     <div class="vista activa" id="vista-avisos">
       <div id="mi-dia"></div>
@@ -169,7 +240,10 @@
       <div class="panel-crear solo-jefe" style="display:none">
         <h3>Publicar un aviso para todo el equipo</h3>
         <textarea class="campo" id="nuevo-aviso" placeholder="Ej.: Mañana abrimos a las 9:00. / Cambio de turno el viernes..."></textarea>
-        <button class="btn btn-primario btn-peq" id="btn-publicar-aviso">📣 Publicar</button>
+        <div class="fila-acciones">
+          <button type="button" class="btn btn-borde btn-peq" data-mic="nuevo-aviso" onclick="hablar('nuevo-aviso')">🎤</button>
+          <button class="btn btn-primario btn-peq" id="btn-publicar-aviso">📣 Publicar</button>
+        </div>
       </div>
       <div id="lista-avisos"></div>
     </div>
@@ -182,6 +256,7 @@
         <div id="lista-plantillas" style="margin-bottom:8px"></div>
         <div class="fila-acciones">
           <input class="campo" id="nueva-plantilla" placeholder="Añadir función nueva al banco (ej.: reponer hielo)" style="flex:1;margin:0">
+          <button type="button" class="btn btn-borde btn-peq" data-mic="nueva-plantilla" onclick="hablar('nueva-plantilla')" style="margin:0">🎤</button>
           <button class="btn btn-borde btn-peq" id="btn-agregar-plantilla">➕ Guardar</button>
         </div>
         <div id="destinos-plantillas" style="margin-top:10px"></div>
@@ -194,6 +269,7 @@
       <div class="panel-crear solo-jefe" style="display:none">
         <h3>Nueva tarea (escrita a mano)</h3>
         <textarea class="campo" id="tarea-titulo" placeholder="Qué hay que hacer — puedes poner VARIAS tareas, una por línea:&#10;Limpiar la terraza&#10;Reponer neveras&#10;Revisar el hielo"></textarea>
+        <button type="button" class="btn btn-borde btn-peq" data-mic="tarea-titulo" onclick="hablar('tarea-titulo')" style="margin-bottom:8px">🎤 Dictar la tarea</button>
         <textarea class="campo" id="tarea-detalle" placeholder="Detalles (opcional)"></textarea>
         <select class="campo" id="tarea-para"></select>
         <input class="campo" type="date" id="tarea-fecha">
@@ -208,11 +284,30 @@
       <p id="horario-actualizado" style="font-size:13px;color:#888;margin-bottom:10px"></p>
       <div class="scroll-x"><table class="tabla-horario" id="tabla-horario"></table></div>
       <div class="solo-jefe" style="display:none;margin-top:12px">
-        <p class="nota-turnos">✍️ Ejemplos: «12-16» · turno partido: «12-16 y 20-24» · día libre: «libre» o dejarlo vacío.</p>
+        <p class="nota-turnos">✍️ Pon la hora de <strong>entrada</strong> y de <strong>salida</strong> de cada día (ej.: entra 12:00, sale 16:00). Día libre: déjalo vacío. Las <strong>horas trabajadas</strong> solo las ves tú (los trabajadores solo ven su turno).</p>
         <textarea class="campo" id="horario-notas" placeholder="Notas del horario (ej.: la semana que viene María libra el jueves)"></textarea>
         <button class="btn btn-primario btn-peq" id="btn-guardar-horario">💾 Publicar horario</button>
       </div>
       <div id="horario-notas-vista" style="margin-top:10px;font-size:14.5px"></div>
+
+      <!-- Horario de APERTURA al público (Google / redes) -->
+      <div class="panel-crear solo-jefe" id="panel-horario-publico" style="display:none;margin-top:18px;border-color:#1565c0;background:rgba(227,242,253,.7)">
+        <h3 style="color:#1565c0">🌐 Horario de apertura al público</h3>
+        <p class="nota-turnos">Este es el horario que ve el <strong>cliente</strong> (Google, redes). Es distinto de los turnos del equipo. Escríbelo así: «12:00–16:00 y 20:00–00:00», o «Cerrado».</p>
+        <div id="campos-horario-publico" style="margin:8px 0"></div>
+        <input class="campo" id="hp-nota" placeholder="Nota opcional (ej.: Festivos consultar)">
+        <button class="btn btn-primario btn-peq" id="btn-guardar-hp" style="background:#1565c0">💾 Guardar horario público</button>
+        <div style="margin-top:12px">
+          <p class="nota-turnos" style="margin-bottom:6px"><strong>Publicar el cambio en:</strong></p>
+          <div class="fila-acciones">
+            <button class="btn btn-verde btn-peq" id="btn-hp-whatsapp">📲 Avisar por WhatsApp</button>
+            <button class="btn btn-borde btn-peq" id="btn-hp-copiar">📋 Copiar texto</button>
+            <a class="btn btn-borde btn-peq" id="btn-hp-google" target="_blank" rel="noopener">🗺️ Abrir Google del local</a>
+            <a class="btn btn-borde btn-peq" id="btn-hp-facebook" target="_blank" rel="noopener">📘 Abrir Facebook</a>
+          </div>
+        </div>
+      </div>
+      <div id="horario-publico-vista" style="margin-top:14px"></div>
     </div>
 
     <!-- FICHAR -->
@@ -225,7 +320,7 @@
         <p class="nota-turnos" id="estado-ubicacion">—</p>
         <div class="fila-acciones" style="align-items:center">
           <label style="font-size:13.5px">Radio:
-            <input class="campo" type="number" id="radio-m" value="100" min="30" max="2000" style="width:80px;margin:0 4px 0 6px;padding:8px">m
+            <input class="campo" type="number" id="radio-m" value="3" min="3" max="2000" style="width:80px;margin:0 4px 0 6px;padding:8px">m
           </label>
           <button class="btn btn-primario btn-peq" id="btn-fijar-local">📍 Fijar aquí el local</button>
           <button class="btn btn-borde btn-peq" id="btn-quitar-local">Quitar control</button>
@@ -251,6 +346,7 @@
         <h3>Apuntar algo que falta</h3>
         <input class="campo" id="nuevo-pedido" placeholder="Ej.: 2 cajas de cerveza, limones, servilletas...">
         <div class="fila-acciones">
+          <button type="button" class="btn btn-borde btn-peq" data-mic="nuevo-pedido" onclick="hablar('nuevo-pedido')">🎤</button>
           <button class="btn btn-primario btn-peq" id="btn-agregar-pedido">➕ Añadir a la lista</button>
           <button class="btn btn-borde btn-peq" id="btn-foto-pedido">📷 Leer una foto de la libreta</button>
           <input type="file" id="foto-pedido" accept="image/*" hidden>
@@ -260,7 +356,7 @@
       <div id="botones-proveedores"></div>
       <div id="lista-pedidos"></div>
       <div class="panel-crear solo-jefe" id="panel-proveedores" style="display:none">
-        <h3>🚚 Mis proveedores</h3>
+        <h3 id="titulo-proveedores">🚚 Mis proveedores</h3>
         <p class="nota-turnos">Registra cada proveedor UNA vez con sus palabras. Los faltantes se clasifican solos
         y te sale un botón por proveedor para mandarle SU pedido por WhatsApp con un toque.</p>
         <div id="lista-proveedores" style="margin-bottom:10px"></div>
@@ -273,7 +369,7 @@
 
     <!-- STOCK -->
     <div class="vista" id="vista-stock">
-      <h2 class="titulo-vista">📦 Stock</h2>
+      <h2 class="titulo-vista" id="titulo-stock">📦 Stock</h2>
       <div class="panel-crear">
         <h3>Entrada de mercancía</h3>
         <div class="fila-acciones">
@@ -282,6 +378,7 @@
         </div>
         <div class="fila-acciones" style="margin-top:8px">
           <input class="campo" id="stock-nombre" placeholder="Producto (a mano)" style="flex:2;margin:0">
+          <button type="button" class="btn btn-borde btn-peq" data-mic="stock-nombre" onclick="hablar('stock-nombre')" style="margin:0">🎤</button>
           <input class="campo" id="stock-cantidad" type="number" min="0" placeholder="Cant." style="flex:1;margin:0;max-width:90px">
           <button class="btn btn-borde btn-peq" id="btn-stock-manual">➕</button>
         </div>
@@ -293,7 +390,7 @@
 
     <!-- EQUIPO (solo jefe) -->
     <div class="vista" id="vista-equipo">
-      <h2 class="titulo-vista">👥 Equipo</h2>
+      <h2 class="titulo-vista" id="titulo-equipo">👥 Equipo</h2>
       <div class="kpis" id="kpis"></div>
       <div id="control-funciones"></div>
       <div class="panel-crear">
@@ -345,10 +442,22 @@
   </div>
 </div>
 
+<!-- Modal GUÍA / instrucciones -->
+<div class="modal-fondo" id="modal-ayuda">
+  <div class="modal" style="max-width:520px;max-height:86vh;display:flex;flex-direction:column">
+    <h3>❓ Cómo funciona el portal</h3>
+    <div style="flex:1;overflow-y:auto;font-size:14.5px;line-height:1.6;padding-right:4px" id="ayuda-cuerpo"></div>
+    <div class="fila-acciones" style="margin-top:10px"><button class="btn btn-primario btn-peq" id="btn-cerrar-ayuda">Entendido</button></div>
+  </div>
+</div>
+
 <!-- Modal cambiar contraseña -->
 <div class="modal-fondo" id="modal-clave">
   <div class="modal">
-    <h3>🔑 Cambiar mi contraseña</h3>
+    <h3>🔑 Mi contraseña</h3>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13.5px;color:#555;margin-bottom:10px">
+      <input type="checkbox" id="cl-primera"> No sé mi contraseña actual (entré por el enlace)
+    </label>
     <input class="campo" type="password" id="cl-actual" placeholder="Contraseña actual">
     <input class="campo" type="password" id="cl-nueva" placeholder="Contraseña nueva (mínimo 6)">
     <div class="fila-acciones">
@@ -359,6 +468,7 @@
 </div>
 
 <script src="../js/marca-paraiso.js"></script>
+<script src="../lib/chart.umd.min.js"></script>
 <script>
 /* ════════════ EL PARAÍSO · PORTAL DEL EQUIPO ════════════ */
 const API = '/api/equipo';
@@ -375,8 +485,40 @@ if (localStorage.getItem('paraiso_equipo_token') && !localStorage.getItem('parai
   localStorage.removeItem('paraiso_equipo_token');
   if (!localActual()) localStorage.setItem('equipo_local', 'paraiso');
 }
+// Icono/manifiesto de la app según el local (para que al instalarla salga SU logo)
+function aplicarIconoLocal() {
+  const sazon = localActual() === 'sazon';
+  const apple = $('#lnk-apple'), man = $('#lnk-manifest'), th = $('#meta-theme'), ic = $('#lnk-icon');
+  if (apple) apple.href = (sazon ? '/sazon-apple-touch.png' : '/apple-touch-icon.png') + '?v=3';
+  if (ic) ic.href = (sazon ? '/sazon-favicon.png' : '/favicon.png') + '?v=3';
+  if (man) man.href = (sazon ? '/manifest-sazon.webmanifest' : '/manifest-paraiso.webmanifest') + '?v=3';
+  if (th) th.setAttribute('content', sazon ? '#8d4a12' : '#1b5e20');
+  // Nombre del acceso directo (etiqueta bajo el icono) según el local
+  document.title = sazon ? 'El Sazón de Quisqueya' : 'El Paraíso · Equipo';
+  const at = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+  if (at) at.setAttribute('content', sazon ? 'El Sazón' : 'El Paraíso');
+  aplicarLogoLocal();
+}
+// ---- Marca de cada negocio: para añadir otro local, basta con una entrada aquí ----
+//  fondo = imagen grande (marca de agua + login) · cab = logo pequeño de la cabecera
+const MARCAS = {
+  paraiso: { fondo: 'logo-fondo.png', cab: (window.LOGO_PARAISO_DEFECTO || 'logo-fondo.png') },
+  sazon:   { fondo: 'logo-sazon.png', cab: 'logo-sazon.png' }
+};
+function marcaDe(loc) { return MARCAS[loc] || MARCAS.paraiso; }
+function logoActual() { return marcaDe(localActual()).fondo; }
+// El logo de fondo/cabecera/login/splash según el local (cada negocio el suyo)
+function aplicarLogoLocal() {
+  const m = marcaDe(localActual());
+  document.querySelectorAll('.fondo-login').forEach(el => el.src = m.fondo);
+  const ma = $('#marca-agua-img'); if (ma) ma.src = m.fondo;
+  const ll = $('#logo-login'); if (ll) { ll.src = m.fondo; ll.style.display = 'block'; }
+  const lc = $('#logo-cab'); if (lc) { lc.src = m.cab; lc.style.display = 'block'; }
+  const sp = $('#splash-logo'); if (sp) sp.src = m.fondo;
+}
 window.elegirLocal = clave => {
   localStorage.setItem('equipo_local', clave);
+  aplicarIconoLocal();
   arrancar();
 };
 
@@ -384,9 +526,7 @@ let vista = null;          // datos que manda el servidor
 let pestanaActual = 'avisos';
 
 // El logo de El Paraíso (viene de js/marca-paraiso.js, el mismo del sistema de gestión)
-if (window.LOGO_PARAISO_DEFECTO) {
-  const lc = $('#logo-cab'); lc.src = LOGO_PARAISO_DEFECTO; lc.style.display = 'block';
-}
+// El logo de la cabecera lo pone aplicarLogoLocal() según el local (cada negocio el suyo)
 
 /* ---------- Utilidades ---------- */
 function aviso(txt, mal) {
@@ -396,6 +536,29 @@ function aviso(txt, mal) {
   clearTimeout(aviso._t); aviso._t = setTimeout(() => el.style.display = 'none', 3500);
 }
 const esc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// Dictado por voz: rellena un campo hablando por el micrófono (móvil u ordenador, en Chrome)
+let _recVoz = null;
+window.hablar = (id) => {
+  const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const campo = $('#' + id);
+  if (!Rec) { aviso('Para dictar por voz usa Google Chrome.', true); return; }
+  if (_recVoz) { try { _recVoz.stop(); } catch (e) {} }
+  const rec = _recVoz = new Rec();
+  rec.lang = 'es-ES'; rec.interimResults = false; rec.maxAlternatives = 1; rec.continuous = false;
+  const btn = document.querySelector('[data-mic="' + id + '"]');
+  if (btn) { btn.textContent = '🔴 Escuchando…'; }
+  aviso('🎤 Habla ahora…');
+  rec.onresult = e => {
+    let t = e.results[0][0].transcript.trim();
+    if (t) t = t.charAt(0).toUpperCase() + t.slice(1);
+    const sep = campo.tagName === 'TEXTAREA' && campo.value.trim() ? '\n' : (campo.value.trim() ? ' ' : '');
+    campo.value = (campo.value || '') + sep + t;
+    aviso('✅ «' + t + '»');
+  };
+  rec.onerror = e => aviso(e.error === 'not-allowed' ? 'Dale permiso al micrófono en el navegador.' : 'No te he entendido, prueba otra vez.', true);
+  rec.onend = () => { if (btn) btn.textContent = '🎤'; _recVoz = null; };
+  try { rec.start(); } catch (e) { aviso('No pude abrir el micrófono.', true); }
+};
 function fechaBonita(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -430,6 +593,21 @@ function cerrarSesion() {
 }
 
 async function arrancar() {
+  // Entrada automática con enlace de acceso: /equipo/?acceso=PASE&local=paraiso
+  // (el pase se guarda en este navegador y el enlace se limpia de la barra)
+  const parametros = new URLSearchParams(location.search);
+  const pase = parametros.get('acceso');
+  if (pase) {
+    const loc = LOCALES_APP[parametros.get('local')] ? parametros.get('local') : 'paraiso';
+    localStorage.setItem('equipo_local', loc);
+    localStorage.setItem('paraiso_equipo_token_' + loc, pase);
+    history.replaceState(null, '', location.pathname);
+    window._entroPorEnlace = true;
+  }
+  // Acceso directo por local: /equipo/?l=sazon (para tener un icono por local en el móvil)
+  const soloLocal = parametros.get('l') || (!pase && parametros.get('local'));
+  if (soloLocal && LOCALES_APP[soloLocal]) localStorage.setItem('equipo_local', soloLocal);
+  aplicarIconoLocal();
   // Paso 1: elegir local (si aún no está elegido)
   if (!localActual()) {
     $('#selector-local').style.display = 'block';
@@ -478,7 +656,17 @@ function entrar(v) {
   $('#cab-rol').textContent = (v.yo.rol === 'jefe' ? 'Administrador · ' : 'Equipo · ') + (LOCALES_APP[localActual()] || 'El Paraíso').replace(/^[^ ]+ /, '');
   $$('.solo-jefe').forEach(el => el.style.display = v.yo.rol === 'jefe' ? 'block' : 'none');
   montarBarra();
+  cambiarPestana(v.yo.rol === 'jefe' ? 'panel' : 'avisos');
   pintarTodo();
+  // Si entró por su enlace de WhatsApp y es la primera vez en este móvil, le invitamos a poner su contraseña
+  if (window._entroPorEnlace && v.yo.rol !== 'jefe' && !localStorage.getItem('clave_puesta_' + v.yo.id)) {
+    window._entroPorEnlace = false;
+    setTimeout(() => {
+      aviso('👋 ¡Bienvenido/a, ' + v.yo.nombre + '! Ponte tu propia contraseña.');
+      $('#cl-primera').checked = true; $('#cl-actual').style.display = 'none';
+      $('#modal-clave').style.display = 'flex';
+    }, 800);
+  }
   comprobarTareasNuevas(true);
   comprobarPrivadosNuevos(true);
   // Permiso para avisar de tareas y privados con notificación del navegador
@@ -503,7 +691,7 @@ function montarBarra() {
     ['avisos', '📢', 'Avisos'], ['tareas', '✅', 'Tareas'], ['horario', '🕐', 'Horario'],
     ['fichar', '⏱', 'Fichar'], ['pedidos', '🛒', 'Pedidos'], ['stock', '📦', 'Stock']
   ];
-  if (esJefe) tabs.push(['equipo', '👥', 'Equipo']);
+  if (esJefe) { tabs.unshift(['panel', '📊', 'Panel']); tabs.push(['equipo', '👥', 'Equipo']); }
   $('#barra').innerHTML = tabs.map(([id, ico, txt]) =>
     `<button data-tab="${id}" class="${id === pestanaActual ? 'activa' : ''}"><span class="ico">${ico}</span>${txt}<span class="punto" id="punto-${id}"></span></button>`).join('');
   $$('#barra button').forEach(b => b.onclick = () => cambiarPestana(b.dataset.tab));
@@ -536,12 +724,122 @@ function comprobarTareasNuevas(esPrimeraCarga) {
   if (pestanaActual === 'tareas') { marcarTareasVistas(); return; }
   aviso(texto);
   if (!esPrimeraCarga && 'Notification' in window && Notification.permission === 'granted') {
-    try { new Notification('El Paraíso · Equipo', { body: texto, icon: 'logo-fondo.png' }); } catch (e) {}
+    try { new Notification('El Paraíso · Equipo', { body: texto, icon: logoActual() }); } catch (e) {}
   }
 }
 
 /* ---------- Pintar cada sección ---------- */
-function pintarTodo() { pintarMiDia(); pintarAvisos(); pintarTareas(); pintarHorario(); pintarFichar(); pintarPedidos(); pintarStock(); pintarEquipo(); if (chatCon != null) pintarChat(); }
+function pintarTodo() { pintarPanel(); pintarMiDia(); pintarAvisos(); pintarTareas(); pintarHorario(); pintarFichar(); pintarPedidos(); pintarStock(); pintarEquipo(); if (chatCon != null) pintarChat(); }
+
+/* ---------- Panel con gráficos (solo jefe) ---------- */
+const graficos = {};
+function lienzoNuevo(idCaja) {
+  const caja = $('#' + idCaja);
+  if (graficos[idCaja]) { graficos[idCaja].destroy(); delete graficos[idCaja]; }
+  caja.innerHTML = '<canvas></canvas>';
+  return caja.querySelector('canvas');
+}
+function lienzoVacio(idCaja, texto) {
+  if (graficos[idCaja]) { graficos[idCaja].destroy(); delete graficos[idCaja]; }
+  $('#' + idCaja).innerHTML = '<div class="grafico-vacio">' + texto + '</div>';
+}
+function pintarPanel() {
+  if (!vista || vista.yo.rol !== 'jefe' || !window.Chart) return;
+  Chart.defaults.font.family = "-apple-system, 'Segoe UI', Roboto, Arial, sans-serif";
+  Chart.defaults.font.size = 12;
+  const VERDE = '#2e7d32', MEDIO = '#66bb6a', AMBAR = '#f9a825', ROJO = '#c62828', AZUL = '#1565c0', GRIS = '#cfd8cf';
+  const gente = vista.empleados.filter(e => e.rol !== 'jefe' && e.activo);
+
+  // Saludo con la fecha de hoy
+  const hoyTxt = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+  $('#panel-titulo').textContent = '📊 Hola, ' + vista.yo.nombre;
+  $('#panel-sub').textContent = hoyTxt.charAt(0).toUpperCase() + hoyTxt.slice(1) + ' · ' + (LOCALES_APP[localActual()] || 'El Paraíso');
+
+  // KPIs
+  const abiertos = {}; (vista.fichajes || []).forEach(f => { abiertos[f.empleadoId] = f.tipo === 'entrada'; });
+  const trabajando = Object.values(abiertos).filter(Boolean).length;
+  const tareasPend = (vista.tareas || []).filter(t => t.estado === 'pendiente').length;
+  const pedidosPend = (vista.pedidos || []).filter(p => p.estado === 'pendiente').length;
+  const stockCero = (vista.stock || []).filter(s => (Number(s.cantidad) || 0) === 0).length;
+  $('#panel-kpis').innerHTML = `
+    <div class="kpi"><div class="num">${gente.length}</div><div class="txt">trabajadores activos</div></div>
+    <div class="kpi acento-azul"><div class="num">${trabajando}</div><div class="txt">fichados ahora</div></div>
+    <div class="kpi acento-ambar"><div class="num">${tareasPend}</div><div class="txt">tareas pendientes</div></div>
+    <div class="kpi acento-rojo"><div class="num">${pedidosPend}</div><div class="txt">cosas que faltan</div></div>`;
+
+  // 1) Horas trabajadas esta semana por trabajador
+  const hoy0 = new Date(); hoy0.setHours(0, 0, 0, 0);
+  const lunes = new Date(hoy0); lunes.setDate(lunes.getDate() - ((lunes.getDay() + 6) % 7));
+  const horas = gente.map(e => {
+    const tr = tramosDe((vista.fichajes || []).filter(f => f.empleadoId === e.id));
+    return { nombre: e.nombre, h: msEnVentana(tr, lunes.getTime(), Date.now()) / 3600000 };
+  }).filter(x => x.h > 0).sort((a, b) => b.h - a.h);
+  if (!horas.length) lienzoVacio('lienzo-horas', 'Sin fichajes esta semana todavía.');
+  else graficos['lienzo-horas'] = new Chart(lienzoNuevo('lienzo-horas'), {
+    type: 'bar',
+    data: { labels: horas.map(x => x.nombre), datasets: [{ data: horas.map(x => +x.h.toFixed(1)), backgroundColor: VERDE, borderRadius: 6 }] },
+    options: { indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.parsed.x + ' h' } } },
+      scales: { x: { beginAtZero: true, ticks: { callback: v => v + 'h' } } }, maintainAspectRatio: false }
+  });
+
+  // 2) Entradas por día (últimos 7 días)
+  const dias7 = [], entradasDia = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(hoy0); d.setDate(d.getDate() - i);
+    dias7.push(d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' }));
+    const ini = d.getTime(), fin = ini + 86400000;
+    entradasDia.push((vista.fichajes || []).filter(f => f.tipo === 'entrada' && new Date(f.ts).getTime() >= ini && new Date(f.ts).getTime() < fin).length);
+  }
+  if (!entradasDia.some(n => n > 0)) lienzoVacio('lienzo-fichajes', 'Aún no hay entradas registradas.');
+  else graficos['lienzo-fichajes'] = new Chart(lienzoNuevo('lienzo-fichajes'), {
+    type: 'line',
+    data: { labels: dias7, datasets: [{ data: entradasDia, borderColor: VERDE, backgroundColor: 'rgba(46,125,50,.15)', fill: true, tension: .35, pointBackgroundColor: VERDE, pointRadius: 4 }] },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }, maintainAspectRatio: false }
+  });
+
+  // 3) Tareas: hechas vs pendientes
+  const tHechas = (vista.tareas || []).filter(t => t.estado === 'hecha').length;
+  if (!tHechas && !tareasPend) lienzoVacio('lienzo-tareas', 'No hay tareas todavía.');
+  else graficos['lienzo-tareas'] = new Chart(lienzoNuevo('lienzo-tareas'), {
+    type: 'doughnut',
+    data: { labels: ['Hechas', 'Pendientes'], datasets: [{ data: [tHechas, tareasPend], backgroundColor: [MEDIO, AMBAR], borderWidth: 0 }] },
+    options: { plugins: { legend: { position: 'bottom' } }, cutout: '62%', maintainAspectRatio: false }
+  });
+
+  // 4) Stock más bajo (5 productos con menos cantidad)
+  const stock = [...(vista.stock || [])].sort((a, b) => (Number(a.cantidad) || 0) - (Number(b.cantidad) || 0)).slice(0, 6);
+  if (!stock.length) lienzoVacio('lienzo-stock', 'Sin productos en el stock todavía.');
+  else graficos['lienzo-stock'] = new Chart(lienzoNuevo('lienzo-stock'), {
+    type: 'bar',
+    data: { labels: stock.map(s => s.nombre), datasets: [{ data: stock.map(s => Number(s.cantidad) || 0),
+      backgroundColor: stock.map(s => (Number(s.cantidad) || 0) === 0 ? ROJO : (Number(s.cantidad) || 0) <= 2 ? AMBAR : MEDIO), borderRadius: 6 }] },
+    options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }, maintainAspectRatio: false }
+  });
+
+  // Detalle por trabajador: horas semana, si está fichado, tareas y funciones de hoy
+  $('#panel-detalle').innerHTML = gente.length ? `
+    <div class="grafico-caja" style="margin-bottom:14px">
+      <h3>👥 Cada trabajador de un vistazo</h3>
+      ${gente.map(e => {
+        const tr = tramosDe((vista.fichajes || []).filter(f => f.empleadoId === e.id));
+        const hSem = msEnVentana(tr, lunes.getTime(), Date.now());
+        const dentro = abiertos[e.id] === true;
+        const tPend = (vista.tareas || []).filter(t => t.estado === 'pendiente' && (t.paraId === e.id || !t.paraId)).length;
+        const funcs = listaFunciones(e.funciones);
+        const fHechas = funcs.filter(f => funcionHechaHoy(e.id, f)).length;
+        return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 0;border-bottom:1px dashed var(--borde)">
+          <div style="min-width:0">
+            <strong>${esc(e.nombre)}</strong> ${dentro ? '<span style="color:var(--verde-medio);font-size:12px;font-weight:700">🟢 fichado</span>' : ''}
+            ${e.puesto ? '<div style="font-size:12px;color:#888">' + esc(e.puesto) + '</div>' : ''}
+          </div>
+          <div style="text-align:right;font-size:12.5px;white-space:nowrap">
+            <div>⏳ <strong>${fmtHoras(hSem)}</strong> <span style="color:#999">esta semana</span></div>
+            <div style="color:${tPend ? '#e65100' : '#999'}">✅ ${tPend} tarea(s) pendientes${funcs.length ? ' · 📋 ' + fHechas + '/' + funcs.length : ''}</div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>` : '';
+}
 
 // Panel "Mi día": el empleado entra y ve su puesto, su turno de hoy y sus
 // funciones como LISTA PARA MARCAR (al marcarlas queda la hora registrada)
@@ -557,8 +855,9 @@ function pintarMiDia() {
   const cont = $('#mi-dia');
   if (vista.yo.rol === 'jefe') { cont.innerHTML = ''; return; }
   const yoFicha = vista.empleados.find(e => e.id === vista.yo.id) || vista.yo;
-  const turnoHoy = ((vista.horario.turnos || {})[vista.yo.id] || {})[CLAVES_DIA[new Date().getDay()]] || '';
-  const libre = !turnoHoy || /libre|descans/i.test(turnoHoy);
+  const turnoRaw = ((vista.horario.turnos || {})[vista.yo.id] || {})[CLAVES_DIA[new Date().getDay()]] || '';
+  const turnoHoy = textoTurno(turnoRaw);
+  const libre = turnoHoy === '—' || turnoHoy === 'Libre';
   const pendientes = (vista.tareas || []).filter(t => t.estado === 'pendiente').length;
   const funciones = listaFunciones(yoFicha.funciones);
   const listaHTML = funciones.map(f => {
@@ -573,7 +872,11 @@ function pintarMiDia() {
   cont.innerHTML = `
     <div class="tarjeta mi-dia">
       <div class="puesto-mio">👤 ${esc(yoFicha.nombre)}${yoFicha.puesto ? ' · ' + esc(yoFicha.puesto) : ''}</div>
-      <div class="dato">🕐 <strong>Hoy:</strong> ${libre ? 'sin turno apuntado (mira el horario)' : esc(turnoHoy)}</div>
+      <div class="dato">🕐 <strong>Tu turno hoy:</strong> ${(() => {
+        const c = celTurno(turnoRaw);
+        if (c.e || c.s) return `🟢 Entrada <strong>${esc(c.e || '—')}</strong> · 🔴 Salida <strong>${esc(c.s || '—')}</strong>`;
+        return libre ? 'sin turno apuntado (mira el horario)' : esc(turnoHoy);
+      })()}</div>
       ${funciones.length ? `<div class="dato">📋 <strong>Tus funciones de hoy</strong> (márcalas cuando las termines):</div>${listaHTML}` : ''}
       <div class="dato">✅ <strong>Tareas pendientes:</strong> ${pendientes}${pendientes ? ' — míralas en la pestaña Tareas' : ' 🎉'}</div>
       <div class="fila-acciones">${(() => {
@@ -615,7 +918,8 @@ function tarjetaTarea(t, esJefe) {
       <div class="meta">
         ${t.paraId ? '👤 ' + esc(nombreDe(t.paraId)) : '<span class="etiqueta et-todos">para todos</span>'}
         ${t.fechaLimite ? ' · 📅 antes del ' + t.fechaLimite.split('-').reverse().join('/') : ''}
-        ${t.estado === 'hecha' ? ' · ✔ ' + esc(nombreDe(t.hechaPor)) + ' (' + fechaBonita(t.hechaEn) + ')' : ''}
+        · ✉️ la mandó ${t.creadaPor ? esc(nombreDe(t.creadaPor)) : 'automático'}
+        ${t.estado === 'hecha' ? ' · ✔ la hizo ' + esc(nombreDe(t.hechaPor)) + ' (' + fechaBonita(t.hechaEn) + ')' : ''}
       </div>
       <div class="fila-acciones">
         ${t.estado === 'pendiente' ? `<button class="btn btn-verde btn-peq" onclick="hacerTarea('${t.id}')">✔ Marcar hecha</button>` :
@@ -634,14 +938,19 @@ function pintarTareas() {
   const tareas = [...(vista.tareas || [])].sort((a, b) => (a.estado === 'hecha') - (b.estado === 'hecha'));
   if (!tareas.length) { $('#lista-tareas').innerHTML = '<div class="vacio">No hay tareas. ¡Todo al día! 🎉</div>'; return; }
   if (esJefe) {
-    // Vista del jefe: agrupadas y separadas — todo el equipo primero, luego cada persona
+    // Vista del jefe EN BLOQUE: un bloque (tarjeta) por persona, con su desglose
     const grupos = [[null, '👥 Todo el equipo'], ...vista.empleados.filter(e => e.rol !== 'jefe').map(e => [e.id, '👤 ' + e.nombre])];
     $('#lista-tareas').innerHTML = grupos.map(([gid, titulo]) => {
       const del = tareas.filter(t => (t.paraId || null) === gid);
       if (!del.length) return '';
       const pend = del.filter(t => t.estado === 'pendiente').length;
-      return `<h3 style="font-size:15.5px;color:var(--verde);margin:16px 0 6px;border-bottom:2px solid var(--verde-claro);padding-bottom:3px">${esc(titulo)} — ${pend ? pend + ' pendiente(s)' : 'todo hecho ✔'}</h3>` +
-        del.map(t => tarjetaTarea(t, true)).join('');
+      const hechas = del.length - pend;
+      return `<div class="bloque-persona">
+        <div class="bloque-cab">${esc(titulo)}
+          <span class="bloque-estado" style="color:${pend ? '#e65100' : 'var(--verde)'}">${hechas} hecha(s) · ${pend} pendiente(s)</span>
+        </div>
+        ${del.map(t => tarjetaTarea(t, true)).join('')}
+      </div>`;
     }).join('');
   } else {
     $('#lista-tareas').innerHTML = tareas.map(t => tarjetaTarea(t, false)).join('');
@@ -693,6 +1002,17 @@ window.reabrirTarea = async id => { try { await refrescar('reabrirTarea', { id }
 window.borrarTarea = async id => { if (confirm('¿Borrar esta tarea?')) try { await refrescar('borrarTarea', { id }); } catch (e) { aviso(e.message, true); } };
 
 const DIAS = [['lun','Lun'],['mar','Mar'],['mie','Mié'],['jue','Jue'],['vie','Vie'],['sab','Sáb'],['dom','Dom']];
+// Un turno guardado puede ser {e,s} (entrada/salida) o texto antiguo
+function celTurno(raw) {
+  if (raw && typeof raw === 'object') return { e: raw.e || '', s: raw.s || '' };
+  return { e: '', s: '', txt: raw || '' };
+}
+function textoTurno(raw) {
+  const c = celTurno(raw);
+  if (c.e || c.s) return (c.e || '—') + ' → ' + (c.s || '—');
+  if (c.txt && /libre|descans/i.test(c.txt)) return 'Libre';
+  return c.txt || '—';
+}
 function pintarHorario() {
   const esJefe = vista.yo.rol === 'jefe';
   const gente = vista.empleados.filter(e => e.activo && e.rol !== 'jefe');
@@ -703,12 +1023,62 @@ function pintarHorario() {
     gente.map(e => {
       const t = turnos[e.id] || {};
       return `<tr class="${e.id === vista.yo.id ? 'yo' : ''}"><td>${esc(e.nombre)}</td>` +
-        DIAS.map(d => esJefe
-          ? `<td><input data-emp="${e.id}" data-dia="${d[0]}" value="${esc(t[d[0]] || '')}" placeholder="—"></td>`
-          : `<td>${esc(t[d[0]] || '—')}</td>`).join('') + '</tr>';
+        DIAS.map(d => {
+          const c = celTurno(t[d[0]]);
+          if (esJefe) return `<td>
+            <input class="hin" data-emp="${e.id}" data-dia="${d[0]}" data-t="e" value="${esc(c.e)}" placeholder="entra" title="Entrada">
+            <input class="hin" data-emp="${e.id}" data-dia="${d[0]}" data-t="s" value="${esc(c.s)}" placeholder="sale" title="Salida">
+          </td>`;
+          const txt = textoTurno(t[d[0]]);
+          return `<td>${txt === 'Libre' ? '<span style="color:#999">Libre</span>' : (c.e || c.s ? '🟢 ' + esc(c.e || '—') + '<br>🔴 ' + esc(c.s || '—') : esc(txt))}</td>`;
+        }).join('') + '</tr>';
     }).join('');
   if (esJefe) $('#horario-notas').value = vista.horario.notas || '';
   $('#horario-notas-vista').innerHTML = vista.horario.notas && !esJefe ? '📝 ' + esc(vista.horario.notas) : '';
+  pintarHorarioPublico();
+}
+
+const DIAS_LARGO = [['lun','Lunes'],['mar','Martes'],['mie','Miércoles'],['jue','Jueves'],['vie','Viernes'],['sab','Sábado'],['dom','Domingo']];
+function pintarHorarioPublico() {
+  const esJefe = vista.yo.rol === 'jefe';
+  const hp = vista.horarioPublico || { dias: {}, nota: '', actualizado: null };
+  // Editor (solo jefe)
+  if (esJefe) {
+    $('#campos-horario-publico').innerHTML = DIAS_LARGO.map(([k, txt]) => `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <label style="width:90px;font-size:13.5px;font-weight:700;color:#1565c0">${txt}</label>
+        <input class="campo hp-dia" data-dia="${k}" value="${esc((hp.dias && hp.dias[k]) || '')}" placeholder="Ej.: 12:00–16:00 y 20:00–00:00" style="margin:0;flex:1">
+      </div>`).join('');
+    $('#hp-nota').value = hp.nota || '';
+  }
+  // Enlaces directos a la ficha real de ESTE local (para ver/editar al momento)
+  if (esJefe) {
+    const busca = localActual() === 'sazon' ? 'El Sazón de Quisqueya General Riera 114 Palma' : 'El Paraíso Bar Restaurante General Riera 114 Palma';
+    const gb = $('#btn-hp-google'); if (gb) gb.href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(busca);
+    const fb = $('#btn-hp-facebook'); if (fb) fb.href = localActual() === 'sazon' ? 'https://www.facebook.com/ElsazondeQuisqueya/' : 'https://www.facebook.com/';
+  }
+  // Vista para todos (lo que ve el cliente)
+  const hayAlgo = hp.dias && Object.values(hp.dias).some(v => v);
+  $('#horario-publico-vista').innerHTML = hayAlgo ? `
+    <div class="tarjeta">
+      <strong style="color:#1565c0">🌐 Horario de apertura al público</strong>
+      <table style="width:100%;margin-top:8px;font-size:14px;border-collapse:collapse">
+        ${DIAS_LARGO.map(([k, txt]) => `<tr>
+          <td style="padding:4px 0;font-weight:700">${txt}</td>
+          <td style="padding:4px 0;text-align:right;color:${(hp.dias[k] || '').toLowerCase().includes('cerr') ? 'var(--rojo)' : 'var(--texto)'}">${esc(hp.dias[k] || '—')}</td></tr>`).join('')}
+      </table>
+      ${hp.nota ? '<div class="meta" style="margin-top:8px">📝 ' + esc(hp.nota) + '</div>' : ''}
+      ${hp.actualizado ? '<div class="meta">Actualizado: ' + fechaBonita(hp.actualizado) + '</div>' : ''}
+    </div>` : (esJefe ? '' : '');
+}
+
+function textoHorarioPublico() {
+  const hp = vista.horarioPublico || { dias: {}, nota: '' };
+  const nom = (LOCALES_APP[localActual()] || 'El Paraíso');
+  let t = '🕐 *' + nom + ' · Horario de apertura*\n\n';
+  DIAS_LARGO.forEach(([k, txt]) => { t += txt + ': ' + ((hp.dias && hp.dias[k]) || '—') + '\n'; });
+  if (hp.nota) t += '\n' + hp.nota;
+  return t;
 }
 
 // Tramos entrada→salida de un empleado (una entrada sin salida cuenta hasta ahora)
@@ -746,19 +1116,32 @@ function pintarFichar() {
     $('#lista-fichajes').innerHTML = `<div class="vacio">${dentro ? '🟢 Estás fichado. Cuando termines, ficha la salida.' : 'Ficha la entrada al llegar al local.'}</div>`;
   }
 
-  // Horas trabajadas (solo el jefe): hoy y esta semana, calculadas de los fichajes
+  // Registro EN BLOQUE por persona (solo el jefe): estado, horas y últimos fichajes de cada uno
   if (esJefe) {
     const hoy0 = new Date(); hoy0.setHours(0, 0, 0, 0);
     const lunes = new Date(hoy0); lunes.setDate(lunes.getDate() - ((lunes.getDay() + 6) % 7));
-    const filas = vista.empleados.filter(e => e.rol !== 'jefe' && e.activo).map(e => {
-      const tr = tramosDe((vista.fichajes || []).filter(f => f.empleadoId === e.id));
-      return { nombre: e.nombre, hoy: msEnVentana(tr, hoy0.getTime(), Date.now()), sem: msEnVentana(tr, lunes.getTime(), Date.now()) };
-    });
+    const abiertos2 = {};
+    (vista.fichajes || []).forEach(f => { abiertos2[f.empleadoId] = f.tipo === 'entrada'; });
+    const gente = vista.empleados.filter(e => e.rol !== 'jefe' && e.activo);
     $('#horas-trabajadas').innerHTML = `
-      <strong style="color:var(--verde)">⏳ Horas trabajadas</strong> <span style="font-size:12px;color:#888">(solo lo ves tú)</span>
-      <div style="display:flex;justify-content:space-between;font-size:12px;color:#888;margin-top:8px"><span></span><span>HOY · SEMANA</span></div>
-      ${filas.map(f => `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed var(--borde)">
-        <span><strong>${esc(f.nombre)}</strong></span><span>${fmtHoras(f.hoy)} · <strong>${fmtHoras(f.sem)}</strong></span></div>`).join('') || '<div class="vacio" style="padding:10px">Aún no hay trabajadores con fichajes.</div>'}`;
+      <strong style="color:var(--verde)">⏳ Registro por persona</strong> <span style="font-size:12px;color:#888">(solo lo ves tú)</span>
+      ${gente.map(e => {
+        const misF = (vista.fichajes || []).filter(f => f.empleadoId === e.id);
+        const tr = tramosDe(misF);
+        const dentroE = abiertos2[e.id] === true;
+        const ultimos = [...misF].reverse().slice(0, 4).map(f =>
+          `${f.tipo === 'entrada' ? '🟢' : '🔴'} ${f.tipo} · ${fechaBonita(f.ts)}`).join('<br>');
+        return `<div class="bloque-persona" style="margin-top:10px">
+          <div class="bloque-cab">👤 ${esc(e.nombre)}
+            <span class="bloque-estado" style="color:${dentroE ? 'var(--verde-medio)' : '#999'}">${dentroE ? '🟢 dentro ahora' : '⚪ fuera'}</span>
+          </div>
+          <div style="font-size:13.5px;display:flex;justify-content:space-between;padding:2px 4px 8px">
+            <span>Hoy: <strong>${fmtHoras(msEnVentana(tr, hoy0.getTime(), Date.now()))}</strong></span>
+            <span>Semana: <strong>${fmtHoras(msEnVentana(tr, lunes.getTime(), Date.now()))}</strong></span>
+          </div>
+          <div style="font-size:12.5px;color:#777;padding:0 4px 6px">${ultimos || 'Sin fichajes todavía.'}</div>
+        </div>`;
+      }).join('') || '<div class="vacio" style="padding:10px">Aún no hay trabajadores con fichajes.</div>'}`;
   }
 
   // Panel del jefe: estado del control de ubicación
@@ -822,7 +1205,9 @@ function pintarPedidos() {
 
   // Gestor de proveedores (jefe)
   if (esJefe) {
-    $('#lista-proveedores').innerHTML = (vista.proveedores || []).map(pr => `
+    const nprov = (vista.proveedores || []).length;
+    const tp = $('#titulo-proveedores'); if (tp) tp.innerHTML = `🚚 Mis proveedores <span style="font-size:13px;color:#888">(${nprov})</span>`;
+    $('#lista-proveedores').innerHTML = [...(vista.proveedores || [])].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')).map(pr => `
       <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:14px;padding:5px 0;border-bottom:1px dashed var(--borde)">
         <span><strong>${esc(pr.nombre)}</strong>${pr.telefono ? ' · ' + esc(pr.telefono) : ''}<br><span style="font-size:12px;color:#888">${esc(pr.palabras || 'sin palabras')}</span></span>
         <span style="white-space:nowrap">
@@ -832,9 +1217,31 @@ function pintarPedidos() {
       </div>`).join('') || '<div style="font-size:13.5px;color:#777">Aún no hay proveedores registrados.</div>';
   }
 
+  // Agrupar los pendientes POR DÍA (el día que se pidió), del más reciente al más antiguo
+  const porDia = {};
+  pendientes.forEach(p => { const d = diaClave(p.fecha); (porDia[d] = porDia[d] || []).push(p); });
+  const diasOrden = Object.keys(porDia).sort().reverse();
+  const bloquePend = diasOrden.map(d => `
+    <div style="margin-top:10px">
+      <div style="font-size:13px;font-weight:800;color:var(--verde);background:var(--verde-claro);display:inline-block;padding:3px 10px;border-radius:20px;margin-bottom:6px">📅 ${diaBonito(d)} · ${porDia[d].length}</div>
+      ${porDia[d].map(fila).join('')}
+    </div>`).join('');
+
   $('#lista-pedidos').innerHTML =
-    (pendientes.length ? `<h3 style="font-size:15px;color:var(--rojo);margin:6px 0">Falta (${pendientes.length})</h3>` + pendientes.map(fila).join('') : '<div class="vacio">No falta nada apuntado. 👌</div>') +
-    (comprados.length ? `<h3 style="font-size:15px;color:#888;margin:14px 0 6px">Ya comprado</h3>` + [...comprados].reverse().map(fila).join('') : '');
+    (pendientes.length ? `<h3 style="font-size:15px;color:var(--rojo);margin:6px 0">Falta por comprar (${pendientes.length})</h3>` + bloquePend : '<div class="vacio">No falta nada apuntado. 👌</div>') +
+    (comprados.length ? `<h3 style="font-size:15px;color:#888;margin:14px 0 6px">Ya comprado (últimos)</h3>` + [...comprados].reverse().map(fila).join('') : '');
+}
+// Clave de día (AAAA-MM-DD en hora de España) y su nombre bonito
+function diaClave(iso) {
+  return new Date(iso).toLocaleDateString('sv-SE', { timeZone: 'Europe/Madrid' });
+}
+function diaBonito(clave) {
+  const hoy = diaClave(new Date().toISOString());
+  const ayer = diaClave(new Date(Date.now() - 86400000).toISOString());
+  if (clave === hoy) return 'Hoy';
+  if (clave === ayer) return 'Ayer';
+  const [a, m, d] = clave.split('-');
+  return new Date(a, m - 1, d).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 window.marcarPedido = async (id, estado) => { try { await refrescar('marcarPedido', { id, estado }); } catch (e) { aviso(e.message, true); } };
 window.borrarPedido = async id => { if (confirm('¿Quitar de la lista?')) try { await refrescar('borrarPedido', { id }); } catch (e) { aviso(e.message, true); } };
@@ -848,7 +1255,9 @@ window.mandarAProveedor = prId => {
   const nombreLocal = (LOCALES_APP[localActual()] || 'El Paraíso').replace(/^[^ ]+ /, '');
   const texto = `🛒 *PEDIDO · ${nombreLocal.toUpperCase()}*\n_${fecha}_\n\nHola${pr.nombre ? ' ' + pr.nombre : ''}, necesitamos:\n` +
     items.map(p => `• ${p.texto}`).join('\n') + `\n\n¡Gracias!\n_${nombreLocal}_`;
-  const tel = String(pr.telefono || '').replace(/[^\d]/g, '');
+  let tel = String(pr.telefono || '').replace(/[^\d]/g, '');
+  if (tel.length === 9) tel = '34' + tel;   // móvil español sin prefijo → añade +34
+  if (!tel) return aviso('Ese proveedor no tiene teléfono. Edítalo y añade su WhatsApp con +34.', true);
   window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(texto), '_blank');
 };
 let provEditando = null;
@@ -929,7 +1338,14 @@ $('#foto-pedido').onchange = async e => {
 
 /* ---------- Stock ---------- */
 function pintarStock() {
-  const items = [...(vista.stock || [])].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  // Organización: primero lo AGOTADO, luego lo que queda poco, y por orden alfabético
+  const items = [...(vista.stock || [])].sort((a, b) => {
+    const ca = Number(a.cantidad) || 0, cb = Number(b.cantidad) || 0;
+    if ((ca <= 0) !== (cb <= 0)) return ca <= 0 ? -1 : 1;
+    return ca - cb || a.nombre.localeCompare(b.nombre, 'es');
+  });
+  const agotados = items.filter(s => (Number(s.cantidad) || 0) <= 0).length;
+  const ts = $('#titulo-stock'); if (ts) ts.innerHTML = `📦 Stock <span style="font-size:14px;color:#888">(${items.length}${agotados ? ' · ' + agotados + ' agotado(s)' : ''})</span>`;
   $('#lista-stock').innerHTML = items.length ? items.map(s => {
     const ult = (s.historial || [])[(s.historial || []).length - 1];
     const info = ult ? `${ult.motivo} ${ult.cambio > 0 ? '+' + ult.cambio : ult.cambio} · ${fechaBonita(ult.fecha)}` : '';
@@ -987,7 +1403,10 @@ $('#foto-factura').onchange = async e => {
 
 function pintarEquipo() {
   if (vista.yo.rol !== 'jefe') return;
-  const gente = vista.empleados.filter(e => e.rol !== 'jefe');
+  // Organización: activos primero, luego por nombre
+  const gente = vista.empleados.filter(e => e.rol !== 'jefe').sort((a, b) => (a.activo === b.activo ? 0 : a.activo ? -1 : 1) || a.nombre.localeCompare(b.nombre, 'es'));
+  const activos = gente.filter(e => e.activo).length;
+  const te = $('#titulo-equipo'); if (te) te.innerHTML = `👥 Equipo <span style="font-size:14px;color:#888">(${activos} activo${activos === 1 ? '' : 's'}${gente.length > activos ? ' · ' + (gente.length - activos) + ' inactivo(s)' : ''})</span>`;
   const tareasPend = (vista.tareas || []).filter(t => t.estado === 'pendiente').length;
   const pedidosPend = (vista.pedidos || []).filter(p => p.estado === 'pendiente').length;
   const abiertos = {};
@@ -1023,6 +1442,7 @@ function pintarEquipo() {
       <div class="meta">📧 ${esc(e.email)}</div>
       ${e.funciones ? `<div class="meta">📋 ${esc(e.funciones)}</div>` : ''}
       <div class="fila-acciones">
+        <button class="btn btn-verde btn-peq" onclick="mandarAcceso('${e.id}','${esc(e.nombre)}')">📲 Enviar acceso</button>
         <button class="btn btn-verde btn-peq" onclick="abrirChat('${e.id}','${esc(e.nombre)}')">💬 Privado${privadosNoVistos().filter(m => m.deId === e.id).length ? ' 🔴' : ''}</button>
         <button class="btn btn-borde btn-peq" onclick="editarEmp('${e.id}')">✏️ Editar</button>
         <button class="btn btn-borde btn-peq" onclick="nuevaClaveEmp('${e.id}','${esc(e.nombre)}')">🔑 Nueva contraseña</button>
@@ -1034,6 +1454,17 @@ window.nuevaClaveEmp = async (id, nombre) => {
   const clave = prompt('Nueva contraseña para ' + nombre + ' (mínimo 6):');
   if (!clave) return;
   try { await refrescar('reiniciarClave', { id, clave }); aviso('Contraseña cambiada. Recuerda decirsela a ' + nombre + '.'); } catch (e) { aviso(e.message, true); }
+};
+// Genera el enlace de acceso directo del trabajador y lo manda por WhatsApp
+window.mandarAcceso = async (id, nombre) => {
+  try {
+    const r = await llamar('enlaceEmpleado', { id });
+    const enlace = location.origin + '/equipo/?acceso=' + encodeURIComponent(r.token) + '&local=' + (localActual() || 'paraiso');
+    const local = (LOCALES_APP[localActual()] || 'El Paraíso');
+    const msg = `¡Hola ${nombre}! 👋\nEste es tu acceso al portal del equipo de ${local}.\n\nToca este enlace y entrarás directamente (sin contraseña):\n${enlace}\n\nUna vez dentro, pulsa el botón 🔑 arriba a la derecha para poner tu propia contraseña. Guarda este enlace, te sirve siempre desde tu móvil.`;
+    window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+    aviso('📲 Elige a ' + nombre + ' en WhatsApp y envía el enlace.');
+  } catch (e) { aviso(e.message, true); }
 };
 window.alternarEmp = async (id, activo) => { try { await refrescar('editarEmpleado', { id, activo }); } catch (e) { aviso(e.message, true); } };
 let empEditando = null;
@@ -1079,13 +1510,44 @@ $('#btn-local').onclick = () => {
   localStorage.setItem('equipo_local', otro);
   location.reload();
 };
+// Guía / instrucciones (distinta para jefe y empleado)
+const GUIA_COMUN = `
+  <p><strong>📢 Avisos</strong> — Aquí ves los mensajes que pone el jefe para todo el equipo (horarios, cambios, recordatorios). Cuando hay uno nuevo aparece un punto rojo.</p>
+  <p><strong>✅ Tareas</strong> — Lo que tienes que hacer. Cuando termines una, pulsa para marcarla como hecha ✔. El jefe ve al momento lo que has completado.</p>
+  <p><strong>🕐 Horario</strong> — Tu horario semanal de turnos. Arriba, en "Mi día", ves tu turno de hoy.</p>
+  <p><strong>⏱ Fichar</strong> — Pulsa el botón grande para fichar tu ENTRADA al llegar y tu SALIDA al irte. <em>Importante: solo se puede fichar estando DENTRO del local</em> (activa el GPS y da permiso de ubicación al navegador la primera vez).</p>
+  <p><strong>🛒 Pedidos</strong> — Apunta lo que falta o se está acabando (ej.: "2 cajas de cerveza"). También puedes hacer una foto de la libreta y lo apunta solo. Le llega un aviso al jefe.</p>
+  <p><strong>📦 Stock</strong> — Lo que hay en el almacén. Con − y + se descuenta o suma lo que se gasta; al llegar a 0 se apunta solo en Pedidos.</p>
+  <p><strong>🔑 Tu contraseña</strong> — Con el botón 🔑 de arriba puedes poner o cambiar tu contraseña cuando quieras.</p>`;
+const GUIA_JEFE = `
+  <p style="background:#e8f5e9;padding:8px 10px;border-radius:8px"><strong>Eres el ADMINISTRADOR.</strong> Además de lo de abajo, tú lo gestionas todo:</p>
+  <p><strong>📊 Panel</strong> — Tu resumen: gráficos de horas del equipo, entradas por día, tareas y stock, y cada trabajador de un vistazo.</p>
+  <p><strong>📢 Avisos / ✅ Tareas</strong> — Publicas avisos y creas tareas (a uno, a varios o a todos). Puedes guardar funciones y mandarlas con un clic, o dejarlas automáticas cada día.</p>
+  <p><strong>🕐 Horario</strong> — Editas los turnos del equipo y también el <strong>horario de apertura al público</strong> (el que va a Google/redes).</p>
+  <p><strong>⏱ Fichar</strong> — Ves quién está trabajando ahora, las horas de cada uno, y fijas el control de ubicación ("Fijar aquí el local" estando dentro). Tú, como jefe, puedes fichar desde cualquier sitio.</p>
+  <p><strong>🛒 Pedidos / 🚚 Proveedores</strong> — Registras proveedores con sus palabras y los faltantes se clasifican solos; mandas a cada proveedor su pedido por WhatsApp.</p>
+  <p><strong>👥 Equipo</strong> — Das de alta a trabajadores, les mandas su acceso por WhatsApp (📲 Enviar acceso), cambias contraseñas, y activas/desactivas cuentas.</p>
+  <hr style="border:none;border-top:1px solid #eee;margin:12px 0"><p style="color:#888;font-size:13px">Lo que ve cada trabajador:</p>`;
+$('#btn-ayuda').onclick = () => {
+  const esJefe = vista && vista.yo.rol === 'jefe';
+  $('#ayuda-cuerpo').innerHTML = (esJefe ? GUIA_JEFE : '') + GUIA_COMUN;
+  $('#modal-ayuda').style.display = 'flex';
+};
+$('#btn-cerrar-ayuda').onclick = () => { $('#modal-ayuda').style.display = 'none'; };
 $('#btn-clave').onclick = () => { $('#modal-clave').style.display = 'flex'; };
 $('#btn-cerrar-clave').onclick = () => { $('#modal-clave').style.display = 'none'; };
+// Al marcar "no sé mi contraseña actual" se oculta el campo de la actual
+$('#cl-primera').onchange = e => { $('#cl-actual').style.display = e.target.checked ? 'none' : 'block'; };
 $('#btn-guardar-clave').onclick = async () => {
   try {
-    await llamar('cambiarClave', { claveActual: $('#cl-actual').value, claveNueva: $('#cl-nueva').value });
-    $('#modal-clave').style.display = 'none'; $('#cl-actual').value = ''; $('#cl-nueva').value = '';
-    aviso('🔑 Contraseña cambiada');
+    if ($('#cl-primera').checked) {
+      await llamar('establecerClave', { claveNueva: $('#cl-nueva').value });
+    } else {
+      await llamar('cambiarClave', { claveActual: $('#cl-actual').value, claveNueva: $('#cl-nueva').value });
+    }
+    if (vista && vista.yo) localStorage.setItem('clave_puesta_' + vista.yo.id, '1');
+    $('#modal-clave').style.display = 'none'; $('#cl-actual').value = ''; $('#cl-nueva').value = ''; $('#cl-primera').checked = false; $('#cl-actual').style.display = 'block';
+    aviso('🔑 Contraseña guardada');
   } catch (e) { aviso(e.message, true); }
 };
 
@@ -1103,13 +1565,29 @@ $('#btn-crear-tarea').onclick = async () => {
 };
 $('#btn-guardar-horario').onclick = async () => {
   const turnos = {};
-  $$('#tabla-horario input').forEach(inp => {
-    turnos[inp.dataset.emp] = turnos[inp.dataset.emp] || {};
-    turnos[inp.dataset.emp][inp.dataset.dia] = inp.value.trim();
+  $$('#tabla-horario .hin').forEach(inp => {
+    const { emp, dia, t } = inp.dataset;
+    turnos[emp] = turnos[emp] || {};
+    if (typeof turnos[emp][dia] !== 'object') turnos[emp][dia] = { e: '', s: '' };
+    turnos[emp][dia][t] = inp.value.trim();
   });
   try { await refrescar('guardarHorario', { turnos, notas: $('#horario-notas').value }); aviso('🕐 Horario publicado para todo el equipo'); }
   catch (e) { aviso(e.message, true); }
 };
+
+// Horario de apertura al público (Google / redes)
+$('#btn-guardar-hp').onclick = async () => {
+  const dias = {};
+  $$('.hp-dia').forEach(inp => { dias[inp.dataset.dia] = inp.value.trim(); });
+  try { await refrescar('guardarHorarioPublico', { dias, nota: $('#hp-nota').value }); aviso('🌐 Horario público guardado. Ahora publícalo en Google y redes con los botones de abajo.'); }
+  catch (e) { aviso(e.message, true); }
+};
+$('#btn-hp-whatsapp').onclick = () => window.open('https://wa.me/?text=' + encodeURIComponent(textoHorarioPublico()), '_blank');
+$('#btn-hp-copiar').onclick = async () => {
+  try { await navigator.clipboard.writeText(textoHorarioPublico()); aviso('📋 Texto copiado. Pégalo donde quieras.'); }
+  catch (e) { aviso('Copia manual:\n\n' + textoHorarioPublico()); }
+};
+// Los enlaces de Google/Facebook se ajustan al local activo en pintarHorarioPublico()
 // Ubicación del móvil (para el control de fichaje en el local)
 function miUbicacion() {
   return new Promise(res => {
@@ -1209,7 +1687,7 @@ function comprobarPrivadosNuevos(esPrimeraCarga) {
   const texto = '💬 Mensaje privado de ' + nombreDe(nuevos[nuevos.length - 1].deId);
   aviso(texto);
   if (!esPrimeraCarga && 'Notification' in window && Notification.permission === 'granted') {
-    try { new Notification('El Paraíso · Equipo', { body: texto, icon: 'logo-fondo.png' }); } catch (e) {}
+    try { new Notification('El Paraíso · Equipo', { body: texto, icon: logoActual() }); } catch (e) {}
   }
 }
 window.abrirChat = (otroId, nombre) => {
@@ -1270,8 +1748,40 @@ setInterval(() => {
   $('#reloj').textContent = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   $('#fecha-hoy').textContent = d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
 }, 1000);
-setInterval(() => { if (vista) refrescar().catch(() => {}); }, 60000);   // cada minuto, lo último
-document.addEventListener('visibilitychange', () => { if (!document.hidden && vista) refrescar().catch(() => {}); });
+// Refresco automático rápido: mantiene todo al día en TODOS los móviles casi al instante
+function refrescoSeguro() {
+  if (!vista) return;
+  const ae = document.activeElement;
+  if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;   // no borra lo que estés escribiendo
+  if ([...document.querySelectorAll('.modal-fondo')].some(m => m.style.display === 'flex')) return;   // no corta un modal abierto
+  refrescar().catch(() => {});
+}
+setInterval(refrescoSeguro, 12000);   // cada 12 segundos
+window.addEventListener('focus', refrescoSeguro);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refrescoSeguro(); });
+
+// ---- Instalar como app en el inicio (un toque en Android/ordenador; iPhone con instrucciones) ----
+let _promptInstalar = null;
+const esStandalone = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+const esIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); _promptInstalar = e; });
+window.addEventListener('appinstalled', () => { const b = $('#btn-instalar'); if (b) b.style.display = 'none'; aviso('✅ App instalada en tu inicio'); });
+window.instalarApp = async () => {
+  if (_promptInstalar) { _promptInstalar.prompt(); await _promptInstalar.userChoice; _promptInstalar = null; return; }
+  if (esIOS()) { aviso('En iPhone: toca Compartir ↑ (abajo del navegador) y luego «Añadir a pantalla de inicio».'); return; }
+  aviso('En el menú del navegador (⋮ arriba a la derecha) elige «Instalar aplicación».');
+};
+if (esStandalone()) { const b = $('#btn-instalar'); if (b) b.style.display = 'none'; }
+
+// Ocultar la pantalla de bienvenida cuando la app ya está lista
+function ocultarSplash() {
+  const s = document.getElementById('splash');
+  if (!s || s.classList.contains('oculto')) return;
+  s.classList.add('oculto');
+  setTimeout(() => { if (s.parentNode) s.remove(); }, 600);
+}
+window.addEventListener('load', () => setTimeout(ocultarSplash, 900));
+setTimeout(ocultarSplash, 2600);   // red de seguridad por si 'load' no llega
 
 arrancar();
 </script>

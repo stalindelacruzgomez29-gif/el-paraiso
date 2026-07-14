@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crear cliente nuevo · White-label</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #fdf6ec; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .caja { background: #fff; border-radius: 16px; box-shadow: 0 8px 30px rgba(146,64,14,.15); max-width: 480px; width: 100%; padding: 28px; }
+  h1 { font-size: 22px; color: #92400e; margin-bottom: 4px; }
+  .sub { color: #777; font-size: 14px; margin-bottom: 20px; }
+  label { display: block; font-size: 13px; font-weight: 600; color: #555; margin: 14px 0 4px; }
+  .campo { width: 100%; padding: 12px; border: 1.5px solid #e5d5c0; border-radius: 10px; font-size: 16px; }
+  .campo:focus { outline: none; border-color: #d97706; }
+  .fila { display: flex; gap: 10px; }
+  .fila > div { flex: 1; }
+  .fila > div.corta { flex: 0 0 90px; }
+  .btn { width: 100%; margin-top: 22px; padding: 14px; border: 0; border-radius: 10px; background: #d97706; color: #fff; font-size: 17px; font-weight: 700; cursor: pointer; }
+  .btn:disabled { background: #d9b28a; }
+  .aviso { display: none; margin-top: 16px; padding: 12px; border-radius: 10px; font-size: 14px; line-height: 1.5; }
+  .aviso.error { background: #fde8e8; color: #9b1c1c; }
+  .aviso.progreso { background: #fef3c7; color: #92400e; }
+  .aviso.exito { background: #def7ec; color: #03543f; }
+  .aviso a { color: inherit; font-weight: 700; }
+  .pista { font-size: 12px; color: #999; margin-top: 3px; }
+  .seccion { border-top: 1px dashed #e5d5c0; margin-top: 20px; padding-top: 6px; }
+  ul { margin: 8px 0 0 18px; }
+</style>
+</head>
+<body>
+<div class="caja">
+  <h1>🧬 Crear cliente nuevo</h1>
+  <p class="sub">Rellena los datos del bar y su app quedará creada y publicada, con su propio espacio de datos privado.</p>
+
+  <label>Nombre del negocio</label>
+  <input class="campo" id="nombre" placeholder="Ej.: La Terraza" autocomplete="off">
+
+  <div class="fila">
+    <div>
+      <label>Nombre corto (para la dirección web)</label>
+      <input class="campo" id="slug" placeholder="laterraza" autocomplete="off">
+      <p class="pista">Solo minúsculas, números y guiones. La web será app-<b>corto</b>.vercel.app</p>
+    </div>
+    <div class="corta">
+      <label>Emoji</label>
+      <input class="campo" id="emoji" value="🍺" autocomplete="off">
+    </div>
+  </div>
+
+  <label>CIF y razón social (opcional, sale en el pie)</label>
+  <input class="campo" id="cif" placeholder="Ej.: LA TERRAZA SL · CIF B12345678" autocomplete="off">
+
+  <label>Dirección (opcional, sale en el pie)</label>
+  <input class="campo" id="direccion" placeholder="Ej.: Calle Mayor 5 · 07001 Palma" autocomplete="off">
+
+  <div class="seccion">
+    <label>Tu correo de administrador</label>
+    <input class="campo" id="email" type="email" autocomplete="username">
+    <label>Tu contraseña</label>
+    <input class="campo" id="clave" type="password" autocomplete="current-password">
+  </div>
+
+  <button class="btn" id="btn-crear">Crear la app del cliente</button>
+  <div class="aviso" id="aviso"></div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+
+// El nombre corto se propone solo a partir del nombre
+$('#nombre').addEventListener('input', () => {
+  if ($('#slug').dataset.tocado) return;
+  $('#slug').value = $('#nombre').value.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '').slice(0, 30);
+});
+$('#slug').addEventListener('input', () => { $('#slug').dataset.tocado = '1'; });
+
+function aviso(tipo, html) {
+  const a = $('#aviso');
+  a.className = 'aviso ' + tipo;
+  a.style.display = 'block';
+  a.innerHTML = html;
+}
+
+async function llamar(cuerpo) {
+  const r = await fetch('/api/clonar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(cuerpo)
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ('Error ' + r.status));
+  return j;
+}
+
+$('#btn-crear').onclick = async () => {
+  const datos = {
+    accion: 'crear',
+    nombre: $('#nombre').value.trim(),
+    slug: $('#slug').value.trim(),
+    emoji: $('#emoji').value.trim(),
+    cif: $('#cif').value.trim(),
+    direccion: $('#direccion').value.trim(),
+    email: $('#email').value.trim(),
+    clave: $('#clave').value
+  };
+  if (!datos.nombre || !datos.slug) return aviso('error', 'Falta el nombre del negocio o el nombre corto.');
+  if (!datos.email || !datos.clave) return aviso('error', 'Falta tu correo o contraseña de administrador.');
+
+  $('#btn-crear').disabled = true;
+  aviso('progreso', '⏳ Creando la app de <b>' + datos.nombre + '</b>… (esto tarda un poco, no cierres la página)');
+  try {
+    const r = await llamar(datos);
+    aviso('progreso', '🏗️ Copia creada. Publicando la web… (1-2 minutos)');
+
+    // Esperar a que la web esté construida
+    let url = null;
+    for (let i = 0; i < 36; i++) {
+      await new Promise(x => setTimeout(x, 5000));
+      try {
+        const e = await llamar({ accion: 'estado', proyecto: r.proyecto, email: datos.email, clave: datos.clave });
+        if (e.listo && e.url) { url = e.url; break; }
+        if (e.estado === 'ERROR') throw new Error('La construcción de la web falló: mirar el proyecto ' + r.proyecto + ' en Vercel.');
+      } catch (err) { if (String(err.message).includes('falló')) throw err; /* si es un fallo puntual de red, seguimos esperando */ }
+    }
+
+    let html = url
+      ? '✅ <b>¡App del cliente creada!</b><br>🌐 <a href="' + url + '" target="_blank">' + url.replace('https://', '') + '</a><br>El cliente debe entrar en <b>' + url.replace('https://', '') + '/equipo/</b> y crear su cuenta de administrador (solo se puede una vez).'
+      : '✅ La app se creó y se está publicando todavía. En unos minutos estará en el proyecto <b>' + r.proyecto + '</b> de Vercel.';
+    if (r.avisos && r.avisos.length) html += '<br><br><b>Pendientes:</b><ul>' + r.avisos.map(a => '<li>' + a + '</li>').join('') + '</ul>';
+    aviso('exito', html);
+  } catch (e) {
+    aviso('error', '❌ ' + e.message);
+  }
+  $('#btn-crear').disabled = false;
+};
+</script>
+</body>
+</html>

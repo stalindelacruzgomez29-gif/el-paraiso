@@ -32,6 +32,8 @@ function datosVacios() {
     mensajes: [],       // mensajes privados jefe <-> empleado (amonestaciones, avisos personales)
     stock: [],          // control de stock [{id, nombre, unidad, cantidad, actualizado, historial}]
     proveedores: [],    // [{id, nombre, telefono, palabras}] para clasificar y mandar pedidos por WhatsApp
+    // Horario de APERTURA al público (lo que ve el cliente en Google/redes): un texto por día
+    horarioPublico: { dias: {}, nota: '', actualizado: null },
     config: { local: null, radioM: 100 }   // local = {lat,lng} del restaurante para el control de fichaje
   };
 }
@@ -51,6 +53,12 @@ function hoyEspana() {
 
 function normalizarNombre(t) {
   return String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+// Nombre de un empleado por su id (para mensajes; nunca datos sensibles)
+function nombreEmpleado(datos, empleadoId) {
+  const e = (datos.empleados || []).find(x => x.id === empleadoId);
+  return e ? e.nombre : 'alguien';
 }
 
 // ¿A qué proveedor corresponde este texto? (por sus palabras clave)
@@ -129,12 +137,12 @@ function claveCorrecta(clave, emp) {
   return calculado.length === guardado.length && crypto.timingSafeEqual(calculado, guardado);
 }
 
-// --- Pases de acceso (tokens firmados, caducan a los 60 días) ---
+// --- Pases de acceso (tokens firmados, caducan a los 10 años) ---
 function firmar(texto) {
   return crypto.createHmac('sha256', secreto()).update(texto).digest('base64url');
 }
 function crearToken(emp) {
-  const cuerpo = Buffer.from(JSON.stringify({ id: emp.id, exp: Date.now() + 60 * 24 * 3600 * 1000 })).toString('base64url');
+  const cuerpo = Buffer.from(JSON.stringify({ id: emp.id, exp: Date.now() + 3650 * 24 * 3600 * 1000 })).toString('base64url');
   return cuerpo + '.' + firmar(cuerpo);
 }
 function leerToken(token) {
@@ -178,6 +186,7 @@ function vistaPara(datos, yo) {
     // Privados: cada uno ve SOLO sus conversaciones (el jefe las ve todas)
     mensajes: esJefe ? (datos.mensajes || []).slice(-600) : (datos.mensajes || []).filter(m => m.paraId === yo.id || m.deId === yo.id).slice(-200),
     proveedores: datos.proveedores || [],
+    horarioPublico: datos.horarioPublico || { dias: {}, nota: '', actualizado: null },
     config: { radioM: (datos.config && datos.config.radioM) || 100, controlUbicacion: !!(datos.config && datos.config.local) }
   };
 }
@@ -288,6 +297,13 @@ module.exports = async (req, res) => {
         Object.assign(yo, crearCredencial(String(p.claveNueva)));
         break;
       }
+      case 'establecerClave': {
+        // El propio usuario (ya autenticado por su enlace/sesión) se pone una contraseña
+        // sin necesitar la anterior. Pensado para quien entra por el enlace de WhatsApp.
+        if (String(p.claveNueva || '').length < 6) { const e = new Error('La contraseña debe tener al menos 6 caracteres.'); e.codigo = 400; throw e; }
+        Object.assign(yo, crearCredencial(String(p.claveNueva)));
+        break;
+      }
 
       // ----- Gestión de personal (solo jefe) -----
       case 'crearEmpleado': {
@@ -315,6 +331,13 @@ module.exports = async (req, res) => {
         if (String(p.clave || '').length < 6) { const e = new Error('La contraseña debe tener al menos 6 caracteres.'); e.codigo = 400; throw e; }
         Object.assign(emp, crearCredencial(String(p.clave)));
         break;
+      }
+      case 'enlaceEmpleado': {
+        // El jefe genera un pase de acceso directo para un trabajador (para mandárselo por WhatsApp)
+        if (!esJefe) soloJefe();
+        const emp = datos.empleados.find(x => x.id === p.id && x.rol !== 'jefe');
+        if (!emp) { const e = new Error('No encuentro a ese trabajador.'); e.codigo = 404; throw e; }
+        return res.status(200).json({ ok: true, token: crearToken(emp), nombre: emp.nombre });
       }
 
       // ----- Avisos -----
@@ -345,7 +368,7 @@ module.exports = async (req, res) => {
         const destinos = Array.isArray(p.paraIds) && p.paraIds.length ? p.paraIds : [p.paraId || null];
         destinos.forEach(destino => lineas.forEach(titulo => datos.tareas.push({
           id: id(), titulo, detalle: lineas.length === 1 ? limpio(p.detalle) : '', paraId: destino || null,
-          fechaLimite: limpio(p.fechaLimite) || null, creada: ahora(), estado: 'pendiente', hechaPor: null, hechaEn: null
+          fechaLimite: limpio(p.fechaLimite) || null, creada: ahora(), creadaPor: yo.id, estado: 'pendiente', hechaPor: null, hechaEn: null
         })));
         break;
       }
@@ -430,6 +453,20 @@ module.exports = async (req, res) => {
         break;
       }
 
+      // ----- Horario de apertura al público (el que va a Google/redes) -----
+      case 'guardarHorarioPublico': {
+        if (!esJefe) soloJefe();
+        datos.horarioPublico = datos.horarioPublico || { dias: {}, nota: '', actualizado: null };
+        if (p.dias && typeof p.dias === 'object') {
+          const dias = {};
+          for (const k of ['lun','mar','mie','jue','vie','sab','dom']) dias[k] = limpio(p.dias[k]);
+          datos.horarioPublico.dias = dias;
+        }
+        if (p.nota !== undefined) datos.horarioPublico.nota = limpio(p.nota);
+        datos.horarioPublico.actualizado = ahora();
+        break;
+      }
+
       // ----- Fichajes (control horario, con control de ubicación) -----
       case 'fichar': {
         const tipo = p.tipo === 'salida' ? 'salida' : 'entrada';
@@ -450,7 +487,7 @@ module.exports = async (req, res) => {
             const e = new Error('Para fichar necesito tu ubicación. Activa el GPS y dale permiso de ubicación al navegador.');
             e.codigo = 400; throw e;
           }
-          const margen = Math.min(Number(p.precision) || 0, 60);   // tolerancia por precisión del GPS
+          const margen = Math.min(Number(p.precision) || 0, 20);   // tolerancia por precisión del GPS (estricto)
           const radio = cfg.radioM || 100;
           if (dist - margen > radio) {
             const e = new Error(`Estás a ${dist} m del restaurante y solo se puede fichar a menos de ${radio} m. Ficha cuando llegues al local.`);
@@ -470,7 +507,7 @@ module.exports = async (req, res) => {
           if (typeof p.lat !== 'number' || typeof p.lng !== 'number') { const e = new Error('No me llegó tu ubicación. Activa el GPS y vuelve a intentarlo.'); e.codigo = 400; throw e; }
           datos.config.local = { lat: p.lat, lng: p.lng };
           const radio = Math.round(Number(p.radioM));
-          datos.config.radioM = (radio >= 30 && radio <= 2000) ? radio : 100;
+          datos.config.radioM = (radio >= 3 && radio <= 2000) ? radio : 100;
         }
         break;
       }
@@ -492,6 +529,12 @@ module.exports = async (req, res) => {
       case 'agregarPedido': {
         const texto = limpio(p.texto);
         if (!texto) { const e = new Error('Escribe qué hace falta.'); e.codigo = 400; throw e; }
+        // No clonar: si ya está PENDIENTE lo mismo (lo pidiera quien lo pidiera), no se duplica
+        const yaPendiente = datos.pedidos.find(x => x.estado === 'pendiente' && normalizarNombre(x.texto) === normalizarNombre(texto));
+        if (yaPendiente) {
+          const e = new Error(`«${texto}» ya está en la lista (lo apuntó ${nombreEmpleado(datos, yaPendiente.empleadoId)}). No se duplica.`);
+          e.codigo = 409; throw e;
+        }
         datos.pedidos.push({ id: id(), texto, empleadoId: yo.id, fecha: ahora(), estado: 'pendiente', compradoEn: null, proveedorId: proveedorPara(datos, texto) });
         const pendientes = datos.pedidos.filter(x => x.estado === 'pendiente').length;
         await avisarWhatsApp(`🛒 *${LOCALES[localClave].nombre.toUpperCase()} · Pedidos*\n${yo.nombre} apuntó: *${texto}*\n(${pendientes} cosa(s) pendientes en la lista)`);
@@ -501,8 +544,17 @@ module.exports = async (req, res) => {
         // Varios de golpe (por ejemplo, leídos de la foto de la libreta)
         const textos = (Array.isArray(p.textos) ? p.textos : []).map(limpio).filter(Boolean);
         if (!textos.length) { const e = new Error('No hay nada que apuntar.'); e.codigo = 400; throw e; }
-        textos.forEach(texto => datos.pedidos.push({ id: id(), texto, empleadoId: yo.id, fecha: ahora(), estado: 'pendiente', compradoEn: null, proveedorId: proveedorPara(datos, texto) }));
-        await avisarWhatsApp(`🛒 *${LOCALES[localClave].nombre.toUpperCase()} · Pedidos*\n${yo.nombre} apuntó ${textos.length} cosas:\n` + textos.map(t => '• ' + t).join('\n'));
+        // No clonar: quitar los que ya están pendientes y los repetidos dentro de la misma lista
+        const pendNorm = new Set(datos.pedidos.filter(x => x.estado === 'pendiente').map(x => normalizarNombre(x.texto)));
+        const nuevos = [], vistos = new Set(), repetidos = [];
+        textos.forEach(texto => {
+          const n = normalizarNombre(texto);
+          if (pendNorm.has(n) || vistos.has(n)) { repetidos.push(texto); return; }
+          vistos.add(n); nuevos.push(texto);
+        });
+        if (!nuevos.length) { const e = new Error('Todo eso ya estaba en la lista. No se ha duplicado nada.'); e.codigo = 409; throw e; }
+        nuevos.forEach(texto => datos.pedidos.push({ id: id(), texto, empleadoId: yo.id, fecha: ahora(), estado: 'pendiente', compradoEn: null, proveedorId: proveedorPara(datos, texto) }));
+        await avisarWhatsApp(`🛒 *${LOCALES[localClave].nombre.toUpperCase()} · Pedidos*\n${yo.nombre} apuntó ${nuevos.length} cosa(s):\n` + nuevos.map(t => '• ' + t).join('\n') + (repetidos.length ? `\n(${repetidos.length} ya estaban y no se duplicaron)` : ''));
         break;
       }
       case 'asignarProveedor': {
@@ -560,6 +612,14 @@ module.exports = async (req, res) => {
         const mov = { fecha: ahora(), cambio: nueva - (Number(s.cantidad) || 0), motivo: nueva === 0 ? 'se acabó' : 'ajuste' };
         s.cantidad = nueva; s.actualizado = ahora();
         s.historial = (s.historial || []).concat(mov).slice(-20);
+        // Automático: si se acabó, se apunta SOLO en Pedidos (si no estaba ya) y avisa por WhatsApp
+        if (nueva === 0) {
+          const yaApuntado = datos.pedidos.some(x => x.estado === 'pendiente' && normalizarNombre(x.texto).includes(normalizarNombre(s.nombre)));
+          if (!yaApuntado) {
+            datos.pedidos.push({ id: id(), texto: s.nombre, empleadoId: yo.id, fecha: ahora(), estado: 'pendiente', compradoEn: null, proveedorId: proveedorPara(datos, s.nombre) });
+            await avisarWhatsApp(`📦 *${LOCALES[localClave].nombre.toUpperCase()} · Stock*\nSe acabó *${s.nombre}* y quedó apuntado solo en Pedidos.\n(avisó ${yo.nombre})`);
+          }
+        }
         break;
       }
       case 'borrarStock': {

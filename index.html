@@ -4,7 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>El Paraíso · Contabilidad y Escandallos</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌴</text></svg>">
+<meta name="theme-color" content="#1b5e20">
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="El Paraíso">
 <link rel="stylesheet" href="css/estilos.css">
 </head>
 <body>
@@ -1787,8 +1791,11 @@
 <!-- Documento de una sola factura: se rellena al imprimir/descargar una factura concreta -->
 <div id="doc-impresion" class="doc-impresion"></div>
 
+<!-- Logo de El Paraíso como marca de agua de fondo -->
+<div id="marca-agua-fondo" style="position:fixed;inset:0;z-index:-1;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:.06"><img id="marca-agua-fondo-img" style="width:70%;max-width:640px;object-fit:contain" alt=""></div>
 <script src="lib/chart.umd.min.js"></script>
 <script src="js/marca-paraiso.js"></script>
+<script>if(window.LOGO_PARAISO_DEFECTO){document.getElementById('marca-agua-fondo-img').src=window.LOGO_PARAISO_DEFECTO;}</script>
 <script src="js/app.js"></script>
 </body>
 </html>

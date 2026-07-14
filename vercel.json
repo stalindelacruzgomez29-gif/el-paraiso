@@ -1,5 +1,26 @@
 {
   "crons": [
     { "path": "/api/equipo", "schedule": "0 6 * * *" }
+  ],
+  "functions": {
+    "api/clonar.js": { "maxDuration": 60 }
+  },
+  "headers": [
+    {
+      "source": "/equipo",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
+    },
+    {
+      "source": "/equipo/",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
+    },
+    {
+      "source": "/",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
+    },
+    {
+      "source": "/(favicon|apple-touch-icon|icono-192|icono-512|sazon-icono-192|sazon-icono-512|sazon-apple-touch|sazon-favicon).png",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
+    }
   ]
 }
