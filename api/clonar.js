@@ -374,6 +374,15 @@ module.exports = async (req, res) => {
     if (!esActualizacion) {
       avisos.push('El aviso de WhatsApp de pedidos está APAGADO: crear el CallMeBot del cliente y añadir WHATSAPP_TELEFONO y WHATSAPP_APIKEY en Vercel.');
       avisos.push('El logo es el genérico: cuando el cliente mande el suyo, sustituirlo (o que lo suba él en 👥 Equipo → 🎨).');
+    } else if (String(p.nombre || '').trim()) {
+      // Si al actualizar llegó la ficha a mano (cliente antiguo sin config-app.json), se guarda para la próxima
+      const rViejo = await gh('GET', `/repos/${USUARIO_GH}/${repoDatos}/contents/config-app.json?ref=main`);
+      const shaCfg = rViejo.ok ? (await rViejo.json()).sha : undefined;
+      await gh('PUT', `/repos/${USUARIO_GH}/${repoDatos}/contents/config-app.json`, {
+        message: 'ficha del cliente',
+        content: Buffer.from(JSON.stringify({ nombre, slug, emoji, cif, direccion, actualizado: new Date().toISOString() }, null, 2)).toString('base64'),
+        branch: 'main', ...(shaCfg ? { sha: shaCfg } : {})
+      });
     }
 
     return res.status(200).json({
