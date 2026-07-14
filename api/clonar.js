@@ -163,6 +163,13 @@ module.exports = async (req, res) => {
     ], avisos, 'api/equipo.js');
 
     const portal = personalizar(b64aTexto(fuentes['equipo/index.html']), [
+      ['<title>El Paraíso · Equipo</title>', `<title>${nombre} · Equipo</title>`, 'título estático'],
+      ['<meta name="apple-mobile-web-app-title" content="El Paraíso">', `<meta name="apple-mobile-web-app-title" content="${nombre}">`, 'nombre de app en iPhone'],
+      ["new Notification('El Paraíso · Equipo'", `new Notification(${JSON.stringify(nombre + ' · Equipo')}`, 'notificaciones'],
+      ["if (at) at.setAttribute('content', sazon ? 'El Sazón' : 'El Paraíso');", `if (at) at.setAttribute('content', ${JSON.stringify(nombre)});`, 'nombre de app (dinámico)'],
+      ['🛒 *PEDIDO EL PARAÍSO*', `🛒 *PEDIDO ${nombre.toUpperCase()}*`, 'cabecera del pedido de WhatsApp'],
+      ['\\n\\n_El Paraíso Bar Restaurante · General Riera 114, Palma_', `\\n\\n_${nombre} · ${direccion}_`, 'firma del pedido de WhatsApp'],
+      ["|| 'El Paraíso')", `|| ${JSON.stringify(nombre)})`, 'nombre por defecto'],
       [/const LOCALES_APP = \{[^\n]*\};/, `const LOCALES_APP = { paraiso: ${JSON.stringify(marcaCorta)} };`, 'nombres de locales'],
       [/const MARCAS = \{[\s\S]*?\};/,
         `const MARCAS = {\n  paraiso: { fondo: 'logo-fondo.png', cab: (window.LOGO_PARAISO_DEFECTO || 'logo-fondo.png') }\n};`, 'marcas'],
