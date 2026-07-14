@@ -35,7 +35,9 @@ function datosVacios() {
     // Horario de APERTURA al público (lo que ve el cliente en Google/redes): un texto por día
     horarioPublico: { dias: {}, nota: '', actualizado: null },
     ausencias: [],      // vacaciones y días libres [{id, empleadoId, tipo, desde, hasta, motivo, estado, creada, resueltaPor, resuelta, nota}]
-    cambiosTurno: [],   // intercambios de turno [{id, deId, conId, dia, estado, creada, respondida, resuelta}]
+    cambiosTurno: [],   // intercambios de turno [{id, deId, conId, dia, semana, estado, creada, respondida, resuelta}]
+    documentos: [],     // carpeta laboral [{id, empleadoId, nombre, ruta, tipo, tam, subido, subidoPor}] (el archivo vive en el repo)
+    avisosFichajeHechos: {},  // para no repetir el aviso de retraso/salida del mismo día
     config: { local: null, radioM: 100 }   // local = {lat,lng} del restaurante para el control de fichaje
   };
 }
@@ -69,6 +71,69 @@ function fechaHoraEspana(iso) {
 function mesAnteriorDe(mes) {
   const [a, m] = mes.split('-').map(Number);
   return m === 1 ? (a - 1) + '-12' : a + '-' + String(m - 1).padStart(2, '0');
+}
+
+// El lunes de la semana de una fecha 'YYYY-MM-DD'
+function lunesDe(fecha) {
+  const d = new Date(fecha + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return d.toISOString().slice(0, 10);
+}
+const CLAVES_DIA_API = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab'];
+
+// El turno de un empleado en un día concreto: primero la semana con fecha, si no la semana tipo
+function turnoDelDia(datos, empleadoId, fecha) {
+  const dia = CLAVES_DIA_API[new Date(fecha + 'T12:00:00Z').getUTCDay()];
+  const semanas = (datos.horario && datos.horario.semanas) || {};
+  const deSemana = (semanas[lunesDe(fecha)] || {})[empleadoId];
+  const deTipo = ((datos.horario && datos.horario.turnos) || {})[empleadoId];
+  const raw = (deSemana && deSemana[dia] !== undefined) ? deSemana[dia] : (deTipo || {})[dia];
+  if (raw && typeof raw === 'object' && (raw.e || raw.s)) return { e: raw.e || '', s: raw.s || '' };
+  return null;
+}
+
+// ¿Tiene una ausencia aprobada ese día?
+function ausenteEse(datos, empleadoId, fecha) {
+  return (datos.ausencias || []).some(a => a.empleadoId === empleadoId && a.estado === 'aprobada' && a.desde <= fecha && a.hasta >= fecha);
+}
+
+// Avisos de fichaje: si alguien no ha fichado a su hora o se dejó la salida abierta,
+// le llega un WhatsApp al jefe. Se comprueba "de paso" cada vez que alguien usa el portal.
+async function comprobarAvisosFichaje(datos, localClave) {
+  try {
+    if (!datos.config || !datos.config.avisosFichaje) return false;
+    if (!process.env.WHATSAPP_TELEFONO || !process.env.WHATSAPP_APIKEY) return false;
+    const hoy = hoyEspana();
+    const ahoraHM = fechaHoraEspana(new Date().toISOString()).slice(11, 16);
+    if (!datos.avisosFichajeHechos || datos.avisosFichajeHechos.fecha !== hoy) {
+      datos.avisosFichajeHechos = { fecha: hoy };
+    }
+    const hechos = datos.avisosFichajeHechos;
+    let hubo = false;
+    const sumaMin = (hm, min) => {
+      const t = Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5)) + min;
+      return String(Math.floor((t % 1440) / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0');
+    };
+    for (const emp of datos.empleados.filter(e => e.rol !== 'jefe' && e.activo !== false)) {
+      const turno = turnoDelDia(datos, emp.id, hoy);
+      if (!turno || ausenteEse(datos, emp.id, hoy)) continue;
+      const deHoy = datos.fichajes.filter(f => f.empleadoId === emp.id && fechaHoraEspana(f.ts).slice(0, 10) === hoy);
+      const marca = hechos[emp.id] = hechos[emp.id] || {};
+      // Retraso: 15 min después de su hora de entrada y sin fichar
+      if (turno.e && !marca.retraso && !deHoy.some(f => f.tipo === 'entrada') &&
+          ahoraHM >= sumaMin(turno.e, 15) && ahoraHM <= sumaMin(turno.e, 240)) {
+        marca.retraso = true; hubo = true;
+        await avisarWhatsApp(`⏰ *${LOCALES[localClave].nombre.toUpperCase()} · Fichajes*\n${emp.nombre} tenía entrada a las ${turno.e} y todavía no ha fichado.`);
+      }
+      // Salida olvidada: 1 h después de su hora de salida y sigue "dentro" (solo turnos que no cruzan medianoche)
+      const ultimo = deHoy[deHoy.length - 1];
+      if (turno.s && turno.e && turno.s > turno.e && !marca.salida && ultimo && ultimo.tipo === 'entrada' && ahoraHM >= sumaMin(turno.s, 60)) {
+        marca.salida = true; hubo = true;
+        await avisarWhatsApp(`⏰ *${LOCALES[localClave].nombre.toUpperCase()} · Fichajes*\n${emp.nombre} salía a las ${turno.s} y no ha fichado la salida (sigue "dentro").`);
+      }
+    }
+    return hubo;
+  } catch (e) { return false; }   // un fallo aquí no debe romper el portal
 }
 
 // Distancia en metros entre dos puntos GPS (fórmula del haversine)
@@ -232,7 +297,11 @@ function vistaPara(datos, yo) {
           .map(a => a.empleadoId === yo.id ? a : ausenciaPublica(a)).slice(-200),
     // Cambios de turno: cada uno ve los suyos (pedidos o recibidos); el jefe los ve todos
     cambiosTurno: (datos.cambiosTurno || []).filter(c => esJefe || c.deId === yo.id || c.conId === yo.id).slice(-100),
-    config: { radioM: (datos.config && datos.config.radioM) || 100, controlUbicacion: !!(datos.config && datos.config.local) }
+    // Documentos: cada uno los suyos; el jefe todos (solo la ficha; el archivo se pide aparte)
+    documentos: (datos.documentos || []).filter(d => esJefe || d.empleadoId === yo.id).slice(-300),
+    // Lo que cuesta la hora de cada uno: SOLO lo ve el jefe
+    ...(esJefe ? { costesHora: Object.fromEntries(datos.empleados.filter(e => e.costeHora).map(e => [e.id, e.costeHora])) } : {}),
+    config: { radioM: (datos.config && datos.config.radioM) || 100, controlUbicacion: !!(datos.config && datos.config.local), avisosFichaje: !!(datos.config && datos.config.avisosFichaje) }
   };
 }
 
@@ -390,6 +459,7 @@ module.exports = async (req, res) => {
         // Datos de contrato (para el informe de horas y las vacaciones)
         if (p.horasContrato !== undefined) { const h = Number(p.horasContrato); emp.horasContrato = (h > 0 && h <= 60) ? h : null; }
         if (p.diasVacaciones !== undefined) { const d = Number(p.diasVacaciones); emp.diasVacaciones = (d > 0 && d <= 60) ? d : null; }
+        if (p.costeHora !== undefined) { const c = Number(p.costeHora); emp.costeHora = (c > 0 && c <= 200) ? c : null; }
         break;
       }
       case 'reiniciarClave': {
@@ -515,7 +585,19 @@ module.exports = async (req, res) => {
       // ----- Horario semanal -----
       case 'guardarHorario': {
         if (!esJefe) soloJefe();
-        if (p.turnos && typeof p.turnos === 'object') datos.horario.turnos = p.turnos;
+        // Con p.semana (el lunes 'YYYY-MM-DD') se guarda ESA semana concreta;
+        // sin p.semana se guarda la "semana tipo" (la de siempre, que sirve de plantilla)
+        if (p.turnos && typeof p.turnos === 'object') {
+          if (/^\d{4}-\d{2}-\d{2}$/.test(limpio(p.semana))) {
+            datos.horario.semanas = datos.horario.semanas || {};
+            datos.horario.semanas[lunesDe(limpio(p.semana))] = p.turnos;
+            // No acumular semanas viejas sin fin: se conservan las últimas 30
+            const claves = Object.keys(datos.horario.semanas).sort();
+            while (claves.length > 30) delete datos.horario.semanas[claves.shift()];
+          } else {
+            datos.horario.turnos = p.turnos;
+          }
+        }
         if (p.notas !== undefined) datos.horario.notas = limpio(p.notas);
         datos.horario.actualizado = ahora();
         break;
@@ -591,10 +673,11 @@ module.exports = async (req, res) => {
         const dia = DIAS_OK.includes(p.dia) ? p.dia : null;
         const companero = datos.empleados.find(x => x.id === p.conId && x.rol !== 'jefe' && x.activo !== false && x.id !== yo.id);
         if (!dia || !companero) { const e = new Error('Elige el día y el compañero con quien cambias.'); e.codigo = 400; throw e; }
+        const semana = /^\d{4}-\d{2}-\d{2}$/.test(limpio(p.semana)) ? lunesDe(limpio(p.semana)) : null;
         datos.cambiosTurno = datos.cambiosTurno || [];
-        const yaHay = datos.cambiosTurno.some(c => c.deId === yo.id && c.dia === dia && ['esperando-companero', 'esperando-jefe'].includes(c.estado));
+        const yaHay = datos.cambiosTurno.some(c => c.deId === yo.id && c.dia === dia && (c.semana || null) === semana && ['esperando-companero', 'esperando-jefe'].includes(c.estado));
         if (yaHay) { const e = new Error('Ya tienes un cambio pedido para ese día.'); e.codigo = 409; throw e; }
-        datos.cambiosTurno.push({ id: id(), deId: yo.id, conId: companero.id, dia, estado: 'esperando-companero', creada: ahora(), respondida: null, resuelta: null });
+        datos.cambiosTurno.push({ id: id(), deId: yo.id, conId: companero.id, dia, semana, estado: 'esperando-companero', creada: ahora(), respondida: null, resuelta: null });
         if (datos.cambiosTurno.length > 300) datos.cambiosTurno = datos.cambiosTurno.slice(-200);
         break;
       }
@@ -614,8 +697,16 @@ module.exports = async (req, res) => {
         if (!c) { const e = new Error('No encuentro ese cambio.'); e.codigo = 404; throw e; }
         if (c.estado !== 'esperando-jefe') { const e = new Error('Ese cambio no está esperando tu visto bueno.'); e.codigo = 400; throw e; }
         if (p.decision === 'aprobado') {
-          // Se intercambian los turnos de ese día en el horario publicado
-          const t = datos.horario.turnos = datos.horario.turnos || {};
+          // Se intercambian los turnos de ese día: en la semana concreta si la hay, si no en la semana tipo
+          let t;
+          if (c.semana) {
+            datos.horario.semanas = datos.horario.semanas || {};
+            // Si esa semana aún no estaba publicada, nace copiando la semana tipo
+            if (!datos.horario.semanas[c.semana]) datos.horario.semanas[c.semana] = JSON.parse(JSON.stringify(datos.horario.turnos || {}));
+            t = datos.horario.semanas[c.semana];
+          } else {
+            t = datos.horario.turnos = datos.horario.turnos || {};
+          }
           t[c.deId] = t[c.deId] || {}; t[c.conId] = t[c.conId] || {};
           const tmp = t[c.deId][c.dia];
           t[c.deId][c.dia] = t[c.conId][c.dia];
@@ -631,6 +722,60 @@ module.exports = async (req, res) => {
         if (!c) { const e = new Error('No encuentro ese cambio.'); e.codigo = 404; throw e; }
         if (!esJefe && !(c.deId === yo.id && c.estado !== 'aprobado')) { const e = new Error('Solo puedes retirar tus cambios no aprobados.'); e.codigo = 403; throw e; }
         datos.cambiosTurno = datos.cambiosTurno.filter(x => x.id !== p.id);
+        break;
+      }
+
+      // ----- Avisos de fichaje (retraso / salida olvidada) -----
+      case 'configurarAvisosFichaje': {
+        if (!esJefe) soloJefe();
+        datos.config = datos.config || {};
+        datos.config.avisosFichaje = !!p.activar;
+        break;
+      }
+
+      // ----- Carpeta de documentos (contratos, nóminas...) -----
+      case 'subirDocumento': {
+        if (!esJefe) soloJefe();
+        const emp = datos.empleados.find(x => x.id === p.empleadoId);
+        if (!emp) { const e = new Error('No encuentro a ese empleado.'); e.codigo = 404; throw e; }
+        const nombre = limpio(p.nombre).replace(/[\/\\]/g, '-').slice(0, 80);
+        const base64 = String(p.base64 || '');
+        if (!nombre || !base64) { const e = new Error('Falta el archivo o su nombre.'); e.codigo = 400; throw e; }
+        if (base64.length > 5 * 1024 * 1024) { const e = new Error('El archivo es demasiado grande (máximo ~3,5 MB).'); e.codigo = 400; throw e; }
+        const docId = id();
+        const ruta = `documentos/${emp.id}/${docId}-${nombre}`;
+        const r = await gh('PUT', `/repos/${REPO_DATOS}/contents/${encodeURIComponent(ruta).replace(/%2F/g, '/')}`, {
+          message: 'documento: ' + nombre, content: base64, branch: 'main'
+        });
+        if (!r.ok) { const e = new Error('No pude guardar el archivo (código ' + r.status + ').'); e.codigo = 500; throw e; }
+        datos.documentos = datos.documentos || [];
+        datos.documentos.push({ id: docId, empleadoId: emp.id, nombre, ruta, tipo: limpio(p.tipo) || 'application/octet-stream',
+          tam: Math.round(base64.length * 3 / 4), subido: ahora(), subidoPor: yo.id });
+        break;
+      }
+      case 'descargarDocumento': {
+        const d = (datos.documentos || []).find(x => x.id === p.id);
+        if (!d) { const e = new Error('No encuentro ese documento.'); e.codigo = 404; throw e; }
+        if (!esJefe && d.empleadoId !== yo.id) { const e = new Error('Ese documento no es tuyo.'); e.codigo = 403; throw e; }
+        const r = await fetch(`https://api.github.com/repos/${REPO_DATOS}/contents/${encodeURIComponent(d.ruta).replace(/%2F/g, '/')}?ref=main`, {
+          headers: { 'Authorization': 'Bearer ' + process.env.EQUIPO_GITHUB_TOKEN, 'Accept': 'application/vnd.github.raw', 'User-Agent': 'el-paraiso-equipo' }
+        });
+        if (!r.ok) { const e = new Error('No pude leer el archivo (código ' + r.status + ').'); e.codigo = 500; throw e; }
+        const buf = Buffer.from(await r.arrayBuffer());
+        return res.status(200).json({ ok: true, nombre: d.nombre, tipo: d.tipo, base64: buf.toString('base64') });
+      }
+      case 'borrarDocumento': {
+        if (!esJefe) soloJefe();
+        const d = (datos.documentos || []).find(x => x.id === p.id);
+        if (!d) { const e = new Error('No encuentro ese documento.'); e.codigo = 404; throw e; }
+        const rGet = await gh('GET', `/repos/${REPO_DATOS}/contents/${encodeURIComponent(d.ruta).replace(/%2F/g, '/')}?ref=main`);
+        if (rGet.ok) {
+          const j = await rGet.json();
+          await gh('DELETE', `/repos/${REPO_DATOS}/contents/${encodeURIComponent(d.ruta).replace(/%2F/g, '/')}`, {
+            message: 'borrar documento: ' + d.nombre, sha: j.sha, branch: 'main'
+          });
+        }
+        datos.documentos = datos.documentos.filter(x => x.id !== p.id);
         break;
       }
 
@@ -853,7 +998,10 @@ module.exports = async (req, res) => {
       }
     }
 
-    if (hayCambios && !await guardarDatos(archivoLocal, datos, sha)) continue;
+    // De paso, se comprueba si hay que avisar de retrasos o salidas olvidadas (si está activado)
+    const huboAvisos = await comprobarAvisosFichaje(datos, localClave);
+
+    if ((hayCambios || huboAvisos) && !await guardarDatos(archivoLocal, datos, sha)) continue;
     return res.status(200).json({ ok: true, vista: vistaPara(datos, yo) });
     }
     return res.status(503).json({ error: 'Hay mucha gente guardando a la vez. Espera un momento y vuelve a intentarlo.' });

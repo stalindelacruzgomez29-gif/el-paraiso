@@ -244,6 +244,7 @@
         <p id="panel-sub">Resumen de hoy</p>
       </div>
       <div class="kpis" id="panel-kpis"></div>
+      <div id="panel-coste"></div>
       <div class="graficos">
         <div class="grafico-caja"><h3>⏳ Horas esta semana</h3><div class="grafico-lienzo" id="lienzo-horas"></div></div>
         <div class="grafico-caja"><h3>🟢 Entradas por día (7 días)</h3><div class="grafico-lienzo" id="lienzo-fichajes"></div></div>
@@ -302,11 +303,15 @@
     <div class="vista" id="vista-horario">
       <h2 class="titulo-vista">🕐 Horario semanal</h2>
       <p id="horario-actualizado" style="font-size:13px;color:#888;margin-bottom:10px"></p>
+      <div id="horario-controles"></div>
       <div class="scroll-x"><table class="tabla-horario" id="tabla-horario"></table></div>
       <div class="solo-jefe" style="display:none;margin-top:12px">
         <p class="nota-turnos">✍️ Pon la hora de <strong>entrada</strong> y de <strong>salida</strong> de cada día (ej.: entra 12:00, sale 16:00). Día libre: déjalo vacío. Las <strong>horas trabajadas</strong> solo las ves tú (los trabajadores solo ven su turno).</p>
         <textarea class="campo" id="horario-notas" placeholder="Notas del horario (ej.: la semana que viene María libra el jueves)"></textarea>
-        <button class="btn btn-primario btn-peq" id="btn-guardar-horario">💾 Publicar horario</button>
+        <div class="fila-acciones">
+          <button class="btn btn-primario btn-peq" id="btn-guardar-horario">💾 Publicar esta semana</button>
+          <button class="btn btn-borde btn-peq" id="btn-guardar-tipo" title="La semana tipo es la plantilla que se usa cuando una semana no tiene horario propio">📌 Guardar como semana tipo</button>
+        </div>
       </div>
       <div id="horario-notas-vista" style="margin-top:10px;font-size:14.5px"></div>
       <div id="zona-cambios"></div>
@@ -348,6 +353,10 @@
         </div>
         <p class="nota-turnos">Ponte DENTRO del restaurante y pulsa «Fijar aquí el local»: desde entonces
         solo se podrá fichar (entrada y salida) a menos de ese radio en metros del local.</p>
+        <label style="font-size:13.5px;display:flex;align-items:center;gap:8px;margin-top:10px;cursor:pointer">
+          <input type="checkbox" id="chk-avisos-fichaje" style="width:18px;height:18px">
+          ⏰ Avisarme por WhatsApp si alguien no ficha a su hora de entrada o se deja la salida abierta
+        </label>
       </div>
       <div class="fichar-caja">
         <div class="reloj" id="reloj">--:--</div>
@@ -373,6 +382,7 @@
     <div class="vista" id="vista-vacaciones">
       <h2 class="titulo-vista">🏖 Vacaciones y días libres</h2>
       <div id="vac-saldo"></div>
+      <div id="mis-docs"></div>
       <div class="panel-crear">
         <h3 id="vac-form-titulo">Pedir vacaciones o un día libre</h3>
         <div id="vac-fila-emp" style="display:none"><select class="campo" id="vac-emp"></select></div>
@@ -489,6 +499,20 @@
 <!-- Zona de impresión de informes (solo se ve al imprimir) -->
 <div id="zona-imprimir"></div>
 
+<!-- Modal carpeta de documentos (contratos, nóminas...) -->
+<div class="modal-fondo" id="modal-docs">
+  <div class="modal" style="max-width:520px">
+    <h3 id="docs-titulo">📁 Documentos</h3>
+    <div id="docs-lista" style="max-height:45vh;overflow-y:auto;margin-bottom:8px"></div>
+    <div id="docs-subir" style="display:none">
+      <input type="file" id="doc-archivo" accept="application/pdf,image/*" hidden>
+      <button class="btn btn-primario btn-peq" id="btn-doc-elegir">📎 Subir documento</button>
+      <p class="nota-turnos">PDF o foto, hasta ~3,5 MB (contrato, nómina, certificado...). El trabajador lo verá en su portal, en 🏖 Libres.</p>
+    </div>
+    <div class="fila-acciones" style="margin-top:8px"><button class="btn btn-borde btn-peq" id="btn-docs-cerrar">Cerrar</button></div>
+  </div>
+</div>
+
 <!-- Modal editar trabajador -->
 <div class="modal-fondo" id="modal-emp">
   <div class="modal">
@@ -499,6 +523,7 @@
     <div class="fila-acciones" style="align-items:center;flex-wrap:wrap">
       <label style="font-size:13px">Contrato <input class="campo" type="number" id="ed-horas" min="1" max="60" placeholder="—" style="margin:0 4px;width:70px;padding:8px"> h/semana</label>
       <label style="font-size:13px">Vacaciones <input class="campo" type="number" id="ed-vacaciones" min="1" max="60" placeholder="30" style="margin:0 4px;width:70px;padding:8px"> días/año</label>
+      <label style="font-size:13px">Coste <input class="campo" type="number" id="ed-coste" min="1" max="200" step="0.5" placeholder="—" style="margin:0 4px;width:70px;padding:8px"> €/hora</label>
     </div>
     <div class="fila-acciones">
       <button class="btn btn-primario btn-peq" id="btn-guardar-emp">Guardar</button>
@@ -835,6 +860,25 @@ function pintarPanel() {
   // 1) Horas trabajadas esta semana por trabajador
   const hoy0 = new Date(); hoy0.setHours(0, 0, 0, 0);
   const lunes = new Date(hoy0); lunes.setDate(lunes.getDate() - ((lunes.getDay() + 6) % 7));
+
+  // 💶 Coste del personal (si el jefe puso €/hora en las fichas; solo lo ve él)
+  const costes = vista.costesHora || {};
+  if (Object.keys(costes).length) {
+    const mesIni = new Date(); mesIni.setDate(1); mesIni.setHours(0, 0, 0, 0);
+    let cSem = 0, cMes = 0; const porEmp = [];
+    gente.forEach(e => {
+      const euros = costes[e.id]; if (!euros) return;
+      const tr = tramosDe((vista.fichajes || []).filter(f => f.empleadoId === e.id));
+      const hS = msEnVentana(tr, lunes.getTime(), Date.now()) / 3600000;
+      const hM = msEnVentana(tr, mesIni.getTime(), Date.now()) / 3600000;
+      cSem += hS * euros; cMes += hM * euros;
+      porEmp.push({ nombre: e.nombre, euros, hM, coste: hM * euros });
+    });
+    $('#panel-coste').innerHTML = `<div class="tarjeta"><strong style="color:var(--verde)">💶 Coste del personal (según fichajes)</strong>
+      <div style="display:flex;gap:18px;margin-top:6px;font-size:14.5px"><span>Esta semana: <strong>${cSem.toFixed(0)} €</strong></span><span>Este mes: <strong>${cMes.toFixed(0)} €</strong></span></div>
+      ${porEmp.map(x => `<div style="font-size:13px;color:#666;padding:2px 0">${esc(x.nombre)} · ${x.euros} €/h · ${x.hM.toFixed(1)} h este mes → <strong>${x.coste.toFixed(0)} €</strong></div>`).join('')}
+      <div class="meta">Solo lo ves tú. Horas fichadas × el €/hora de cada ficha (👥 Equipo → ✏️ Editar).</div></div>`;
+  } else if ($('#panel-coste')) $('#panel-coste').innerHTML = '';
   const horas = gente.map(e => {
     const tr = tramosDe((vista.fichajes || []).filter(f => f.empleadoId === e.id));
     return { nombre: e.nombre, h: msEnVentana(tr, lunes.getTime(), Date.now()) / 3600000 };
@@ -910,6 +954,10 @@ function pintarPanel() {
 // funciones como LISTA PARA MARCAR (al marcarlas queda la hora registrada)
 const CLAVES_DIA = ['dom','lun','mar','mie','jue','vie','sab'];
 const hoyClave = () => new Date().toLocaleDateString('sv-SE');   // AAAA-MM-DD local
+// El lunes de la semana de una fecha, y los turnos de esa semana (concreta o la tipo)
+function lunesDeF(fecha) { const d = new Date(fecha + 'T12:00:00'); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.toLocaleDateString('sv-SE'); }
+function turnosSemana(lunes) { return ((vista.horario.semanas || {})[lunes]) || vista.horario.turnos || {}; }
+function fmtDiaCorto(f) { return new Date(f + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }); }
 function listaFunciones(texto) {
   return String(texto || '').split(/\n|,|;|·/).map(t => t.trim()).filter(Boolean);
 }
@@ -920,7 +968,7 @@ function pintarMiDia() {
   const cont = $('#mi-dia');
   if (vista.yo.rol === 'jefe') { cont.innerHTML = ''; return; }
   const yoFicha = vista.empleados.find(e => e.id === vista.yo.id) || vista.yo;
-  const turnoRaw = ((vista.horario.turnos || {})[vista.yo.id] || {})[CLAVES_DIA[new Date().getDay()]] || '';
+  const turnoRaw = (turnosSemana(lunesDeF(hoyClave()))[vista.yo.id] || {})[CLAVES_DIA[new Date().getDay()]] || '';
   const turnoHoy = textoTurno(turnoRaw);
   const libre = turnoHoy === '—' || turnoHoy === 'Libre';
   const pendientes = (vista.tareas || []).filter(t => t.estado === 'pendiente').length;
@@ -1078,10 +1126,24 @@ function textoTurno(raw) {
   if (c.txt && /libre|descans/i.test(c.txt)) return 'Libre';
   return c.txt || '—';
 }
+let semanaVista = null;   // el lunes de la semana que se está viendo
 function pintarHorario() {
   const esJefe = vista.yo.rol === 'jefe';
   const gente = vista.empleados.filter(e => e.activo && e.rol !== 'jefe');
-  const turnos = vista.horario.turnos || {};
+  if (!semanaVista) semanaVista = lunesDeF(hoyClave());
+  const semanas = vista.horario.semanas || {};
+  const esConcreta = !!semanas[semanaVista];
+  const turnos = semanas[semanaVista] || vista.horario.turnos || {};
+  // Controles de semana: ◀ semana ▶ + copiar la anterior (jefe)
+  const finV = new Date(semanaVista + 'T12:00:00'); finV.setDate(finV.getDate() + 6);
+  const esEsta = semanaVista === lunesDeF(hoyClave());
+  $('#horario-controles').innerHTML = `<div class="fila-acciones" style="align-items:center;margin-bottom:8px;flex-wrap:wrap">
+    <button class="btn btn-borde btn-peq" onclick="cambiarSemana(-7)">◀</button>
+    <strong style="font-size:14px">Semana del ${fmtDiaCorto(semanaVista)} al ${fmtDiaCorto(finV.toLocaleDateString('sv-SE'))}${esEsta ? ' (esta semana)' : ''}</strong>
+    <button class="btn btn-borde btn-peq" onclick="cambiarSemana(7)">▶</button>
+    <span class="est ${esConcreta ? 'est-aprobada' : 'est-pendiente'}">${esConcreta ? 'publicada' : 'semana tipo'}</span>
+    ${esJefe ? '<button class="btn btn-borde btn-peq" onclick="copiarSemanaAnterior()">📋 Copiar semana anterior</button>' : ''}
+  </div>`;
   $('#horario-actualizado').textContent = vista.horario.actualizado ? 'Última actualización: ' + fechaBonita(vista.horario.actualizado) : 'Aún no se ha publicado ningún horario.';
   $('#tabla-horario').innerHTML =
     '<tr><th style="text-align:left">Quién</th>' + DIAS.map(d => '<th>' + d[1] + '</th>').join('') + '</tr>' +
@@ -1174,6 +1236,7 @@ function pintarFichar() {
   // Las horas y el historial SOLO los ve el administrador
   if (esJefe) {
     $('#titulo-fichajes').textContent = 'Fichajes del equipo (últimos)';
+    const chkAv = $('#chk-avisos-fichaje'); if (chkAv) chkAv.checked = !!(vista.config && vista.config.avisosFichaje);
     $('#lista-fichajes').innerHTML = [...(vista.fichajes || [])].reverse().slice(0, 40).map(f => `
       <div class="fich"><span>${f.tipo === 'entrada' ? '🟢 Entrada' : '🔴 Salida'} · <strong>${esc(nombreDe(f.empleadoId))}</strong>${f.dist != null ? ' <span style="color:#888;font-size:12px">📍 a ' + f.dist + ' m</span>' : ''}</span>
       <span>${fechaBonita(f.ts)}</span></div>`).join('') || '<div class="vacio">Sin fichajes todavía.</div>';
@@ -1511,6 +1574,7 @@ function pintarEquipo() {
         <button class="btn btn-verde btn-peq" onclick="mandarAcceso('${e.id}','${esc(e.nombre)}')">📲 Enviar acceso</button>
         <button class="btn btn-verde btn-peq" onclick="abrirChat('${e.id}','${esc(e.nombre)}')">💬 Privado${privadosNoVistos().filter(m => m.deId === e.id).length ? ' 🔴' : ''}</button>
         <button class="btn btn-borde btn-peq" onclick="editarEmp('${e.id}')">✏️ Editar</button>
+        <button class="btn btn-borde btn-peq" onclick="abrirDocs('${e.id}','${esc(e.nombre)}')">📁 Documentos${(vista.documentos || []).filter(d => d.empleadoId === e.id).length ? ' (' + (vista.documentos || []).filter(d => d.empleadoId === e.id).length + ')' : ''}</button>
         <button class="btn btn-borde btn-peq" onclick="nuevaClaveEmp('${e.id}','${esc(e.nombre)}')">🔑 Nueva contraseña</button>
         <button class="btn ${e.activo ? 'btn-rojo' : 'btn-verde'} btn-peq" onclick="alternarEmp('${e.id}',${e.activo ? 'false' : 'true'})">${e.activo ? '🚫 Desactivar' : '✅ Reactivar'}</button>
       </div>
@@ -1539,13 +1603,14 @@ window.editarEmp = id => {
   empEditando = id;
   $('#ed-nombre').value = e.nombre; $('#ed-puesto').value = e.puesto || ''; $('#ed-funciones').value = e.funciones || '';
   $('#ed-horas').value = e.horasContrato || ''; $('#ed-vacaciones').value = e.diasVacaciones || '';
+  $('#ed-coste').value = (vista.costesHora || {})[e.id] || '';
   $('#modal-emp').style.display = 'flex';
 };
 $('#btn-cerrar-emp').onclick = () => { $('#modal-emp').style.display = 'none'; };
 $('#btn-guardar-emp').onclick = async () => {
   try {
     await refrescar('editarEmpleado', { id: empEditando, nombre: $('#ed-nombre').value, puesto: $('#ed-puesto').value, funciones: $('#ed-funciones').value,
-      horasContrato: $('#ed-horas').value || null, diasVacaciones: $('#ed-vacaciones').value || null });
+      horasContrato: $('#ed-horas').value || null, diasVacaciones: $('#ed-vacaciones').value || null, costeHora: $('#ed-coste').value || null });
     $('#modal-emp').style.display = 'none';
     aviso('✏️ Ficha actualizada');
   } catch (e) { aviso(e.message, true); }
@@ -1569,6 +1634,14 @@ function pintarVacaciones() {
       .reduce((s, a) => s + diasDe(a), 0);
     $('#vac-saldo').innerHTML = `<div class="tarjeta">🏖 Vacaciones de ${anio}: llevas <strong>${usados}</strong> de <strong>${vista.yo.diasVacaciones}</strong> días (te quedan ${Math.max(0, vista.yo.diasVacaciones - usados)})</div>`;
   } else $('#vac-saldo').innerHTML = '';
+  // 📁 Mis documentos (los sube el jefe: nóminas, contrato...)
+  const misDocs = (vista.documentos || []).filter(d => d.empleadoId === vista.yo.id);
+  $('#mis-docs').innerHTML = !esJefe && misDocs.length
+    ? '<div class="tarjeta"><strong style="color:var(--verde)">📁 Mis documentos</strong>' +
+      [...misDocs].reverse().map(d => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;font-size:14px">
+        <span>${d.tipo && d.tipo.startsWith('image/') ? '🖼' : '📄'} ${esc(d.nombre)} <span style="color:#888;font-size:12px">${fechaBonita(d.subido)}</span></span>
+        <button class="btn btn-verde btn-peq" onclick="descargarDoc('${d.id}')">⬇️ Ver</button></div>`).join('') + '</div>'
+    : '';
   // Peticiones por resolver (solo jefe)
   const pendientes = aus.filter(a => a.estado === 'pendiente');
   $('#vac-pendientes').innerHTML = esJefe && pendientes.length
@@ -1652,13 +1725,13 @@ function pintarCambiosTurno() {
     } else if (c.deId === vista.yo.id && c.estado !== 'aprobado') {
       botones = `<button class="btn btn-borde btn-peq" onclick="borrarCambio('${c.id}')">🗑</button>`;
     }
-    return `<div class="aus"><span><strong>${esc(nombreDe(c.deId))}</strong> ⇄ <strong>${esc(nombreDe(c.conId))}</strong> · ${NOMBRE_DIA[c.dia] || c.dia}<br>
+    return `<div class="aus"><span><strong>${esc(nombreDe(c.deId))}</strong> ⇄ <strong>${esc(nombreDe(c.conId))}</strong> · ${NOMBRE_DIA[c.dia] || c.dia}${c.semana ? ' (semana del ' + fmtDiaCorto(c.semana) + ')' : ''}<br>
       <span style="color:#666">${ESTADOS_CT[c.estado] || c.estado}</span></span><span>${botones}</span></div>`;
   }).join('');
   z.innerHTML = html ? '<h3 style="font-size:15px;color:var(--verde);margin:16px 0 6px">🔄 Cambios de turno</h3>' + html : '';
   const btn = $('#btn-pedir-cambio');
   if (btn) btn.onclick = async () => {
-    try { await refrescar('pedirCambioTurno', { dia: $('#ct-dia').value, conId: $('#ct-con').value }); aviso('📨 Propuesta enviada a tu compañero'); }
+    try { await refrescar('pedirCambioTurno', { dia: $('#ct-dia').value, conId: $('#ct-con').value, semana: semanaVista }); aviso('📨 Propuesta enviada a tu compañero'); }
     catch (e) { aviso(e.message, true); }
   };
   // Punto rojo en la pestaña Horario si algo espera por mí
@@ -1724,6 +1797,73 @@ $('#btn-informe-gestoria').onclick = () => imprimirInforme('gestoria');
 $('#btn-registro-legal').onclick = () => imprimirInforme('registro');
 $('#mes-informe').value = new Date().toLocaleDateString('sv-SE').slice(0, 7);
 
+/* ---------- Avisos de fichaje por WhatsApp (interruptor del jefe) ---------- */
+$('#chk-avisos-fichaje').onchange = async function () {
+  try {
+    await refrescar('configurarAvisosFichaje', { activar: this.checked });
+    aviso(this.checked ? '⏰ Avisos de fichaje ACTIVADOS: te llegará un WhatsApp si alguien no ficha a su hora' : 'Avisos de fichaje apagados');
+  } catch (e) { this.checked = !this.checked; aviso(e.message, true); }
+};
+
+/* ---------- Carpeta de documentos (contratos, nóminas...) ---------- */
+// Archivo → base64 SIN FileReader (el iPhone no lo tiene): arrayBuffer + trozos
+async function archivoAB64(archivo) {
+  const bytes = new Uint8Array(await archivo.arrayBuffer());
+  let binario = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) binario += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(binario);
+}
+function fmtTam(b) { return b > 900000 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB'; }
+let docsDe = null;   // el trabajador cuya carpeta está abierta en el modal
+function pintarDocsModal() {
+  const docs = (vista.documentos || []).filter(d => d.empleadoId === docsDe);
+  $('#docs-lista').innerHTML = docs.length ? [...docs].reverse().map(d => `
+    <div class="aus"><span>${d.tipo && d.tipo.startsWith('image/') ? '🖼' : '📄'} <strong>${esc(d.nombre)}</strong><br>
+      <span style="color:#888;font-size:12px">${fmtTam(d.tam)} · ${fechaBonita(d.subido)}</span></span>
+    <span><button class="btn btn-verde btn-peq" onclick="descargarDoc('${d.id}')">⬇️ Ver</button>
+    ${vista.yo.rol === 'jefe' ? `<button class="btn btn-rojo btn-peq" onclick="borrarDoc('${d.id}')">🗑</button>` : ''}</span></div>`).join('')
+    : '<div class="vacio">Sin documentos todavía.</div>';
+}
+window.abrirDocs = (id, nombre) => {
+  docsDe = id;
+  $('#docs-titulo').textContent = '📁 Documentos de ' + nombre;
+  $('#docs-subir').style.display = vista.yo.rol === 'jefe' ? 'block' : 'none';
+  pintarDocsModal();
+  $('#modal-docs').style.display = 'flex';
+};
+$('#btn-docs-cerrar').onclick = () => { $('#modal-docs').style.display = 'none'; docsDe = null; };
+$('#btn-doc-elegir').onclick = () => $('#doc-archivo').click();
+$('#doc-archivo').onchange = async function () {
+  const archivo = this.files && this.files[0];
+  this.value = '';
+  if (!archivo || !docsDe) return;
+  if (archivo.size > 3.5 * 1024 * 1024) return aviso('El archivo pasa de 3,5 MB. Hazle una captura o comprímelo.', true);
+  try {
+    aviso('📎 Subiendo ' + archivo.name + '...');
+    const base64 = await archivoAB64(archivo);
+    await refrescar('subirDocumento', { empleadoId: docsDe, nombre: archivo.name, tipo: archivo.type, base64 });
+    pintarDocsModal();
+    aviso('✅ Documento guardado');
+  } catch (e) { aviso(e.message, true); }
+};
+window.descargarDoc = async id => {
+  try {
+    aviso('⬇️ Abriendo el documento...');
+    const r = await llamar('descargarDocumento', { id });
+    const bytes = Uint8Array.from(atob(r.base64), c => c.charCodeAt(0));
+    const url = URL.createObjectURL(new Blob([bytes], { type: r.tipo || 'application/octet-stream' }));
+    const a = document.createElement('a');
+    a.href = url; a.target = '_blank'; a.download = r.nombre;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (e) { aviso(e.message, true); }
+};
+window.borrarDoc = async id => {
+  if (!confirm('¿Borrar este documento para siempre?')) return;
+  try { await refrescar('borrarDocumento', { id }); pintarDocsModal(); aviso('🗑 Documento borrado'); }
+  catch (e) { aviso(e.message, true); }
+};
+
 /* ---------- Botones ---------- */
 $('#btn-entrar').onclick = async () => {
   $('#login-error').style.display = 'none';
@@ -1757,7 +1897,7 @@ const GUIA_COMUN = `
   <p><strong>✅ Tareas</strong> — Lo que tienes que hacer. Cuando termines una, pulsa para marcarla como hecha ✔. El jefe ve al momento lo que has completado.</p>
   <p><strong>🕐 Horario</strong> — Tu horario semanal de turnos. Arriba, en "Mi día", ves tu turno de hoy. Abajo puedes <strong>proponer un cambio de turno</strong> con un compañero: él acepta, el jefe da el visto bueno y el horario se intercambia solo.</p>
   <p><strong>⏱ Fichar</strong> — Pulsa el botón grande para fichar tu ENTRADA al llegar y tu SALIDA al irte. <em>Importante: solo se puede fichar estando DENTRO del local</em> (activa el GPS y da permiso de ubicación al navegador la primera vez).</p>
-  <p><strong>🏖 Libres</strong> — Pide vacaciones, días libres o avisa de una baja. El jefe lo aprueba o rechaza y te aparece el estado. También ves las ausencias próximas del equipo y, si está configurado, cuántos días de vacaciones te quedan.</p>
+  <p><strong>🏖 Libres</strong> — Pide vacaciones, días libres o avisa de una baja. El jefe lo aprueba o rechaza y te aparece el estado. También ves las ausencias próximas del equipo, cuántos días de vacaciones te quedan y <strong>tus documentos</strong> (contrato, nóminas...) para descargarlos cuando quieras.</p>
   <p><strong>🛒 Pedidos</strong> — Apunta lo que falta o se está acabando (ej.: "2 cajas de cerveza"). También puedes hacer una foto de la libreta y lo apunta solo. Le llega un aviso al jefe.</p>
   <p><strong>📦 Stock</strong> — Lo que hay en el almacén. Con − y + se descuenta o suma lo que se gasta; al llegar a 0 se apunta solo en Pedidos.</p>
   <p><strong>🔑 Tu contraseña</strong> — Con el botón 🔑 de arriba puedes poner o cambiar tu contraseña cuando quieras.</p>`;
@@ -1765,11 +1905,11 @@ const GUIA_JEFE = `
   <p style="background:#e8f5e9;padding:8px 10px;border-radius:8px"><strong>Eres el ADMINISTRADOR.</strong> Además de lo de abajo, tú lo gestionas todo:</p>
   <p><strong>📊 Panel</strong> — Tu resumen: gráficos de horas del equipo, entradas por día, tareas y stock, y cada trabajador de un vistazo.</p>
   <p><strong>📢 Avisos / ✅ Tareas</strong> — Publicas avisos y creas tareas (a uno, a varios o a todos). Puedes guardar funciones y mandarlas con un clic, o dejarlas automáticas cada día.</p>
-  <p><strong>🕐 Horario</strong> — Editas los turnos del equipo y también el <strong>horario de apertura al público</strong> (el que va a Google/redes).</p>
+  <p><strong>🕐 Horario</strong> — Editas los turnos por <strong>semanas concretas</strong> (◀ ▶ para moverte, 📋 para copiar la semana anterior; la "semana tipo" es la plantilla). También el <strong>horario de apertura al público</strong> (el que va a Google/redes).</p>
   <p><strong>⏱ Fichar</strong> — Ves quién está trabajando ahora, las horas de cada uno, y fijas el control de ubicación ("Fijar aquí el local" estando dentro). Tú, como jefe, puedes fichar desde cualquier sitio. Además imprimes los <strong>informes del mes</strong>: el resumen de horas para la gestoría y el registro horario firmable que exige la ley (se conserva 4 años automáticamente).</p>
   <p><strong>🏖 Libres</strong> — Apruebas o rechazas las peticiones de vacaciones/días libres, o apuntas tú una ausencia directamente. En 👥 Equipo (✏️ editar) pones las horas de contrato y los días de vacaciones de cada uno para que los informes y el saldo salgan solos.</p>
   <p><strong>🛒 Pedidos / 🚚 Proveedores</strong> — Registras proveedores con sus palabras y los faltantes se clasifican solos; mandas a cada proveedor su pedido por WhatsApp.</p>
-  <p><strong>👥 Equipo</strong> — Das de alta a trabajadores, les mandas su acceso por WhatsApp (📲 Enviar acceso), cambias contraseñas, y activas/desactivas cuentas.</p>
+  <p><strong>👥 Equipo</strong> — Das de alta a trabajadores, les mandas su acceso por WhatsApp (📲 Enviar acceso), cambias contraseñas, activas/desactivas cuentas y guardas los <strong>documentos</strong> de cada uno (📁: contrato, nóminas...). En ✏️ Editar pones su contrato (h/semana), vacaciones (días/año) y coste (€/hora) — con eso el panel te enseña el <strong>coste del personal</strong> y en ⏱ Fichar puedes activar los <strong>avisos por WhatsApp</strong> si alguien no ficha a su hora.</p>
   <hr style="border:none;border-top:1px solid #eee;margin:12px 0"><p style="color:#888;font-size:13px">Lo que ve cada trabajador:</p>`;
 $('#btn-ayuda').onclick = () => {
   const esJefe = vista && vista.yo.rol === 'jefe';
@@ -1814,7 +1954,32 @@ $('#btn-guardar-horario').onclick = async () => {
     if (typeof turnos[emp][dia] !== 'object') turnos[emp][dia] = { e: '', s: '' };
     turnos[emp][dia][t] = inp.value.trim();
   });
-  try { await refrescar('guardarHorario', { turnos, notas: $('#horario-notas').value }); aviso('🕐 Horario publicado para todo el equipo'); }
+  try { await refrescar('guardarHorario', { turnos, notas: $('#horario-notas').value, semana: semanaVista }); aviso('🕐 Horario de la semana del ' + fmtDiaCorto(semanaVista) + ' publicado'); }
+  catch (e) { aviso(e.message, true); }
+};
+// Guardar lo que hay en la tabla como "semana tipo" (la plantilla de las semanas sin horario propio)
+$('#btn-guardar-tipo').onclick = async () => {
+  const turnos = {};
+  $$('#tabla-horario .hin').forEach(inp => {
+    const { emp, dia, t } = inp.dataset;
+    turnos[emp] = turnos[emp] || {};
+    if (typeof turnos[emp][dia] !== 'object') turnos[emp][dia] = { e: '', s: '' };
+    turnos[emp][dia][t] = inp.value.trim();
+  });
+  try { await refrescar('guardarHorario', { turnos, notas: $('#horario-notas').value }); aviso('📌 Guardada como semana tipo (plantilla)'); }
+  catch (e) { aviso(e.message, true); }
+};
+window.cambiarSemana = d => {
+  const x = new Date(semanaVista + 'T12:00:00'); x.setDate(x.getDate() + d);
+  semanaVista = x.toLocaleDateString('sv-SE');
+  pintarHorario();
+};
+window.copiarSemanaAnterior = async () => {
+  const ant = new Date(semanaVista + 'T12:00:00'); ant.setDate(ant.getDate() - 7);
+  const deDonde = turnosSemana(ant.toLocaleDateString('sv-SE'));
+  if (!Object.keys(deDonde).length) return aviso('La semana anterior no tiene horario.', true);
+  if (!confirm('¿Copiar el horario de la semana anterior a la semana del ' + fmtDiaCorto(semanaVista) + '?')) return;
+  try { await refrescar('guardarHorario', { turnos: JSON.parse(JSON.stringify(deDonde)), semana: semanaVista, notas: $('#horario-notas').value }); aviso('📋 Semana copiada y publicada'); }
   catch (e) { aviso(e.message, true); }
 };
 
