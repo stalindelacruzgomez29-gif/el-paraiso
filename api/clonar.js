@@ -146,6 +146,36 @@ module.exports = async (req, res) => {
       return res.status(200).json({ ok: true, aviso: `La web app-${slug} se borró. Su repo de datos ${slug}-datos queda en GitHub por si acaso (bórralo a mano si quieres).` });
     }
 
+    // ================= COBROS: enlaces de pago y suscripciones de Stripe =================
+    if (p.accion === 'cobros') {
+      if (!process.env.STRIPE_SECRET) return res.status(503).json({ error: 'Stripe no está configurado en el servidor.' });
+      const stripe = async ruta => {
+        const r = await fetch('https://api.stripe.com/v1/' + ruta, { headers: { 'Authorization': 'Bearer ' + process.env.STRIPE_SECRET } });
+        return r.json();
+      };
+      const enlaces = [];
+      const links = await stripe('payment_links?active=true&limit=10&expand[]=data.line_items');
+      for (const l of (links.data || [])) {
+        let alta = 0, mensual = 0;
+        for (const it of ((l.line_items && l.line_items.data) || [])) {
+          const precio = it.price || {};
+          if (precio.recurring) mensual += (precio.unit_amount || 0) / 100;
+          else alta += (precio.unit_amount || 0) / 100;
+        }
+        enlaces.push({ url: l.url, mensual, alta });
+      }
+      enlaces.sort((a, b) => a.mensual - b.mensual);
+      const subs = await stripe('subscriptions?status=all&limit=100&expand[]=data.customer');
+      const suscripciones = (subs.data || []).map(s => ({
+        cliente: (s.customer && (s.customer.name || s.customer.email)) || '—',
+        email: (s.customer && s.customer.email) || '',
+        importe: (s.items && s.items.data && s.items.data[0] && s.items.data[0].price ? s.items.data[0].price.unit_amount : 0) / 100,
+        estado: s.status,
+        renueva: s.current_period_end ? new Date(s.current_period_end * 1000).toISOString().slice(0, 10) : null
+      }));
+      return res.status(200).json({ ok: true, enlaces, suscripciones });
+    }
+
     if (p.accion !== 'crear') return res.status(400).json({ error: 'Acción desconocida.' });
 
     // ================= CREAR EL CLIENTE NUEVO =================

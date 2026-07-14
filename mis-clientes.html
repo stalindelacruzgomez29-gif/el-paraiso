@@ -49,6 +49,7 @@
       <a class="btn btn-borde btn-peq" href="/crear-cliente.html">➕ Crear cliente nuevo</a>
     </div>
     <div id="lista"></div>
+    <div id="cobros" style="margin-top:20px"></div>
   </div>
   <div class="aviso" id="aviso"></div>
 </div>
@@ -97,9 +98,31 @@ $('#btn-entrar').onclick = async () => {
     $('#panel').style.display = 'block';
     $('#aviso').style.display = 'none';
     pintar();
+    pintarCobros();
   } catch (e) { aviso('error', e.message); }
   btn.disabled = false; btn.textContent = 'Ver mis clientes';
 };
+const ESTADOS_SUB = { active: ['al día ✅', 'ok'], trialing: ['en prueba', 'ok'], past_due: ['PAGO PENDIENTE ⚠️', 'mal'], unpaid: ['IMPAGADO ❌', 'mal'], canceled: ['cancelada', 'mal'], incomplete: ['sin completar', 'mal'], incomplete_expired: ['caducada', 'mal'] };
+async function pintarCobros() {
+  try {
+    const r = await llamar({ accion: 'cobros' });
+    const enlaces = r.enlaces.map((e, i) => `
+      <div class="cliente">
+        <h3>${e.mensual >= 60 ? '💎 Sistema completo' : '🍺 Portal del equipo'} · <strong>${e.mensual} €/mes</strong>${e.alta ? ' + ' + e.alta + ' € de alta' : ''}</h3>
+        <div class="meta">Manda este enlace al cliente nuevo: paga con tarjeta y la cuota se le cobra sola cada mes.</div>
+        <div class="fila">
+          <button class="btn btn-borde btn-peq" onclick="navigator.clipboard.writeText('${e.url}').then(()=>alert('Enlace copiado 📋'))">📋 Copiar enlace de pago</button>
+          <a class="btn btn-borde btn-peq" href="${e.url}" target="_blank">Ver</a>
+        </div>
+      </div>`).join('');
+    const subs = r.suscripciones.length ? r.suscripciones.map(s => {
+      const [txt, cls] = ESTADOS_SUB[s.estado] || [s.estado, 'mal'];
+      return `<div class="cliente"><h3>${esc(s.cliente)} <span class="chip ${cls}">${txt}</span></h3>
+        <div class="meta">${esc(s.email)} · ${s.importe} €/mes${s.renueva ? ' · próxima cuota: ' + s.renueva.split('-').reverse().join('/') : ''}</div></div>`;
+    }).join('') : '<p style="margin-top:10px;color:#888;font-size:14px">Todavía nadie se ha suscrito. Manda un enlace de pago a tu primer cliente. 💪</p>';
+    $('#cobros').innerHTML = '<h1 style="font-size:19px">💳 Cobros</h1><p class="sub">Enlaces de pago para clientes nuevos y estado de las cuotas.</p>' + enlaces + '<h1 style="font-size:17px;margin-top:16px">Suscripciones</h1>' + subs;
+  } catch (e) { $('#cobros').innerHTML = '<p style="color:#9b1c1c;font-size:14px">Cobros: ' + esc(e.message) + '</p>'; }
+}
 window.darDeBaja = async slug => {
   if (!confirm('¿Dar de baja la web de "' + slug + '"? Su página dejará de funcionar.')) return;
   if (!confirm('¿SEGURO? Esto no se puede deshacer desde aquí.')) return;
