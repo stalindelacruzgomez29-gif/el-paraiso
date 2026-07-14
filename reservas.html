@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reservar mesa</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --verde: #1b5e20; --crema: #f6f9f4; }
+  body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; background: var(--crema); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .caja { background: #fff; border-radius: 18px; box-shadow: 0 10px 32px rgba(27,94,32,.14); max-width: 440px; width: 100%; padding: 26px; }
+  .logo { display: block; margin: 0 auto 10px; max-height: 90px; max-width: 70%; }
+  h1 { font-size: 21px; color: var(--verde); text-align: center; }
+  .sub { text-align: center; color: #789; font-size: 14px; margin: 4px 0 18px; }
+  label { display: block; font-size: 13px; font-weight: 700; color: #555; margin: 12px 0 4px; }
+  .campo { width: 100%; padding: 12px; border: 1.5px solid #d7e3d7; border-radius: 10px; font-size: 16px; }
+  .campo:focus { outline: none; border-color: var(--verde); }
+  .fila { display: flex; gap: 10px; }
+  .fila > div { flex: 1; }
+  .btn { width: 100%; margin-top: 20px; padding: 14px; border: 0; border-radius: 12px; background: var(--verde); color: #fff; font-size: 17px; font-weight: 700; cursor: pointer; }
+  .btn:disabled { background: #9bb89d; }
+  .msj { display: none; margin-top: 14px; padding: 12px; border-radius: 10px; font-size: 14.5px; line-height: 1.5; text-align: center; }
+  .msj.ok { background: #def7ec; color: #03543f; }
+  .msj.mal { background: #fde8e8; color: #9b1c1c; }
+  .oculto-humanos { position: absolute; left: -5000px; }
+</style>
+</head>
+<body>
+<div class="caja">
+  <img class="logo" id="logo" alt="">
+  <h1 id="nombre-negocio">El Paraíso Bar Restaurante</h1>
+  <p class="sub">Reserva tu mesa y te la confirmamos enseguida</p>
+
+  <label>Tu nombre</label>
+  <input class="campo" id="r-nombre" autocomplete="name" placeholder="Nombre y apellido">
+  <label>Tu teléfono (te confirmamos por ahí)</label>
+  <input class="campo" id="r-telefono" type="tel" autocomplete="tel" placeholder="600 000 000">
+  <div class="fila">
+    <div><label>Día</label><input class="campo" id="r-fecha" type="date"></div>
+    <div><label>Hora</label><input class="campo" id="r-hora" type="time"></div>
+    <div style="flex:0 0 110px"><label>Personas</label><input class="campo" id="r-personas" type="number" min="1" max="40" value="2"></div>
+  </div>
+  <label>Algo que debamos saber (opcional)</label>
+  <input class="campo" id="r-nota" placeholder="Terraza, trona, alergias, cumpleaños...">
+  <input class="oculto-humanos" id="r-web" tabindex="-1" autocomplete="off">
+
+  <button class="btn" id="btn-reservar">📅 Pedir la reserva</button>
+  <div class="msj" id="msj"></div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const params = new URLSearchParams(location.search);
+const local = ['paraiso', 'sazon'].includes(params.get('l')) ? params.get('l') : 'paraiso';
+
+// Nombre y logo del local (si el negocio subió su propio logo, se usa ese)
+const NOMBRES = { paraiso: 'El Paraíso Bar Restaurante', sazon: 'El Sazón de Quisqueya' };
+const LOGOS_FIJOS = { paraiso: '/equipo/logo-fondo.png', sazon: '/equipo/logo-sazon.png' };
+$('#nombre-negocio').textContent = NOMBRES[local] || NOMBRES.paraiso;
+document.title = 'Reservar mesa · ' + $('#nombre-negocio').textContent;
+$('#logo').src = '/api/equipo?logo=' + local;
+$('#logo').onerror = () => { $('#logo').onerror = null; $('#logo').src = LOGOS_FIJOS[local] || LOGOS_FIJOS.paraiso; };
+
+// El día no puede ser anterior a hoy
+$('#r-fecha').min = new Date().toLocaleDateString('sv-SE');
+$('#r-fecha').value = new Date().toLocaleDateString('sv-SE');
+
+function msj(tipo, texto) { const m = $('#msj'); m.className = 'msj ' + tipo; m.style.display = 'block'; m.textContent = texto; }
+
+$('#btn-reservar').onclick = async () => {
+  const btn = $('#btn-reservar'); btn.disabled = true; btn.textContent = 'Enviando...';
+  try {
+    const r = await fetch('/api/equipo', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        accion: 'crearReserva', local,
+        nombre: $('#r-nombre').value, telefono: $('#r-telefono').value,
+        personas: $('#r-personas').value, fecha: $('#r-fecha').value,
+        hora: $('#r-hora').value, nota: $('#r-nota').value, web: $('#r-web').value
+      })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'No se pudo enviar. Prueba de nuevo.');
+    msj('ok', '🎉 ' + j.mensaje);
+    btn.style.display = 'none';
+  } catch (e) { msj('mal', e.message); }
+  btn.disabled = false; btn.textContent = '📅 Pedir la reserva';
+};
+</script>
+</body>
+</html>

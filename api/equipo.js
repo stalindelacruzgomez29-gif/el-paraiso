@@ -37,6 +37,7 @@ function datosVacios() {
     ausencias: [],      // vacaciones y días libres [{id, empleadoId, tipo, desde, hasta, motivo, estado, creada, resueltaPor, resuelta, nota}]
     cambiosTurno: [],   // intercambios de turno [{id, deId, conId, dia, semana, estado, creada, respondida, resuelta}]
     documentos: [],     // carpeta laboral [{id, empleadoId, nombre, ruta, tipo, tam, subido, subidoPor}] (el archivo vive en el repo)
+    reservas: [],       // reservas de mesa [{id, nombre, telefono, personas, fecha, hora, nota, estado, creada, resueltaPor}]
     avisosFichajeHechos: {},  // para no repetir el aviso de retraso/salida del mismo día
     config: { local: null, radioM: 100 }   // local = {lat,lng} del restaurante para el control de fichaje
   };
@@ -385,6 +386,11 @@ function vistaPara(datos, yo) {
     cambiosTurno: (datos.cambiosTurno || []).filter(c => esJefe || c.deId === yo.id || c.conId === yo.id).slice(-100),
     // Documentos: cada uno los suyos; el jefe todos (solo la ficha; el archivo se pide aparte)
     documentos: (datos.documentos || []).filter(d => esJefe || d.empleadoId === yo.id).slice(-300),
+    // Reservas de mesa: todo el equipo ve las de hoy en adelante (y las de ayer, por si acaso)
+    reservas: (datos.reservas || []).filter(r => {
+      const ayer = new Date(); ayer.setDate(ayer.getDate() - 1);
+      return r.fecha >= ayer.toLocaleDateString('sv-SE');
+    }).slice(-200),
     // Lo que cuesta la hora de cada uno: SOLO lo ve el jefe
     ...(esJefe ? { costesHora: Object.fromEntries(datos.empleados.filter(e => e.costeHora).map(e => [e.id, e.costeHora])) } : {}),
     config: { radioM: (datos.config && datos.config.radioM) || 100, controlUbicacion: !!(datos.config && datos.config.local), avisosFichaje: !!(datos.config && datos.config.avisosFichaje), logoPersonalizado: (datos.config && datos.config.logoPersonalizado) || null, objetivoCosteSemanal: (esJefe && datos.config && datos.config.objetivoCosteSemanal) || null }
@@ -520,6 +526,35 @@ module.exports = async (req, res) => {
       datos.empleados.push(jefe);
       if (!await guardarDatos(archivoLocal, datos, sha)) continue;
       return res.status(200).json({ token: crearToken(jefe), vista: vistaPara(datos, jefe) });
+    }
+
+    if (accion === 'crearReserva') {
+      // Reserva de mesa desde la página PÚBLICA (sin cuenta): el equipo la confirma después
+      const nombre = limpio(p.nombre).slice(0, 60);
+      const telefono = limpio(p.telefono).replace(/[^\d+ ]/g, '').slice(0, 20);
+      const personas = Math.round(Number(p.personas));
+      const fecha = limpio(p.fecha), hora = limpio(p.hora);
+      const nota = limpio(p.nota).slice(0, 200);
+      if (limpio(p.web)) return res.status(400).json({ error: 'No se pudo enviar.' });   // trampa anti-robots
+      if (!nombre || telefono.replace(/\D/g, '').length < 9) return res.status(400).json({ error: 'Hace falta tu nombre y un teléfono válido (para confirmarte la mesa).' });
+      if (!(personas >= 1 && personas <= 40)) return res.status(400).json({ error: '¿Para cuántas personas es la mesa? (1 a 40)' });
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !/^\d{1,2}:\d{2}$/.test(hora)) return res.status(400).json({ error: 'Elige el día y la hora.' });
+      const hoy = hoyEspana();
+      const tope = new Date(hoy + 'T12:00:00Z'); tope.setUTCDate(tope.getUTCDate() + 90);
+      if (fecha < hoy || fecha > tope.toISOString().slice(0, 10)) return res.status(400).json({ error: 'Solo se puede reservar de hoy a 90 días vista.' });
+      datos.reservas = datos.reservas || [];
+      const telNorm = telefono.replace(/\D/g, '');
+      if (datos.reservas.some(r => r.fecha === fecha && r.estado !== 'anulada' && r.telefono.replace(/\D/g, '') === telNorm)) {
+        return res.status(409).json({ error: 'Ya tenemos una reserva con este teléfono para ese día. Si quieres cambiarla, llámanos.' });
+      }
+      if (datos.reservas.filter(r => r.estado === 'pendiente' && r.fecha >= hoy).length >= 300) {
+        return res.status(503).json({ error: 'Ahora mismo no podemos aceptar más reservas por aquí. Llámanos por teléfono.' });
+      }
+      datos.reservas.push({ id: id(), nombre, telefono, personas, fecha, hora, nota, estado: 'pendiente', creada: ahora(), resueltaPor: null });
+      if (datos.reservas.length > 800) datos.reservas = datos.reservas.slice(-600);
+      if (!await guardarDatos(archivoLocal, datos, sha)) continue;
+      await avisarWhatsApp(`📅 *${LOCALES[localClave].nombre.toUpperCase()} · Reserva nueva*\n${nombre} · ${personas} pers.\n${fecha} a las ${hora}\n📞 ${telefono}${nota ? '\n📝 ' + nota : ''}\n(confírmala en el portal)`);
+      return res.status(200).json({ ok: true, mensaje: '¡Reserva apuntada! Te llamaremos o escribiremos para confirmarla.' });
     }
 
     if (accion === 'login') {
@@ -1015,6 +1050,20 @@ module.exports = async (req, res) => {
         if (!r.ok) { const e = new Error('No pude guardar la firma (código ' + r.status + ').'); e.codigo = 500; throw e; }
         datos.documentos.push({ id: docId, empleadoId: yo.id, nombre: 'Registro firmado ' + mes, ruta, tipo: 'image/png',
           tam: Math.round(base64.length * 3 / 4), subido: ahora(), subidoPor: yo.id, firmaMes: mes });
+        break;
+      }
+
+      // ----- Reservas: el equipo las confirma o anula -----
+      case 'resolverReserva': {
+        const rv = (datos.reservas || []).find(x => x.id === p.id);
+        if (!rv) { const e = new Error('No encuentro esa reserva.'); e.codigo = 404; throw e; }
+        if (!['confirmada', 'anulada', 'pendiente'].includes(p.estado)) { const e = new Error('Estado no válido.'); e.codigo = 400; throw e; }
+        rv.estado = p.estado; rv.resueltaPor = yo.id;
+        break;
+      }
+      case 'borrarReserva': {
+        if (!esJefe) soloJefe();
+        datos.reservas = (datos.reservas || []).filter(x => x.id !== p.id);
         break;
       }
 

@@ -112,6 +112,40 @@ module.exports = async (req, res) => {
       return res.status(200).json({ listo: !!listo, estado: (prod && prod.readyState) || 'BUILDING', url: alias ? 'https://' + alias : null });
     }
 
+    // ================= LISTAR: el panel central de clientes =================
+    if (p.accion === 'listar') {
+      const r = await vercel('GET', '/v9/projects?limit=100');
+      if (!r.ok) return res.status(500).json({ error: 'No pude leer los proyectos de Vercel.' });
+      const j = await r.json();
+      const clientes = [];
+      for (const pr of (j.projects || []).filter(x => x.name.startsWith('app-'))) {
+        const slug = pr.name.slice(4);
+        const prod = pr.targets && pr.targets.production;
+        let actividad = null;
+        try {
+          const rg = await gh('GET', `/repos/${USUARIO_GH}/${slug}-datos`);
+          if (rg.ok) actividad = (await rg.json()).pushed_at;
+        } catch (e) { /* sin repo de datos */ }
+        clientes.push({
+          slug, proyecto: pr.name, creado: pr.createdAt || null,
+          url: prod && prod.alias && prod.alias[0] ? 'https://' + prod.alias[0] : null,
+          estado: (prod && prod.readyState) || 'SIN PUBLICAR',
+          actividad
+        });
+      }
+      clientes.sort((a, b) => (b.actividad || '') < (a.actividad || '') ? -1 : 1);
+      return res.status(200).json({ ok: true, clientes });
+    }
+
+    // ================= BORRAR: dar de baja la web de un cliente =================
+    if (p.accion === 'borrarCliente') {
+      const slug = String(p.slug || '').replace(/[^a-z0-9-]/g, '');
+      if (!slug) return res.status(400).json({ error: 'Falta el nombre corto del cliente.' });
+      const r = await vercel('DELETE', `/v9/projects/app-${slug}`);
+      if (!r.ok) return res.status(500).json({ error: `No pude borrar la web (${r.status}).` });
+      return res.status(200).json({ ok: true, aviso: `La web app-${slug} se borró. Su repo de datos ${slug}-datos queda en GitHub por si acaso (bórralo a mano si quieres).` });
+    }
+
     if (p.accion !== 'crear') return res.status(400).json({ error: 'Acción desconocida.' });
 
     // ================= CREAR EL CLIENTE NUEVO =================
@@ -147,7 +181,7 @@ module.exports = async (req, res) => {
 
     // 2) Traer el código fuente (en paralelo)
     const RUTAS = ['index.html', 'css/estilos.css', 'js/app.js', 'lib/chart.umd.min.js',
-      'api/leer.js', 'api/datos.js', 'api/equipo.js', 'equipo/index.html', 'carta.html', 'vercel.json', 'package.json',
+      'api/leer.js', 'api/datos.js', 'api/equipo.js', 'equipo/index.html', 'carta.html', 'reservas.html', 'vercel.json', 'package.json',
       'clonador/logo-988.png', 'clonador/logo-512.png', 'clonador/logo-192.png', 'clonador/logo-180.png', 'clonador/logo-48.png'];
     const fuentes = {};
     await Promise.all(RUTAS.map(async ruta => { fuentes[ruta] = await leerFuente(ruta); }));
@@ -194,6 +228,12 @@ module.exports = async (req, res) => {
       ['"Facturas El Paraíso"', `"Facturas ${nombre}"`, 'consejo del grupo de WhatsApp'],
       ['🌴 ¡Bienvenido a El Paraíso!', `${emoji} ¡Bienvenido a ${nombre}!`, 'texto de bienvenida']
     ], avisos, 'index.html');
+
+    const reservasHtml = personalizar(b64aTexto(fuentes['reservas.html']), [
+      [/const NOMBRES = \{[^\n]*\};/, `const NOMBRES = { paraiso: ${JSON.stringify(nombre)} };`, 'nombre en reservas (js)'],
+      [/const LOGOS_FIJOS = \{[^\n]*\};/, `const LOGOS_FIJOS = { paraiso: '/equipo/logo-fondo.png' };`, 'logos en reservas'],
+      ['<h1 id="nombre-negocio">El Paraíso Bar Restaurante</h1>', `<h1 id="nombre-negocio">${nombre}</h1>`, 'nombre en reservas (html)']
+    ], avisos, 'reservas.html');
 
     // vercel.json del cliente: igual que el nuestro pero SIN la parte del clonador
     const vercelJson = JSON.parse(b64aTexto(fuentes['vercel.json']));
@@ -243,6 +283,7 @@ module.exports = async (req, res) => {
       { file: 'api/equipo.js', data: textoAB64(apiEquipo) },
       { file: 'equipo/index.html', data: textoAB64(portal) },
       { file: 'carta.html', data: fuentes['carta.html'] },
+      { file: 'reservas.html', data: textoAB64(reservasHtml) },
       { file: 'equipo/logo-fondo.png', data: fuentes['clonador/logo-988.png'] },
       { file: 'favicon.png', data: fuentes['clonador/logo-48.png'] },
       { file: 'apple-touch-icon.png', data: fuentes['clonador/logo-180.png'] },

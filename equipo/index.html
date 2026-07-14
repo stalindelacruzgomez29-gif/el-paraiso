@@ -274,6 +274,7 @@
     <!-- AVISOS -->
     <div class="vista activa" id="vista-avisos">
       <div id="mi-dia"></div>
+      <div id="zona-reservas"></div>
       <h2 class="titulo-vista">📢 Avisos</h2>
       <div class="panel-crear solo-jefe" style="display:none">
         <h3>Publicar un aviso para todo el equipo</h3>
@@ -347,6 +348,7 @@
             <button class="btn btn-borde btn-peq" id="btn-hp-copiar">📋 Copiar texto</button>
             <a class="btn btn-borde btn-peq" id="btn-hp-google" target="_blank" rel="noopener">🗺️ Abrir Google del local</a>
             <button class="btn btn-borde btn-peq" id="btn-resena">💬 Responder una reseña con IA</button>
+            <button class="btn btn-borde btn-peq" id="btn-enlace-reservas">📅 Copiar enlace de reservas</button>
             <a class="btn btn-borde btn-peq" id="btn-hp-facebook" target="_blank" rel="noopener">📘 Abrir Facebook</a>
           </div>
         </div>
@@ -899,7 +901,7 @@ function comprobarTareasNuevas(esPrimeraCarga) {
 }
 
 /* ---------- Pintar cada sección ---------- */
-function pintarTodo() { pintarPanel(); pintarMiDia(); pintarAvisos(); pintarTareas(); pintarHorario(); pintarFichar(); pintarVacaciones(); pintarPedidos(); pintarStock(); pintarEquipo(); if (chatCon != null) pintarChat(); try { aplicarLogoPersonalizado(); pintarFirmaRegistro(); } catch (e) {} }
+function pintarTodo() { pintarPanel(); pintarMiDia(); pintarAvisos(); pintarTareas(); pintarHorario(); pintarFichar(); pintarVacaciones(); pintarPedidos(); pintarStock(); pintarEquipo(); if (chatCon != null) pintarChat(); try { aplicarLogoPersonalizado(); pintarFirmaRegistro(); pintarReservas(); } catch (e) {} }
 
 /* ---------- Panel con gráficos (solo jefe) ---------- */
 const graficos = {};
@@ -1943,6 +1945,43 @@ window.borrarDoc = async id => {
   if (!confirm('¿Borrar este documento para siempre?')) return;
   try { await refrescar('borrarDocumento', { id }); pintarDocsModal(); aviso('🗑 Documento borrado'); }
   catch (e) { aviso(e.message, true); }
+};
+
+/* ---------- Reservas de mesa (las piden los clientes desde la página pública) ---------- */
+const ESTADO_RESERVA = { pendiente: 'est-pendiente', confirmada: 'est-aprobada', anulada: 'est-rechazada' };
+function pintarReservas() {
+  const z = $('#zona-reservas'); if (!z || !vista) return;
+  const hoy = new Date().toLocaleDateString('sv-SE');
+  const rs = (vista.reservas || []).filter(r => r.fecha >= hoy).sort((a, b) => (a.fecha + a.hora) < (b.fecha + b.hora) ? -1 : 1);
+  if (!rs.length) { z.innerHTML = ''; return; }
+  const esJefe = vista.yo.rol === 'jefe';
+  const deHoy = rs.filter(r => r.fecha === hoy && r.estado !== 'anulada').length;
+  const fBonita = f => f === hoy ? 'HOY' : new Date(f + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
+  z.innerHTML = `<div class="tarjeta">
+    <strong style="color:var(--verde)">📅 Reservas${deHoy ? ` · hoy ${deHoy}` : ''}</strong>
+    ${rs.slice(0, 25).map(r => `<div class="aus" style="margin-top:8px">
+      <span><strong>${esc(r.nombre)}</strong> · ${r.personas} pers.<br>
+        <span style="color:#666">${fBonita(r.fecha)} a las ${esc(r.hora)} · <a href="tel:${esc(r.telefono)}" style="color:var(--verde)">📞 ${esc(r.telefono)}</a>${r.nota ? '<br>📝 ' + esc(r.nota) : ''}</span></span>
+      <span><span class="est ${ESTADO_RESERVA[r.estado] || ''}">${r.estado}</span>
+        ${r.estado === 'pendiente' ? `<button class="btn btn-primario btn-peq" onclick="resolverReserva('${r.id}','confirmada')">✅</button>` : ''}
+        ${r.estado !== 'anulada' ? `<button class="btn btn-borde btn-peq" onclick="resolverReserva('${r.id}','anulada')">❌</button>` : ''}
+        ${esJefe ? `<button class="btn btn-borde btn-peq" onclick="borrarReserva('${r.id}')">🗑</button>` : ''}</span>
+    </div>`).join('')}
+    <div class="meta">El cliente reserva desde el enlace público (🕐 Horario → 📅 Copiar enlace de reservas). Confírmale la mesa con una llamada o WhatsApp.</div>
+  </div>`;
+}
+window.resolverReserva = async (id, estado) => {
+  try { await refrescar('resolverReserva', { id, estado }); aviso(estado === 'confirmada' ? '✅ Reserva confirmada: avisa al cliente' : '❌ Reserva anulada'); }
+  catch (e) { aviso(e.message, true); }
+};
+window.borrarReserva = async id => {
+  if (!confirm('¿Borrar esta reserva de la lista?')) return;
+  try { await refrescar('borrarReserva', { id }); } catch (e) { aviso(e.message, true); }
+};
+$('#btn-enlace-reservas').onclick = async () => {
+  const url = location.origin + '/reservas.html?l=' + (localActual() || 'paraiso');
+  try { await navigator.clipboard.writeText(url); aviso('📋 Enlace copiado: ponlo en Google, Instagram o WhatsApp.\n' + url); }
+  catch (e) { aviso('Tu enlace de reservas:\n' + url); }
 };
 
 /* ---------- Exportar a Excel (CSV que Excel abre directamente) ---------- */

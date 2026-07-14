@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mis clientes · White-label</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #fdf6ec; min-height: 100vh; padding: 20px 16px 60px; }
+  .caja { background: #fff; border-radius: 16px; box-shadow: 0 8px 30px rgba(146,64,14,.15); max-width: 560px; margin: 0 auto; padding: 26px; }
+  h1 { font-size: 22px; color: #92400e; margin-bottom: 4px; }
+  .sub { color: #777; font-size: 14px; margin-bottom: 18px; }
+  label { display: block; font-size: 13px; font-weight: 600; color: #555; margin: 12px 0 4px; }
+  .campo { width: 100%; padding: 12px; border: 1.5px solid #e5d5c0; border-radius: 10px; font-size: 16px; }
+  .btn { border: 0; border-radius: 10px; padding: 12px 16px; font-size: 15px; font-weight: 700; cursor: pointer; }
+  .btn-p { background: #d97706; color: #fff; width: 100%; margin-top: 18px; font-size: 17px; }
+  .btn-peq { padding: 8px 12px; font-size: 13.5px; }
+  .btn-borde { background: #fff; border: 1.5px solid #e5d5c0; color: #92400e; }
+  .btn-rojo { background: #fde8e8; color: #9b1c1c; }
+  .cliente { border: 1px solid #eee0cc; border-radius: 14px; padding: 14px; margin-top: 12px; }
+  .cliente h3 { font-size: 17px; color: #4b3416; }
+  .cliente .meta { font-size: 13px; color: #8a7a63; margin: 4px 0 10px; line-height: 1.5; }
+  .chip { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 2px 9px; border-radius: 10px; }
+  .chip.ok { background: #def7ec; color: #03543f; }
+  .chip.mal { background: #fde8e8; color: #9b1c1c; }
+  .fila { display: flex; gap: 8px; flex-wrap: wrap; }
+  .aviso { display: none; margin-top: 14px; padding: 12px; border-radius: 10px; font-size: 14px; }
+  .aviso.error { background: #fde8e8; color: #9b1c1c; }
+  .aviso.info { background: #fef3c7; color: #92400e; }
+  a { color: #92400e; }
+</style>
+</head>
+<body>
+<div class="caja">
+  <h1>🧬 Mis clientes</h1>
+  <p class="sub">Todas las apps que has creado, de un vistazo: si su web está viva y cuándo la usaron por última vez.</p>
+
+  <div id="acceso">
+    <label>Tu correo de administrador</label>
+    <input class="campo" id="email" type="email" autocomplete="username">
+    <label>Tu contraseña</label>
+    <input class="campo" id="clave" type="password" autocomplete="current-password">
+    <button class="btn btn-p" id="btn-entrar">Ver mis clientes</button>
+  </div>
+
+  <div id="panel" style="display:none">
+    <div class="fila" style="justify-content:space-between;align-items:center">
+      <strong id="resumen" style="font-size:15px;color:#4b3416"></strong>
+      <a class="btn btn-borde btn-peq" href="/crear-cliente.html">➕ Crear cliente nuevo</a>
+    </div>
+    <div id="lista"></div>
+  </div>
+  <div class="aviso" id="aviso"></div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let credenciales = null, clientes = [];
+
+function aviso(tipo, txt) { const a = $('#aviso'); a.className = 'aviso ' + tipo; a.style.display = 'block'; a.textContent = txt; }
+async function llamar(cuerpo) {
+  const r = await fetch('/api/clonar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...credenciales, ...cuerpo }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || 'Error ' + r.status);
+  return j;
+}
+function haceCuanto(iso) {
+  if (!iso) return 'sin actividad todavía';
+  const dias = Math.floor((Date.now() - new Date(iso)) / 86400000);
+  if (dias <= 0) return 'usada HOY ✅';
+  if (dias === 1) return 'usada ayer';
+  if (dias < 30) return `usada hace ${dias} días`;
+  return `⚠️ sin uso desde hace ${dias} días`;
+}
+function pintar() {
+  $('#resumen').textContent = clientes.length + ' cliente(s)';
+  $('#lista').innerHTML = clientes.map(c => `
+    <div class="cliente">
+      <h3>${esc(c.slug)} <span class="chip ${c.estado === 'READY' ? 'ok' : 'mal'}">${c.estado === 'READY' ? 'web viva' : esc(c.estado)}</span></h3>
+      <div class="meta">${c.url ? '🌐 <a href="' + c.url + '" target="_blank">' + c.url.replace('https://', '') + '</a><br>' : ''}
+        📊 ${haceCuanto(c.actividad)}${c.creado ? ' · creada el ' + new Date(c.creado).toLocaleDateString('es-ES') : ''}</div>
+      <div class="fila">
+        ${c.url ? `<a class="btn btn-borde btn-peq" href="${c.url}/equipo/" target="_blank">Abrir su portal</a>` : ''}
+        <button class="btn btn-rojo btn-peq" onclick="darDeBaja('${esc(c.slug)}')">🗑 Dar de baja</button>
+      </div>
+    </div>`).join('') || '<p style="margin-top:16px;color:#888">Todavía no has creado ningún cliente. ¡Crea el primero!</p>';
+}
+$('#btn-entrar').onclick = async () => {
+  credenciales = { email: $('#email').value.trim(), clave: $('#clave').value };
+  if (!credenciales.email || !credenciales.clave) return aviso('error', 'Pon tu correo y contraseña de administrador.');
+  const btn = $('#btn-entrar'); btn.disabled = true; btn.textContent = 'Cargando...';
+  try {
+    const r = await llamar({ accion: 'listar' });
+    clientes = r.clientes;
+    $('#acceso').style.display = 'none';
+    $('#panel').style.display = 'block';
+    $('#aviso').style.display = 'none';
+    pintar();
+  } catch (e) { aviso('error', e.message); }
+  btn.disabled = false; btn.textContent = 'Ver mis clientes';
+};
+window.darDeBaja = async slug => {
+  if (!confirm('¿Dar de baja la web de "' + slug + '"? Su página dejará de funcionar.')) return;
+  if (!confirm('¿SEGURO? Esto no se puede deshacer desde aquí.')) return;
+  try {
+    const r = await llamar({ accion: 'borrarCliente', slug });
+    aviso('info', r.aviso);
+    clientes = clientes.filter(c => c.slug !== slug);
+    pintar();
+  } catch (e) { aviso('error', e.message); }
+};
+</script>
+</body>
+</html>
