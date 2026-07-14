@@ -83,6 +83,7 @@ function pintar() {
         📊 ${haceCuanto(c.actividad)}${c.creado ? ' · creada el ' + new Date(c.creado).toLocaleDateString('es-ES') : ''}</div>
       <div class="fila">
         ${c.url ? `<a class="btn btn-borde btn-peq" href="${c.url}/equipo/" target="_blank">Abrir su portal</a>` : ''}
+        <button class="btn btn-borde btn-peq" id="act-${esc(c.slug)}" onclick="actualizarCliente('${esc(c.slug)}')">⬆️ Actualizar app</button>
         <button class="btn btn-rojo btn-peq" onclick="darDeBaja('${esc(c.slug)}')">🗑 Dar de baja</button>
       </div>
     </div>`).join('') || '<p style="margin-top:16px;color:#888">Todavía no has creado ningún cliente. ¡Crea el primero!</p>';
@@ -123,6 +124,16 @@ async function pintarCobros() {
     $('#cobros').innerHTML = '<h1 style="font-size:19px">💳 Cobros</h1><p class="sub">Enlaces de pago para clientes nuevos y estado de las cuotas.</p>' + enlaces + '<h1 style="font-size:17px;margin-top:16px">Suscripciones</h1>' + subs;
   } catch (e) { $('#cobros').innerHTML = '<p style="color:#9b1c1c;font-size:14px">Cobros: ' + esc(e.message) + '</p>'; }
 }
+window.actualizarCliente = async slug => {
+  if (!confirm('¿Actualizar la app de "' + slug + '" a la última versión? Sus datos, claves y logo no se tocan.')) return;
+  const btn = document.getElementById('act-' + slug);
+  if (btn) { btn.disabled = true; btn.textContent = 'Actualizando...'; }
+  try {
+    const r = await llamar({ accion: 'actualizar', slug });
+    aviso('info', '⬆️ ' + slug + ': ' + r.nota + (r.avisos && r.avisos.length ? ' · ' + r.avisos.join(' · ') : ''));
+  } catch (e) { aviso('error', e.message); }
+  if (btn) { btn.disabled = false; btn.textContent = '⬆️ Actualizar app'; }
+};
 window.darDeBaja = async slug => {
   if (!confirm('¿Dar de baja la web de "' + slug + '"? Su página dejará de funcionar.')) return;
   if (!confirm('¿SEGURO? Esto no se puede deshacer desde aquí.')) return;

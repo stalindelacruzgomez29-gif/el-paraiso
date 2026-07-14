@@ -176,15 +176,11 @@ module.exports = async (req, res) => {
       return res.status(200).json({ ok: true, enlaces, suscripciones });
     }
 
-    if (p.accion !== 'crear') return res.status(400).json({ error: 'Acción desconocida.' });
+    const esActualizacion = p.accion === 'actualizar';
+    if (p.accion !== 'crear' && !esActualizacion) return res.status(400).json({ error: 'Acción desconocida.' });
 
-    // ================= CREAR EL CLIENTE NUEVO =================
-    const nombre = String(p.nombre || '').trim().slice(0, 40);
+    // ================= CREAR (o ACTUALIZAR) LA APP DE UN CLIENTE =================
     const slug = String(p.slug || '').trim().toLowerCase();
-    const emoji = (String(p.emoji || '').trim() || '🍺').slice(0, 8);
-    const cif = String(p.cif || '').trim().slice(0, 60) || '(CIF pendiente)';
-    const direccion = String(p.direccion || '').trim().slice(0, 120) || '(dirección pendiente)';
-    if (!nombre) return res.status(400).json({ error: 'Falta el nombre del negocio.' });
     if (!/^[a-z0-9][a-z0-9-]{2,29}$/.test(slug)) {
       return res.status(400).json({ error: 'El nombre corto debe tener de 3 a 30 letras minúsculas, números o guiones (sin espacios ni acentos).' });
     }
@@ -194,19 +190,44 @@ module.exports = async (req, res) => {
     const repoDatos = `${slug}-datos`;
     const proyecto = `app-${slug}`;
 
-    // ¿Ya existe? (repo de datos o proyecto en Vercel)
-    const yaRepo = await gh('GET', `/repos/${USUARIO_GH}/${repoDatos}`);
-    if (yaRepo.ok) return res.status(409).json({ error: `Ya existe un cliente con el nombre corto "${slug}" (repo ${repoDatos}).` });
-    const yaProy = await vercel('GET', `/v9/projects/${proyecto}`);
-    if (yaProy.ok) return res.status(409).json({ error: `Ya existe el proyecto "${proyecto}" en Vercel.` });
+    let nombre = String(p.nombre || '').trim().slice(0, 40);
+    let emoji = (String(p.emoji || '').trim() || '🍺').slice(0, 8);
+    let cif = String(p.cif || '').trim().slice(0, 60);
+    let direccion = String(p.direccion || '').trim().slice(0, 120);
+
+    if (esActualizacion) {
+      // La ficha del cliente vive en su propio repo de datos (config-app.json)
+      const rCfg = await gh('GET', `/repos/${USUARIO_GH}/${repoDatos}/contents/config-app.json?ref=main`);
+      if (rCfg.ok) {
+        try {
+          const cfg = JSON.parse(Buffer.from((await rCfg.json()).content, 'base64').toString('utf8'));
+          nombre = nombre || cfg.nombre; emoji = String(p.emoji || '').trim() ? emoji : (cfg.emoji || emoji);
+          cif = cif || cfg.cif; direccion = direccion || cfg.direccion;
+        } catch (e) { /* ficha ilegible: se usan los campos enviados */ }
+      }
+      if (!nombre) return res.status(400).json({ error: `Este cliente no tiene ficha guardada (config-app.json): manda también nombre, emoji, cif y dirección para actualizarlo.` });
+      const yaProy = await vercel('GET', `/v9/projects/${proyecto}`);
+      if (!yaProy.ok) return res.status(404).json({ error: `No existe el proyecto ${proyecto} en Vercel.` });
+    }
+    if (!nombre) return res.status(400).json({ error: 'Falta el nombre del negocio.' });
+    cif = cif || '(CIF pendiente)';
+    direccion = direccion || '(dirección pendiente)';
 
     const avisos = [];
 
-    // 1) Repo privado de datos del cliente
-    const repoNuevo = await gh('POST', '/user/repos', { name: repoDatos, private: true, auto_init: true });
-    if (repoNuevo.status !== 201) {
-      const j = await repoNuevo.json().catch(() => ({}));
-      return res.status(500).json({ error: `No pude crear el repo de datos (${repoNuevo.status}: ${j.message || 'error'}).` });
+    if (!esActualizacion) {
+      // ¿Ya existe? (repo de datos o proyecto en Vercel)
+      const yaRepo = await gh('GET', `/repos/${USUARIO_GH}/${repoDatos}`);
+      if (yaRepo.ok) return res.status(409).json({ error: `Ya existe un cliente con el nombre corto "${slug}" (repo ${repoDatos}).` });
+      const yaProy = await vercel('GET', `/v9/projects/${proyecto}`);
+      if (yaProy.ok) return res.status(409).json({ error: `Ya existe el proyecto "${proyecto}" en Vercel.` });
+
+      // 1) Repo privado de datos del cliente
+      const repoNuevo = await gh('POST', '/user/repos', { name: repoDatos, private: true, auto_init: true });
+      if (repoNuevo.status !== 201) {
+        const j = await repoNuevo.json().catch(() => ({}));
+        return res.status(500).json({ error: `No pude crear el repo de datos (${repoNuevo.status}: ${j.message || 'error'}).` });
+      }
     }
 
     // 2) Traer el código fuente (en paralelo)
@@ -289,23 +310,33 @@ module.exports = async (req, res) => {
       ]
     }, null, 2);
 
-    // 4) Crear el proyecto en Vercel y sus claves
-    const proy = await vercel('POST', '/v11/projects', { name: proyecto });
-    if (!proy.ok) {
-      const j = await proy.json().catch(() => ({}));
-      return res.status(500).json({ error: `No pude crear el proyecto en Vercel (${proy.status}: ${(j.error && j.error.message) || 'error'}).` });
+    // 4) Crear el proyecto en Vercel y sus claves (solo la primera vez;
+    //    al actualizar, el proyecto y sus claves ya existen y se conservan)
+    if (!esActualizacion) {
+      const proy = await vercel('POST', '/v11/projects', { name: proyecto });
+      if (!proy.ok) {
+        const j = await proy.json().catch(() => ({}));
+        return res.status(500).json({ error: `No pude crear el proyecto en Vercel (${proy.status}: ${(j.error && j.error.message) || 'error'}).` });
+      }
+      const claves = [
+        { key: 'EQUIPO_GITHUB_TOKEN', value: process.env.EQUIPO_GITHUB_TOKEN },
+        { key: 'EQUIPO_SECRETO', value: crypto.randomBytes(32).toString('hex') },
+        { key: 'CRON_SECRET', value: crypto.randomBytes(16).toString('hex') }
+      ];
+      if (process.env.CLAVE_API_CLAUDE) claves.push({ key: 'CLAVE_API_CLAUDE', value: process.env.CLAVE_API_CLAUDE });
+      if (process.env.MODELO_IA) claves.push({ key: 'MODELO_IA', value: process.env.MODELO_IA });
+      const envR = await vercel('POST', `/v10/projects/${proyecto}/env`,
+        claves.map(c => ({ ...c, type: 'encrypted', target: ['production', 'preview', 'development'] })));
+      if (!envR.ok) avisos.push('No pude poner alguna clave en Vercel: revisar las variables del proyecto ' + proyecto + '.');
+      if (!process.env.CLAVE_API_CLAUDE) avisos.push('La IA de facturas quedó SIN clave (CLAVE_API_CLAUDE): ponerla a mano si el cliente la contrata.');
+
+      // La ficha del cliente se guarda en su repo (para poder actualizarlo en el futuro)
+      await gh('PUT', `/repos/${USUARIO_GH}/${repoDatos}/contents/config-app.json`, {
+        message: 'ficha del cliente',
+        content: Buffer.from(JSON.stringify({ nombre, slug, emoji, cif, direccion, creado: new Date().toISOString() }, null, 2)).toString('base64'),
+        branch: 'main'
+      });
     }
-    const claves = [
-      { key: 'EQUIPO_GITHUB_TOKEN', value: process.env.EQUIPO_GITHUB_TOKEN },
-      { key: 'EQUIPO_SECRETO', value: crypto.randomBytes(32).toString('hex') },
-      { key: 'CRON_SECRET', value: crypto.randomBytes(16).toString('hex') }
-    ];
-    if (process.env.CLAVE_API_CLAUDE) claves.push({ key: 'CLAVE_API_CLAUDE', value: process.env.CLAVE_API_CLAUDE });
-    if (process.env.MODELO_IA) claves.push({ key: 'MODELO_IA', value: process.env.MODELO_IA });
-    const envR = await vercel('POST', `/v10/projects/${proyecto}/env`,
-      claves.map(c => ({ ...c, type: 'encrypted', target: ['production', 'preview', 'development'] })));
-    if (!envR.ok) avisos.push('No pude poner alguna clave en Vercel: revisar las variables del proyecto ' + proyecto + '.');
-    if (!process.env.CLAVE_API_CLAUDE) avisos.push('La IA de facturas quedó SIN clave (CLAVE_API_CLAUDE): ponerla a mano si el cliente la contrata.');
 
     // 5) Publicar (la web tarda 1-2 minutos en construirse)
     const archivos = [
@@ -340,12 +371,14 @@ module.exports = async (req, res) => {
       return res.status(500).json({ error: `No pude publicar la web (${desp.status}: ${(j.error && j.error.message) || 'error'}).` });
     }
 
-    avisos.push('El aviso de WhatsApp de pedidos está APAGADO: crear el CallMeBot del cliente y añadir WHATSAPP_TELEFONO y WHATSAPP_APIKEY en Vercel.');
-    avisos.push('El logo es el genérico: cuando el cliente mande el suyo, sustituirlo.');
+    if (!esActualizacion) {
+      avisos.push('El aviso de WhatsApp de pedidos está APAGADO: crear el CallMeBot del cliente y añadir WHATSAPP_TELEFONO y WHATSAPP_APIKEY en Vercel.');
+      avisos.push('El logo es el genérico: cuando el cliente mande el suyo, sustituirlo (o que lo suba él en 👥 Equipo → 🎨).');
+    }
 
     return res.status(200).json({
-      ok: true, proyecto, repoDatos,
-      nota: 'La web se está construyendo (1-2 minutos).',
+      ok: true, proyecto, repoDatos, actualizado: esActualizacion,
+      nota: esActualizacion ? 'Actualización publicada (1-2 minutos). Sus datos no se tocan.' : 'La web se está construyendo (1-2 minutos).',
       avisos
     });
   } catch (e) {
