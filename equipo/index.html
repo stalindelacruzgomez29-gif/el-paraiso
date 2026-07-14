@@ -129,6 +129,26 @@
   .mi-dia .dato { margin-top: 6px; font-size: 14.5px; }
   .nota-turnos { font-size: 12.5px; color: #888; margin-top: 6px; }
 
+  /* ---------- Vacaciones, ausencias y cambios de turno ---------- */
+  .aus { background: rgba(255,255,255,.92); border: 1px solid var(--borde); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; font-size: 14px; display: flex; justify-content: space-between; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .aus .est { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+  .est-pendiente, .est-esperando-companero, .est-esperando-jefe { background: #fef3c7; color: #92400e; }
+  .est-aprobada, .est-aprobado { background: #def7ec; color: #03543f; }
+  .est-rechazada, .est-rechazado { background: #fde8e8; color: #9b1c1c; }
+
+  /* ---------- Impresión de informes (gestoría y registro horario) ---------- */
+  #zona-imprimir { display: none; }
+  @media print {
+    body > *:not(#zona-imprimir) { display: none !important; }
+    #zona-imprimir { display: block !important; background: #fff; color: #000; font-family: -apple-system, 'Segoe UI', Arial, sans-serif; }
+    #zona-imprimir table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 6px; }
+    #zona-imprimir th, #zona-imprimir td { border: 1px solid #999; padding: 3px 5px; text-align: center; }
+    #zona-imprimir th { background: #eee; }
+    #zona-imprimir h2 { font-size: 16px; margin: 0 0 4px; }
+    #zona-imprimir h3 { font-size: 13px; margin: 14px 0 4px; page-break-after: avoid; }
+    #zona-imprimir .hoja { page-break-after: always; }
+  }
+
   /* ---------- Bloques por persona ---------- */
   .bloque-persona { background: rgba(255,255,255,.55); border: 1px solid var(--borde); border-radius: 14px; padding: 10px 10px 4px; margin-bottom: 14px; box-shadow: 0 3px 10px rgba(27,94,32,.05); }
   .bloque-cab { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 6px; font-weight: 800; color: var(--verde); font-size: 15.5px; padding: 2px 4px 8px; border-bottom: 2px solid var(--verde-claro); margin-bottom: 8px; }
@@ -289,6 +309,7 @@
         <button class="btn btn-primario btn-peq" id="btn-guardar-horario">💾 Publicar horario</button>
       </div>
       <div id="horario-notas-vista" style="margin-top:10px;font-size:14.5px"></div>
+      <div id="zona-cambios"></div>
 
       <!-- Horario de APERTURA al público (Google / redes) -->
       <div class="panel-crear solo-jefe" id="panel-horario-publico" style="display:none;margin-top:18px;border-color:#1565c0;background:rgba(227,242,253,.7)">
@@ -333,10 +354,47 @@
         <div class="fecha" id="fecha-hoy"></div>
         <button class="boton-fichar entrada" id="btn-fichar">FICHAR<br>ENTRADA</button>
       </div>
+      <div class="panel-crear solo-jefe" id="panel-informes" style="display:none">
+        <h3>📄 Informes del mes</h3>
+        <div class="fila-acciones" style="align-items:center;flex-wrap:wrap">
+          <input class="campo" type="month" id="mes-informe" style="margin:0;width:auto;padding:8px">
+          <button class="btn btn-primario btn-peq" id="btn-informe-gestoria">🖨 Horas para la gestoría</button>
+          <button class="btn btn-borde btn-peq" id="btn-registro-legal">🖨 Registro horario (firmable)</button>
+        </div>
+        <p class="nota-turnos">El <strong>registro horario</strong> es el documento que exige la ley: imprímelo (o guárdalo como PDF) cada mes y que cada trabajador lo firme. Los fichajes antiguos se guardan solos en el archivo del año, no se pierden.</p>
+      </div>
       <div class="lista-fichajes">
         <h3 style="font-size:15px;color:var(--verde);margin-bottom:6px" id="titulo-fichajes">Mis últimos fichajes</h3>
         <div id="lista-fichajes"></div>
       </div>
+    </div>
+
+    <!-- VACACIONES Y DÍAS LIBRES -->
+    <div class="vista" id="vista-vacaciones">
+      <h2 class="titulo-vista">🏖 Vacaciones y días libres</h2>
+      <div id="vac-saldo"></div>
+      <div class="panel-crear">
+        <h3 id="vac-form-titulo">Pedir vacaciones o un día libre</h3>
+        <div id="vac-fila-emp" style="display:none"><select class="campo" id="vac-emp"></select></div>
+        <div class="fila-acciones" style="align-items:center;flex-wrap:wrap">
+          <select class="campo" id="vac-tipo" style="margin:0;width:auto">
+            <option value="vacaciones">🏖 Vacaciones</option>
+            <option value="libre">🗓 Día libre</option>
+            <option value="baja">🤒 Baja</option>
+            <option value="otro">📌 Otro</option>
+          </select>
+          <label style="font-size:13px">Del <input class="campo" type="date" id="vac-desde" style="margin:0;width:auto;padding:8px"></label>
+          <label style="font-size:13px">al <input class="campo" type="date" id="vac-hasta" style="margin:0;width:auto;padding:8px"></label>
+        </div>
+        <input class="campo" id="vac-motivo" placeholder="Motivo (opcional, solo lo ve el administrador)">
+        <button class="btn btn-primario btn-peq" id="btn-pedir-ausencia">📨 Enviar</button>
+        <p class="nota-turnos" id="vac-nota">Si es un solo día, deja la segunda fecha vacía.</p>
+      </div>
+      <div id="vac-pendientes"></div>
+      <h3 style="font-size:15px;color:var(--verde);margin:14px 0 6px">Próximas ausencias del equipo</h3>
+      <div id="vac-proximas"></div>
+      <h3 style="font-size:15px;color:var(--verde);margin:14px 0 6px" id="vac-mias-titulo">Mis peticiones</h3>
+      <div id="vac-mias"></div>
     </div>
 
     <!-- PEDIDOS -->
@@ -428,6 +486,9 @@
   </div>
 </div>
 
+<!-- Zona de impresión de informes (solo se ve al imprimir) -->
+<div id="zona-imprimir"></div>
+
 <!-- Modal editar trabajador -->
 <div class="modal-fondo" id="modal-emp">
   <div class="modal">
@@ -435,6 +496,10 @@
     <input class="campo" id="ed-nombre" placeholder="Nombre">
     <input class="campo" id="ed-puesto" placeholder="Puesto: camarero/a, cocina, barra...">
     <textarea class="campo" id="ed-funciones" placeholder="Sus funciones y responsabilidades" style="min-height:90px"></textarea>
+    <div class="fila-acciones" style="align-items:center;flex-wrap:wrap">
+      <label style="font-size:13px">Contrato <input class="campo" type="number" id="ed-horas" min="1" max="60" placeholder="—" style="margin:0 4px;width:70px;padding:8px"> h/semana</label>
+      <label style="font-size:13px">Vacaciones <input class="campo" type="number" id="ed-vacaciones" min="1" max="60" placeholder="30" style="margin:0 4px;width:70px;padding:8px"> días/año</label>
+    </div>
     <div class="fila-acciones">
       <button class="btn btn-primario btn-peq" id="btn-guardar-emp">Guardar</button>
       <button class="btn btn-borde btn-peq" id="btn-cerrar-emp">Cancelar</button>
@@ -689,7 +754,7 @@ function montarBarra() {
   const esJefe = vista.yo.rol === 'jefe';
   const tabs = [
     ['avisos', '📢', 'Avisos'], ['tareas', '✅', 'Tareas'], ['horario', '🕐', 'Horario'],
-    ['fichar', '⏱', 'Fichar'], ['pedidos', '🛒', 'Pedidos'], ['stock', '📦', 'Stock']
+    ['fichar', '⏱', 'Fichar'], ['vacaciones', '🏖', 'Libres'], ['pedidos', '🛒', 'Pedidos'], ['stock', '📦', 'Stock']
   ];
   if (esJefe) { tabs.unshift(['panel', '📊', 'Panel']); tabs.push(['equipo', '👥', 'Equipo']); }
   $('#barra').innerHTML = tabs.map(([id, ico, txt]) =>
@@ -729,7 +794,7 @@ function comprobarTareasNuevas(esPrimeraCarga) {
 }
 
 /* ---------- Pintar cada sección ---------- */
-function pintarTodo() { pintarPanel(); pintarMiDia(); pintarAvisos(); pintarTareas(); pintarHorario(); pintarFichar(); pintarPedidos(); pintarStock(); pintarEquipo(); if (chatCon != null) pintarChat(); }
+function pintarTodo() { pintarPanel(); pintarMiDia(); pintarAvisos(); pintarTareas(); pintarHorario(); pintarFichar(); pintarVacaciones(); pintarPedidos(); pintarStock(); pintarEquipo(); if (chatCon != null) pintarChat(); }
 
 /* ---------- Panel con gráficos (solo jefe) ---------- */
 const graficos = {};
@@ -1036,6 +1101,7 @@ function pintarHorario() {
   if (esJefe) $('#horario-notas').value = vista.horario.notas || '';
   $('#horario-notas-vista').innerHTML = vista.horario.notas && !esJefe ? '📝 ' + esc(vista.horario.notas) : '';
   pintarHorarioPublico();
+  pintarCambiosTurno();
 }
 
 const DIAS_LARGO = [['lun','Lunes'],['mar','Martes'],['mie','Miércoles'],['jue','Jueves'],['vie','Viernes'],['sab','Sábado'],['dom','Domingo']];
@@ -1472,16 +1538,191 @@ window.editarEmp = id => {
   const e = vista.empleados.find(x => x.id === id); if (!e) return;
   empEditando = id;
   $('#ed-nombre').value = e.nombre; $('#ed-puesto').value = e.puesto || ''; $('#ed-funciones').value = e.funciones || '';
+  $('#ed-horas').value = e.horasContrato || ''; $('#ed-vacaciones').value = e.diasVacaciones || '';
   $('#modal-emp').style.display = 'flex';
 };
 $('#btn-cerrar-emp').onclick = () => { $('#modal-emp').style.display = 'none'; };
 $('#btn-guardar-emp').onclick = async () => {
   try {
-    await refrescar('editarEmpleado', { id: empEditando, nombre: $('#ed-nombre').value, puesto: $('#ed-puesto').value, funciones: $('#ed-funciones').value });
+    await refrescar('editarEmpleado', { id: empEditando, nombre: $('#ed-nombre').value, puesto: $('#ed-puesto').value, funciones: $('#ed-funciones').value,
+      horasContrato: $('#ed-horas').value || null, diasVacaciones: $('#ed-vacaciones').value || null });
     $('#modal-emp').style.display = 'none';
     aviso('✏️ Ficha actualizada');
   } catch (e) { aviso(e.message, true); }
 };
+
+/* ---------- Vacaciones y ausencias ---------- */
+const TIPO_AUSENCIA = { vacaciones: '🏖 Vacaciones', libre: '🗓 Día libre', baja: '🤒 Baja', otro: '📌 Ausencia' };
+function diasDe(a) { return Math.round((new Date(a.hasta) - new Date(a.desde)) / 86400000) + 1; }
+function pintarVacaciones() {
+  try {
+  if (!vista || !$('#vista-vacaciones')) return;
+  const esJefe = vista.yo.rol === 'jefe';
+  const aus = vista.ausencias || [];
+  $('#vac-form-titulo').textContent = esJefe ? '✍️ Apuntar una ausencia (queda aprobada al momento)' : 'Pedir vacaciones o un día libre';
+  $('#vac-fila-emp').style.display = esJefe ? 'block' : 'none';
+  if (esJefe) $('#vac-emp').innerHTML = vista.empleados.filter(e => e.activo && e.rol !== 'jefe').map(e => `<option value="${e.id}">${esc(e.nombre)}</option>`).join('');
+  // Saldo de vacaciones del año (si el jefe configuró los días en la ficha)
+  const anio = String(new Date().getFullYear());
+  if (!esJefe && vista.yo.diasVacaciones) {
+    const usados = aus.filter(a => a.empleadoId === vista.yo.id && a.tipo === 'vacaciones' && a.estado === 'aprobada' && a.desde.slice(0, 4) === anio)
+      .reduce((s, a) => s + diasDe(a), 0);
+    $('#vac-saldo').innerHTML = `<div class="tarjeta">🏖 Vacaciones de ${anio}: llevas <strong>${usados}</strong> de <strong>${vista.yo.diasVacaciones}</strong> días (te quedan ${Math.max(0, vista.yo.diasVacaciones - usados)})</div>`;
+  } else $('#vac-saldo').innerHTML = '';
+  // Peticiones por resolver (solo jefe)
+  const pendientes = aus.filter(a => a.estado === 'pendiente');
+  $('#vac-pendientes').innerHTML = esJefe && pendientes.length
+    ? '<h3 style="font-size:15px;color:var(--rojo);margin:14px 0 6px">⏳ Peticiones por resolver</h3>' + pendientes.map(a => `
+      <div class="aus"><span><strong>${esc(nombreDe(a.empleadoId))}</strong> · ${TIPO_AUSENCIA[a.tipo] || a.tipo}<br>
+        <span style="color:#666">del ${a.desde} al ${a.hasta} (${diasDe(a)} día(s))${a.motivo ? ' · ' + esc(a.motivo) : ''}</span></span>
+      <span><button class="btn btn-primario btn-peq" onclick="resolverAusencia('${a.id}','aprobada')">✅ Aprobar</button>
+      <button class="btn btn-borde btn-peq" onclick="resolverAusencia('${a.id}','rechazada')">❌</button></span></div>`).join('')
+    : '';
+  const punto = $('#punto-vacaciones'); if (punto) punto.style.display = esJefe && pendientes.length ? 'block' : 'none';
+  // Próximas ausencias aprobadas de todo el equipo (para organizarse)
+  const hoy = new Date().toLocaleDateString('sv-SE');
+  const prox = aus.filter(a => a.estado === 'aprobada' && a.hasta >= hoy).sort((x, y) => x.desde < y.desde ? -1 : 1).slice(0, 20);
+  $('#vac-proximas').innerHTML = prox.length ? prox.map(a => `
+    <div class="aus"><span><strong>${esc(nombreDe(a.empleadoId))}</strong> · ${TIPO_AUSENCIA[a.tipo] || a.tipo}<br>
+      <span style="color:#666">del ${a.desde} al ${a.hasta}</span></span><span class="est est-aprobada">aprobada</span></div>`).join('')
+    : '<div class="vacio">Nadie tiene ausencias próximas.</div>';
+  // Mis peticiones (o el historial completo si soy el jefe)
+  $('#vac-mias-titulo').textContent = esJefe ? 'Historial' : 'Mis peticiones';
+  const mias = esJefe ? [...aus].reverse().slice(0, 30) : [...aus.filter(a => a.empleadoId === vista.yo.id)].reverse();
+  $('#vac-mias').innerHTML = mias.length ? mias.map(a => `
+    <div class="aus"><span>${esJefe ? '<strong>' + esc(nombreDe(a.empleadoId)) + '</strong> · ' : ''}${TIPO_AUSENCIA[a.tipo] || a.tipo}<br>
+      <span style="color:#666">del ${a.desde} al ${a.hasta}${a.nota ? ' · ' + esc(a.nota) : ''}</span></span>
+    <span><span class="est est-${a.estado}">${a.estado}</span>
+    ${esJefe || (a.empleadoId === vista.yo.id && a.estado === 'pendiente') ? ` <button class="btn btn-borde btn-peq" onclick="borrarAusencia('${a.id}')">🗑</button>` : ''}</span></div>`).join('')
+    : '<div class="vacio">Todavía no hay peticiones.</div>';
+  } catch (e) { /* que un fallo aquí no rompa el resto de la app */ }
+}
+window.resolverAusencia = async (id, decision) => {
+  try { await refrescar('resolverAusencia', { id, decision }); aviso(decision === 'aprobada' ? '✅ Aprobada' : '❌ Rechazada'); }
+  catch (e) { aviso(e.message, true); }
+};
+window.borrarAusencia = async id => {
+  if (!confirm('¿Quitar esta petición?')) return;
+  try { await refrescar('borrarAusencia', { id }); } catch (e) { aviso(e.message, true); }
+};
+$('#btn-pedir-ausencia').onclick = async () => {
+  const esJefe = vista.yo.rol === 'jefe';
+  if (!$('#vac-desde').value) return aviso('Elige la fecha de inicio.', true);
+  try {
+    await refrescar('pedirAusencia', {
+      tipo: $('#vac-tipo').value, desde: $('#vac-desde').value,
+      hasta: $('#vac-hasta').value || $('#vac-desde').value, motivo: $('#vac-motivo').value,
+      ...(esJefe ? { empleadoId: $('#vac-emp').value } : {})
+    });
+    $('#vac-motivo').value = ''; $('#vac-desde').value = ''; $('#vac-hasta').value = '';
+    aviso(esJefe ? '✅ Ausencia apuntada y aprobada' : '📨 Petición enviada al administrador');
+  } catch (e) { aviso(e.message, true); }
+};
+
+/* ---------- Cambios de turno entre compañeros ---------- */
+const NOMBRE_DIA = { lun: 'lunes', mar: 'martes', mie: 'miércoles', jue: 'jueves', vie: 'viernes', sab: 'sábado', dom: 'domingo' };
+function pintarCambiosTurno() {
+  try {
+  const z = $('#zona-cambios'); if (!z || !vista) return;
+  const esJefe = vista.yo.rol === 'jefe';
+  // Se enseñan los vivos y los resueltos de los últimos 3 días
+  const cambios = (vista.cambiosTurno || []).filter(c =>
+    ['esperando-companero', 'esperando-jefe'].includes(c.estado) || (c.resuelta && Date.now() - new Date(c.resuelta) < 3 * 86400000));
+  let html = '';
+  if (!esJefe) {
+    const companeros = vista.empleados.filter(e => e.activo && e.rol !== 'jefe' && e.id !== vista.yo.id);
+    if (companeros.length) html += `<div class="panel-crear"><h3>🔄 Cambiar un turno con un compañero</h3>
+      <div class="fila-acciones" style="align-items:center;flex-wrap:wrap">
+        <select class="campo" id="ct-dia" style="margin:0;width:auto">${DIAS.map(d => `<option value="${d[0]}">${NOMBRE_DIA[d[0]]}</option>`).join('')}</select>
+        <span style="font-size:13.5px">con</span>
+        <select class="campo" id="ct-con" style="margin:0;width:auto">${companeros.map(e => `<option value="${e.id}">${esc(e.nombre)}</option>`).join('')}</select>
+        <button class="btn btn-primario btn-peq" id="btn-pedir-cambio">Proponer</button>
+      </div>
+      <p class="nota-turnos">Tu compañero tiene que aceptar y luego el administrador da el visto bueno: entonces el horario se intercambia solo.</p></div>`;
+  }
+  const ESTADOS_CT = { 'esperando-companero': 'espera la respuesta del compañero', 'esperando-jefe': 'espera el visto bueno del administrador', aprobado: 'aprobado: turnos intercambiados', rechazado: 'rechazado' };
+  html += cambios.map(c => {
+    let botones = '';
+    if (c.estado === 'esperando-companero' && c.conId === vista.yo.id) {
+      botones = `<button class="btn btn-primario btn-peq" onclick="responderCambio('${c.id}',true)">✅ Acepto</button>
+                 <button class="btn btn-borde btn-peq" onclick="responderCambio('${c.id}',false)">❌ No puedo</button>`;
+    } else if (c.estado === 'esperando-jefe' && esJefe) {
+      botones = `<button class="btn btn-primario btn-peq" onclick="resolverCambio('${c.id}','aprobado')">✅ Visto bueno</button>
+                 <button class="btn btn-borde btn-peq" onclick="resolverCambio('${c.id}','rechazado')">❌</button>`;
+    } else if (c.deId === vista.yo.id && c.estado !== 'aprobado') {
+      botones = `<button class="btn btn-borde btn-peq" onclick="borrarCambio('${c.id}')">🗑</button>`;
+    }
+    return `<div class="aus"><span><strong>${esc(nombreDe(c.deId))}</strong> ⇄ <strong>${esc(nombreDe(c.conId))}</strong> · ${NOMBRE_DIA[c.dia] || c.dia}<br>
+      <span style="color:#666">${ESTADOS_CT[c.estado] || c.estado}</span></span><span>${botones}</span></div>`;
+  }).join('');
+  z.innerHTML = html ? '<h3 style="font-size:15px;color:var(--verde);margin:16px 0 6px">🔄 Cambios de turno</h3>' + html : '';
+  const btn = $('#btn-pedir-cambio');
+  if (btn) btn.onclick = async () => {
+    try { await refrescar('pedirCambioTurno', { dia: $('#ct-dia').value, conId: $('#ct-con').value }); aviso('📨 Propuesta enviada a tu compañero'); }
+    catch (e) { aviso(e.message, true); }
+  };
+  // Punto rojo en la pestaña Horario si algo espera por mí
+  const meEspera = (vista.cambiosTurno || []).some(c =>
+    (c.estado === 'esperando-companero' && c.conId === vista.yo.id) || (esJefe && c.estado === 'esperando-jefe'));
+  const p = $('#punto-horario'); if (p) p.style.display = meEspera ? 'block' : 'none';
+  } catch (e) { /* que un fallo aquí no rompa el resto de la app */ }
+}
+window.responderCambio = async (id, acepta) => {
+  try { await refrescar('responderCambioTurno', { id, acepta }); aviso(acepta ? '✅ Aceptado: falta el visto bueno del administrador' : 'Rechazado'); }
+  catch (e) { aviso(e.message, true); }
+};
+window.resolverCambio = async (id, decision) => {
+  try { await refrescar('resolverCambioTurno', { id, decision }); aviso(decision === 'aprobado' ? '✅ Turnos intercambiados en el horario' : '❌ Cambio rechazado'); }
+  catch (e) { aviso(e.message, true); }
+};
+window.borrarCambio = async id => { try { await refrescar('borrarCambioTurno', { id }); } catch (e) { aviso(e.message, true); } };
+
+/* ---------- Informes imprimibles: horas para la gestoría y registro horario legal ---------- */
+function fmtMin(min) { return Math.floor(min / 60) + 'h ' + String(min % 60).padStart(2, '0') + 'm'; }
+function nombreMes(mes) { const [a, m] = mes.split('-'); return new Date(a, m - 1, 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }); }
+function empresaTexto() { const f = document.querySelector('.fiscal-login'); return f ? f.textContent.trim().replace(/\s+/g, ' ') : ''; }
+async function imprimirInforme(tipo) {
+  const mes = $('#mes-informe').value || new Date().toLocaleDateString('sv-SE').slice(0, 7);
+  try {
+    const r = await llamar('informeMes', { mes });
+    const inf = r.informe;
+    const z = $('#zona-imprimir');
+    if (tipo === 'gestoria') {
+      // Resumen del mes: una tabla con todos (para mandar a la gestoría de nóminas)
+      z.innerHTML = `<h2>Resumen de horas · ${nombreMes(inf.mes)}</h2>
+        <p style="font-size:12px">${esc(empresaTexto())}</p>
+        <table><tr><th style="text-align:left">Trabajador/a</th><th>Días</th><th>Horas fichadas</th><th>Contrato (mes aprox.)</th><th>Diferencia</th></tr>
+        ${inf.empleados.map(e => {
+          const contratoMes = e.horasContrato ? Math.round(e.horasContrato * 4.33 * 60) : null;
+          const dif = contratoMes != null ? e.totalMin - contratoMes : null;
+          return `<tr><td style="text-align:left">${esc(e.nombre)}</td><td>${e.diasTrabajados}</td><td>${fmtMin(e.totalMin)}</td>
+            <td>${contratoMes != null ? fmtMin(contratoMes) : '—'}</td><td>${dif != null ? (dif >= 0 ? '+' : '−') + fmtMin(Math.abs(dif)) : '—'}</td></tr>`;
+        }).join('')}</table>
+        ${inf.ausencias.length ? `<h3>Ausencias aprobadas del mes</h3>
+          <table><tr><th style="text-align:left">Trabajador/a</th><th>Tipo</th><th>Desde</th><th>Hasta</th></tr>
+          ${inf.ausencias.map(a => `<tr><td style="text-align:left">${esc(a.nombre)}</td><td>${a.tipo}</td><td>${a.desde}</td><td>${a.hasta}</td></tr>`).join('')}</table>` : ''}
+        <p style="font-size:10px;margin-top:8px">Generado el ${new Date().toLocaleDateString('es-ES')} desde el portal del equipo. Las horas salen de los fichajes reales.</p>`;
+    } else {
+      // Registro horario legal: una hoja por trabajador con sus días y firmas
+      z.innerHTML = inf.empleados.filter(e => e.diasTrabajados > 0).map(e => {
+        const fechas = Object.keys(e.dias).sort();
+        return `<div class="hoja"><h2>Registro de jornada · ${nombreMes(inf.mes)}</h2>
+          <p style="font-size:12px">${esc(empresaTexto())}<br>Trabajador/a: <strong>${esc(e.nombre)}</strong>${e.horasContrato ? ' · Contrato: ' + e.horasContrato + ' h/semana' : ''}</p>
+          <table><tr><th>Fecha</th><th>Entrada</th><th>Salida</th><th>Horas del día</th></tr>
+          ${fechas.map(f => { const d = e.dias[f]; return d.tramos.map((t, i) =>
+            `<tr>${i === 0 ? `<td rowspan="${d.tramos.length}">${f}</td>` : ''}<td>${t.e}</td><td>${t.s || '(sin salida)'}</td>${i === 0 ? `<td rowspan="${d.tramos.length}">${fmtMin(d.minutos)}</td>` : ''}</tr>`).join(''); }).join('')}
+          <tr><td colspan="3" style="text-align:right;font-weight:700">Total del mes</td><td style="font-weight:700">${fmtMin(e.totalMin)}</td></tr></table>
+          <table style="margin-top:26px"><tr><td style="height:64px;width:50%;vertical-align:bottom">Firma de la empresa</td><td style="height:64px;vertical-align:bottom">Firma del trabajador/a</td></tr></table>
+          <p style="font-size:10px">Registro diario de jornada (art. 34.9 del Estatuto de los Trabajadores). Conservar 4 años.</p></div>`;
+      }).join('') || '<p>No hay fichajes en ese mes.</p>';
+    }
+    if (!z.innerHTML.trim()) return aviso('No hay datos ese mes.', true);
+    window.print();
+  } catch (e) { aviso(e.message, true); }
+}
+$('#btn-informe-gestoria').onclick = () => imprimirInforme('gestoria');
+$('#btn-registro-legal').onclick = () => imprimirInforme('registro');
+$('#mes-informe').value = new Date().toLocaleDateString('sv-SE').slice(0, 7);
 
 /* ---------- Botones ---------- */
 $('#btn-entrar').onclick = async () => {
@@ -1514,8 +1755,9 @@ $('#btn-local').onclick = () => {
 const GUIA_COMUN = `
   <p><strong>📢 Avisos</strong> — Aquí ves los mensajes que pone el jefe para todo el equipo (horarios, cambios, recordatorios). Cuando hay uno nuevo aparece un punto rojo.</p>
   <p><strong>✅ Tareas</strong> — Lo que tienes que hacer. Cuando termines una, pulsa para marcarla como hecha ✔. El jefe ve al momento lo que has completado.</p>
-  <p><strong>🕐 Horario</strong> — Tu horario semanal de turnos. Arriba, en "Mi día", ves tu turno de hoy.</p>
+  <p><strong>🕐 Horario</strong> — Tu horario semanal de turnos. Arriba, en "Mi día", ves tu turno de hoy. Abajo puedes <strong>proponer un cambio de turno</strong> con un compañero: él acepta, el jefe da el visto bueno y el horario se intercambia solo.</p>
   <p><strong>⏱ Fichar</strong> — Pulsa el botón grande para fichar tu ENTRADA al llegar y tu SALIDA al irte. <em>Importante: solo se puede fichar estando DENTRO del local</em> (activa el GPS y da permiso de ubicación al navegador la primera vez).</p>
+  <p><strong>🏖 Libres</strong> — Pide vacaciones, días libres o avisa de una baja. El jefe lo aprueba o rechaza y te aparece el estado. También ves las ausencias próximas del equipo y, si está configurado, cuántos días de vacaciones te quedan.</p>
   <p><strong>🛒 Pedidos</strong> — Apunta lo que falta o se está acabando (ej.: "2 cajas de cerveza"). También puedes hacer una foto de la libreta y lo apunta solo. Le llega un aviso al jefe.</p>
   <p><strong>📦 Stock</strong> — Lo que hay en el almacén. Con − y + se descuenta o suma lo que se gasta; al llegar a 0 se apunta solo en Pedidos.</p>
   <p><strong>🔑 Tu contraseña</strong> — Con el botón 🔑 de arriba puedes poner o cambiar tu contraseña cuando quieras.</p>`;
@@ -1524,7 +1766,8 @@ const GUIA_JEFE = `
   <p><strong>📊 Panel</strong> — Tu resumen: gráficos de horas del equipo, entradas por día, tareas y stock, y cada trabajador de un vistazo.</p>
   <p><strong>📢 Avisos / ✅ Tareas</strong> — Publicas avisos y creas tareas (a uno, a varios o a todos). Puedes guardar funciones y mandarlas con un clic, o dejarlas automáticas cada día.</p>
   <p><strong>🕐 Horario</strong> — Editas los turnos del equipo y también el <strong>horario de apertura al público</strong> (el que va a Google/redes).</p>
-  <p><strong>⏱ Fichar</strong> — Ves quién está trabajando ahora, las horas de cada uno, y fijas el control de ubicación ("Fijar aquí el local" estando dentro). Tú, como jefe, puedes fichar desde cualquier sitio.</p>
+  <p><strong>⏱ Fichar</strong> — Ves quién está trabajando ahora, las horas de cada uno, y fijas el control de ubicación ("Fijar aquí el local" estando dentro). Tú, como jefe, puedes fichar desde cualquier sitio. Además imprimes los <strong>informes del mes</strong>: el resumen de horas para la gestoría y el registro horario firmable que exige la ley (se conserva 4 años automáticamente).</p>
+  <p><strong>🏖 Libres</strong> — Apruebas o rechazas las peticiones de vacaciones/días libres, o apuntas tú una ausencia directamente. En 👥 Equipo (✏️ editar) pones las horas de contrato y los días de vacaciones de cada uno para que los informes y el saldo salgan solos.</p>
   <p><strong>🛒 Pedidos / 🚚 Proveedores</strong> — Registras proveedores con sus palabras y los faltantes se clasifican solos; mandas a cada proveedor su pedido por WhatsApp.</p>
   <p><strong>👥 Equipo</strong> — Das de alta a trabajadores, les mandas su acceso por WhatsApp (📲 Enviar acceso), cambias contraseñas, y activas/desactivas cuentas.</p>
   <hr style="border:none;border-top:1px solid #eee;margin:12px 0"><p style="color:#888;font-size:13px">Lo que ve cada trabajador:</p>`;

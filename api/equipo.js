@@ -34,8 +34,41 @@ function datosVacios() {
     proveedores: [],    // [{id, nombre, telefono, palabras}] para clasificar y mandar pedidos por WhatsApp
     // Horario de APERTURA al público (lo que ve el cliente en Google/redes): un texto por día
     horarioPublico: { dias: {}, nota: '', actualizado: null },
+    ausencias: [],      // vacaciones y días libres [{id, empleadoId, tipo, desde, hasta, motivo, estado, creada, resueltaPor, resuelta, nota}]
+    cambiosTurno: [],   // intercambios de turno [{id, deId, conId, dia, estado, creada, respondida, resuelta}]
     config: { local: null, radioM: 100 }   // local = {lat,lng} del restaurante para el control de fichaje
   };
+}
+
+// --- Registro horario legal: los fichajes de meses cerrados se guardan en un
+//     archivo por año dentro del mismo repo privado (la ley pide conservarlos 4 años) ---
+function nombreArchivoFichajes(archivoLocal, anio) {
+  return archivoLocal.replace(/^datos/, 'fichajes').replace('.json', `-${anio}.json`);
+}
+async function leerLista(archivo) {
+  const r = await gh('GET', `/repos/${REPO_DATOS}/contents/${archivo}?ref=main&t=${Date.now()}`);
+  if (r.status === 404) return { lista: [], sha: null };
+  if (!r.ok) throw new Error('No pude leer ' + archivo + ' (código ' + r.status + ').');
+  const j = await r.json();
+  return { lista: JSON.parse(Buffer.from(j.content, 'base64').toString('utf8')), sha: j.sha };
+}
+async function guardarLista(archivo, lista, sha) {
+  const r = await gh('PUT', `/repos/${REPO_DATOS}/contents/${archivo}`, {
+    message: 'archivo de fichajes (registro horario)',
+    content: Buffer.from(JSON.stringify(lista)).toString('base64'),
+    branch: 'main',
+    ...(sha ? { sha } : {})
+  });
+  return r.ok;
+}
+// Fecha y hora de un fichaje en horario de España: 'YYYY-MM-DD HH:MM'
+function fechaHoraEspana(iso) {
+  return new Date(iso).toLocaleString('sv-SE', { timeZone: 'Europe/Madrid' }).slice(0, 16);
+}
+// El mes anterior a 'YYYY-MM'
+function mesAnteriorDe(mes) {
+  const [a, m] = mes.split('-').map(Number);
+  return m === 1 ? (a - 1) + '-12' : a + '-' + String(m - 1).padStart(2, '0');
 }
 
 // Distancia en metros entre dos puntos GPS (fórmula del haversine)
@@ -163,7 +196,13 @@ const correoNormal = c => limpio(c).toLowerCase();
 
 // Lo que se envía al navegador de cada empleado (nunca hash/sal)
 function empleadoPublico(e) {
-  return { id: e.id, nombre: e.nombre, email: e.email, rol: e.rol, activo: e.activo !== false, puesto: e.puesto || '', funciones: e.funciones || '' };
+  return { id: e.id, nombre: e.nombre, email: e.email, rol: e.rol, activo: e.activo !== false, puesto: e.puesto || '', funciones: e.funciones || '',
+    horasContrato: e.horasContrato || null, diasVacaciones: e.diasVacaciones || null };
+}
+
+// Lo que ven los demás de una ausencia ajena (sin el motivo, que es privado)
+function ausenciaPublica(a) {
+  return { id: a.id, empleadoId: a.empleadoId, tipo: a.tipo, desde: a.desde, hasta: a.hasta, estado: a.estado };
 }
 
 function vistaPara(datos, yo) {
@@ -187,6 +226,12 @@ function vistaPara(datos, yo) {
     mensajes: esJefe ? (datos.mensajes || []).slice(-600) : (datos.mensajes || []).filter(m => m.paraId === yo.id || m.deId === yo.id).slice(-200),
     proveedores: datos.proveedores || [],
     horarioPublico: datos.horarioPublico || { dias: {}, nota: '', actualizado: null },
+    // Ausencias: el jefe lo ve todo; el empleado ve las suyas completas y las aprobadas de los demás sin motivo
+    ausencias: esJefe ? (datos.ausencias || []).slice(-400)
+      : (datos.ausencias || []).filter(a => a.empleadoId === yo.id || a.estado === 'aprobada')
+          .map(a => a.empleadoId === yo.id ? a : ausenciaPublica(a)).slice(-200),
+    // Cambios de turno: cada uno ve los suyos (pedidos o recibidos); el jefe los ve todos
+    cambiosTurno: (datos.cambiosTurno || []).filter(c => esJefe || c.deId === yo.id || c.conId === yo.id).slice(-100),
     config: { radioM: (datos.config && datos.config.radioM) || 100, controlUbicacion: !!(datos.config && datos.config.local) }
   };
 }
@@ -223,6 +268,26 @@ module.exports = async (req, res) => {
             creadas++;
           });
           datos.cronDia = hoy;
+
+          // Archivar los fichajes de meses cerrados en el archivo del año
+          // (así el registro horario legal se conserva años sin que crezca el archivo principal)
+          const mesGuardar = mesAnteriorDe(hoy.slice(0, 7));   // se conservan a mano el mes actual y el anterior
+          const viejos = datos.fichajes.filter(f => fechaHoraEspana(f.ts).slice(0, 7) < mesGuardar);
+          if (viejos.length) {
+            const porAnio = {};
+            viejos.forEach(f => { const a = fechaHoraEspana(f.ts).slice(0, 4); (porAnio[a] = porAnio[a] || []).push(f); });
+            let archivadoOk = true;
+            for (const anio of Object.keys(porAnio)) {
+              const nombreArch = nombreArchivoFichajes(archivo, anio);
+              const { lista, sha: shaArch } = await leerLista(nombreArch);
+              const yaIds = new Set(lista.map(f => f.id));
+              porAnio[anio].forEach(f => { if (!yaIds.has(f.id)) lista.push(f); });
+              if (!await guardarLista(nombreArch, lista, shaArch)) { archivadoOk = false; break; }
+            }
+            // Solo se quitan del archivo principal si quedaron bien guardados en el del año
+            if (archivadoOk) datos.fichajes = datos.fichajes.filter(f => fechaHoraEspana(f.ts).slice(0, 7) >= mesGuardar);
+          }
+
           if (!await guardarDatos(archivo, datos, sha)) continue;
           resultado[clave] = creadas;
           break;
@@ -322,6 +387,9 @@ module.exports = async (req, res) => {
         if (p.puesto !== undefined) emp.puesto = limpio(p.puesto);
         if (p.funciones !== undefined) emp.funciones = limpio(p.funciones);
         if (p.activo !== undefined && emp.rol !== 'jefe') emp.activo = !!p.activo;
+        // Datos de contrato (para el informe de horas y las vacaciones)
+        if (p.horasContrato !== undefined) { const h = Number(p.horasContrato); emp.horasContrato = (h > 0 && h <= 60) ? h : null; }
+        if (p.diasVacaciones !== undefined) { const d = Number(p.diasVacaciones); emp.diasVacaciones = (d > 0 && d <= 60) ? d : null; }
         break;
       }
       case 'reiniciarClave': {
@@ -465,6 +533,148 @@ module.exports = async (req, res) => {
         if (p.nota !== undefined) datos.horarioPublico.nota = limpio(p.nota);
         datos.horarioPublico.actualizado = ahora();
         break;
+      }
+
+      // ----- Vacaciones y ausencias -----
+      case 'pedirAusencia': {
+        const TIPOS = ['vacaciones', 'libre', 'baja', 'otro'];
+        const tipo = TIPOS.includes(p.tipo) ? p.tipo : 'libre';
+        const desde = limpio(p.desde), hasta = limpio(p.hasta) || desde;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(desde) || !/^\d{4}-\d{2}-\d{2}$/.test(hasta) || hasta < desde) {
+          const e = new Error('Revisa las fechas (la de fin no puede ser anterior a la de inicio).'); e.codigo = 400; throw e;
+        }
+        // El jefe puede apuntar la ausencia de cualquiera (queda aprobada); el empleado pide para sí (queda pendiente)
+        let empleadoId = yo.id;
+        if (esJefe && p.empleadoId) {
+          const emp = datos.empleados.find(x => x.id === p.empleadoId && x.activo !== false);
+          if (!emp) { const e = new Error('No encuentro a ese empleado.'); e.codigo = 404; throw e; }
+          empleadoId = emp.id;
+        }
+        // No solapar con otra ausencia suya ya aprobada o pendiente
+        const solapa = (datos.ausencias || []).some(a => a.empleadoId === empleadoId && a.estado !== 'rechazada' && desde <= a.hasta && hasta >= a.desde);
+        if (solapa) { const e = new Error('Ya hay unas vacaciones o ausencia pedidas en esas fechas.'); e.codigo = 409; throw e; }
+        datos.ausencias = datos.ausencias || [];
+        datos.ausencias.push({
+          id: id(), empleadoId, tipo, desde, hasta, motivo: limpio(p.motivo),
+          estado: esJefe ? 'aprobada' : 'pendiente', creada: ahora(),
+          resueltaPor: esJefe ? yo.id : null, resuelta: esJefe ? ahora() : null, nota: ''
+        });
+        if (datos.ausencias.length > 800) datos.ausencias = datos.ausencias.slice(-600);
+        if (!esJefe) {
+          const NOMBRE_TIPO = { vacaciones: 'vacaciones', libre: 'día libre', baja: 'baja', otro: 'ausencia' };
+          await avisarWhatsApp(`🏖 *${LOCALES[localClave].nombre.toUpperCase()} · Vacaciones*\n${yo.nombre} pide ${NOMBRE_TIPO[tipo]}: del ${desde} al ${hasta}${p.motivo ? '\nMotivo: ' + limpio(p.motivo) : ''}\n(apruébalo o recházalo en el portal)`);
+        }
+        break;
+      }
+      case 'resolverAusencia': {
+        if (!esJefe) soloJefe();
+        const a = (datos.ausencias || []).find(x => x.id === p.id);
+        if (!a) { const e = new Error('No encuentro esa petición.'); e.codigo = 404; throw e; }
+        a.estado = p.decision === 'aprobada' ? 'aprobada' : 'rechazada';
+        a.resueltaPor = yo.id; a.resuelta = ahora(); a.nota = limpio(p.nota);
+        break;
+      }
+      case 'borrarAusencia': {
+        const a = (datos.ausencias || []).find(x => x.id === p.id);
+        if (!a) { const e = new Error('No encuentro esa petición.'); e.codigo = 404; throw e; }
+        if (!esJefe && !(a.empleadoId === yo.id && a.estado === 'pendiente')) {
+          const e = new Error('Solo puedes retirar tus peticiones pendientes.'); e.codigo = 403; throw e;
+        }
+        datos.ausencias = datos.ausencias.filter(x => x.id !== p.id);
+        break;
+      }
+
+      // ----- Cambios de turno entre compañeros (con visto bueno del jefe) -----
+      case 'pedirCambioTurno': {
+        if (esJefe) { const e = new Error('El administrador cambia el horario directamente en la tabla.'); e.codigo = 400; throw e; }
+        const DIAS_OK = ['lun', 'mar', 'mie', 'jue', 'vie', 'sab', 'dom'];
+        const dia = DIAS_OK.includes(p.dia) ? p.dia : null;
+        const companero = datos.empleados.find(x => x.id === p.conId && x.rol !== 'jefe' && x.activo !== false && x.id !== yo.id);
+        if (!dia || !companero) { const e = new Error('Elige el día y el compañero con quien cambias.'); e.codigo = 400; throw e; }
+        datos.cambiosTurno = datos.cambiosTurno || [];
+        const yaHay = datos.cambiosTurno.some(c => c.deId === yo.id && c.dia === dia && ['esperando-companero', 'esperando-jefe'].includes(c.estado));
+        if (yaHay) { const e = new Error('Ya tienes un cambio pedido para ese día.'); e.codigo = 409; throw e; }
+        datos.cambiosTurno.push({ id: id(), deId: yo.id, conId: companero.id, dia, estado: 'esperando-companero', creada: ahora(), respondida: null, resuelta: null });
+        if (datos.cambiosTurno.length > 300) datos.cambiosTurno = datos.cambiosTurno.slice(-200);
+        break;
+      }
+      case 'responderCambioTurno': {
+        const c = (datos.cambiosTurno || []).find(x => x.id === p.id);
+        if (!c) { const e = new Error('No encuentro ese cambio.'); e.codigo = 404; throw e; }
+        if (c.conId !== yo.id || c.estado !== 'esperando-companero') { const e = new Error('Ese cambio no está esperando tu respuesta.'); e.codigo = 403; throw e; }
+        if (p.acepta) {
+          c.estado = 'esperando-jefe'; c.respondida = ahora();
+          await avisarWhatsApp(`🔄 *${LOCALES[localClave].nombre.toUpperCase()} · Cambio de turno*\n${nombreEmpleado(datos, c.deId)} y ${yo.nombre} quieren cambiarse el turno del ${c.dia.toUpperCase()}.\n(dale el visto bueno en el portal)`);
+        } else { c.estado = 'rechazado'; c.respondida = ahora(); }
+        break;
+      }
+      case 'resolverCambioTurno': {
+        if (!esJefe) soloJefe();
+        const c = (datos.cambiosTurno || []).find(x => x.id === p.id);
+        if (!c) { const e = new Error('No encuentro ese cambio.'); e.codigo = 404; throw e; }
+        if (c.estado !== 'esperando-jefe') { const e = new Error('Ese cambio no está esperando tu visto bueno.'); e.codigo = 400; throw e; }
+        if (p.decision === 'aprobado') {
+          // Se intercambian los turnos de ese día en el horario publicado
+          const t = datos.horario.turnos = datos.horario.turnos || {};
+          t[c.deId] = t[c.deId] || {}; t[c.conId] = t[c.conId] || {};
+          const tmp = t[c.deId][c.dia];
+          t[c.deId][c.dia] = t[c.conId][c.dia];
+          t[c.conId][c.dia] = tmp;
+          datos.horario.actualizado = ahora();
+          c.estado = 'aprobado';
+        } else { c.estado = 'rechazado'; }
+        c.resuelta = ahora();
+        break;
+      }
+      case 'borrarCambioTurno': {
+        const c = (datos.cambiosTurno || []).find(x => x.id === p.id);
+        if (!c) { const e = new Error('No encuentro ese cambio.'); e.codigo = 404; throw e; }
+        if (!esJefe && !(c.deId === yo.id && c.estado !== 'aprobado')) { const e = new Error('Solo puedes retirar tus cambios no aprobados.'); e.codigo = 403; throw e; }
+        datos.cambiosTurno = datos.cambiosTurno.filter(x => x.id !== p.id);
+        break;
+      }
+
+      // ----- Informe mensual de horas (gestoría) y registro horario legal -----
+      case 'informeMes': {
+        if (!esJefe) soloJefe();
+        const mes = /^\d{4}-\d{2}$/.test(limpio(p.mes)) ? limpio(p.mes) : hoyEspana().slice(0, 7);
+        // Fichajes del mes: los vivos + los del archivo del año si hiciera falta
+        let delMes = datos.fichajes.filter(f => fechaHoraEspana(f.ts).slice(0, 7) === mes);
+        if (!delMes.length || mes < mesAnteriorDe(hoyEspana().slice(0, 7))) {
+          try {
+            const { lista } = await leerLista(nombreArchivoFichajes(archivoLocal, mes.slice(0, 4)));
+            const yaIds = new Set(delMes.map(f => f.id));
+            lista.forEach(f => { if (fechaHoraEspana(f.ts).slice(0, 7) === mes && !yaIds.has(f.id)) delMes.push(f); });
+          } catch (e) { /* sin archivo del año todavía */ }
+        }
+        delMes.sort((a, b) => a.ts < b.ts ? -1 : 1);
+        // Por empleado: los tramos entrada→salida de cada día (hora de España)
+        const empleadosInforme = datos.empleados.filter(e => e.rol !== 'jefe').map(e => {
+          const suyos = delMes.filter(f => f.empleadoId === e.id);
+          const dias = {};
+          let abierta = null;
+          suyos.forEach(f => {
+            if (f.tipo === 'entrada') { abierta = f; return; }
+            if (!abierta) return;                       // salida sin entrada: se ignora
+            const fecha = fechaHoraEspana(abierta.ts).slice(0, 10);
+            const d = dias[fecha] = dias[fecha] || { tramos: [], minutos: 0 };
+            const min = Math.round((new Date(f.ts) - new Date(abierta.ts)) / 60000);
+            d.tramos.push({ e: fechaHoraEspana(abierta.ts).slice(11), s: fechaHoraEspana(f.ts).slice(11), min });
+            d.minutos += Math.max(0, min);
+            abierta = null;
+          });
+          if (abierta) {                                // entrada sin salida: se apunta como incompleta
+            const fecha = fechaHoraEspana(abierta.ts).slice(0, 10);
+            const d = dias[fecha] = dias[fecha] || { tramos: [], minutos: 0 };
+            d.tramos.push({ e: fechaHoraEspana(abierta.ts).slice(11), s: null, min: 0 });
+          }
+          const totalMin = Object.values(dias).reduce((s, d) => s + d.minutos, 0);
+          return { id: e.id, nombre: e.nombre, activo: e.activo !== false, horasContrato: e.horasContrato || null, dias, totalMin, diasTrabajados: Object.keys(dias).length };
+        }).filter(e => e.diasTrabajados > 0 || e.activo);
+        // Ausencias aprobadas que tocan el mes
+        const ausenciasMes = (datos.ausencias || []).filter(a => a.estado === 'aprobada' && a.desde.slice(0, 7) <= mes && a.hasta.slice(0, 7) >= mes)
+          .map(a => ({ empleadoId: a.empleadoId, nombre: nombreEmpleado(datos, a.empleadoId), tipo: a.tipo, desde: a.desde, hasta: a.hasta }));
+        return res.status(200).json({ ok: true, informe: { mes, empleados: empleadosInforme, ausencias: ausenciasMes, generado: ahora() } });
       }
 
       // ----- Fichajes (control horario, con control de ubicación) -----
