@@ -252,6 +252,15 @@
         <p id="panel-sub">Resumen de hoy</p>
       </div>
       <div class="kpis" id="panel-kpis"></div>
+      <div class="panel-crear">
+        <h3>🤖 Pregúntale a tu negocio</h3>
+        <div id="ia-respuesta" style="display:none;background:#fff;border:1px solid var(--borde);border-radius:10px;padding:10px 12px;font-size:14.5px;line-height:1.55;margin-bottom:8px;white-space:pre-wrap"></div>
+        <div class="fila-acciones" style="align-items:center">
+          <input class="campo" id="ia-pregunta" placeholder="Ej.: ¿quién ha trabajado más este mes?" style="flex:1;margin:0">
+          <button class="btn btn-primario btn-peq" id="btn-ia">Preguntar</button>
+        </div>
+        <p class="nota-turnos">Responde con tus datos reales: horas, costes, ausencias, tareas, pedidos y stock. (Lo de ventas y facturas se consulta en la app de contabilidad.)</p>
+      </div>
       <div id="panel-coste"></div>
       <div class="graficos">
         <div class="grafico-caja"><h3>⏳ Horas esta semana</h3><div class="grafico-lienzo" id="lienzo-horas"></div></div>
@@ -337,6 +346,7 @@
             <button class="btn btn-verde btn-peq" id="btn-hp-whatsapp">📲 Avisar por WhatsApp</button>
             <button class="btn btn-borde btn-peq" id="btn-hp-copiar">📋 Copiar texto</button>
             <a class="btn btn-borde btn-peq" id="btn-hp-google" target="_blank" rel="noopener">🗺️ Abrir Google del local</a>
+            <button class="btn btn-borde btn-peq" id="btn-resena">💬 Responder una reseña con IA</button>
             <a class="btn btn-borde btn-peq" id="btn-hp-facebook" target="_blank" rel="noopener">📘 Abrir Facebook</a>
           </div>
         </div>
@@ -382,6 +392,11 @@
           <button class="btn btn-borde btn-peq" onclick="verBancoHoras()">🏦 Banco de horas</button>
         </div>
         <div id="banco-horas"></div>
+        <div class="fila-acciones" style="align-items:center;flex-wrap:wrap;margin-top:8px">
+          <label style="font-size:13.5px">🎯 Avisarme por WhatsApp si el coste de personal semanal pasa de
+            <input class="campo" type="number" id="objetivo-coste" min="0" placeholder="—" style="width:90px;margin:0 4px;padding:8px"> €</label>
+          <button class="btn btn-borde btn-peq" id="btn-objetivo">Guardar</button>
+        </div>
         <p class="nota-turnos">El <strong>registro horario</strong> es el documento que exige la ley: imprímelo (o guárdalo como PDF) cada mes y que cada trabajador lo firme. Los fichajes antiguos se guardan solos en el archivo del año, no se pierden.</p>
       </div>
       <div class="lista-fichajes">
@@ -394,6 +409,7 @@
     <div class="vista" id="vista-vacaciones">
       <h2 class="titulo-vista">🏖 Vacaciones y días libres</h2>
       <div id="vac-saldo"></div>
+      <div id="firma-zona"></div>
       <div id="mis-docs"></div>
       <div class="panel-crear">
         <h3 id="vac-form-titulo">Pedir vacaciones o un día libre</h3>
@@ -519,6 +535,36 @@
 
 <!-- Zona de impresión de informes (solo se ve al imprimir) -->
 <div id="zona-imprimir"></div>
+
+<!-- Modal responder reseña de Google con IA -->
+<div class="modal-fondo" id="modal-resena">
+  <div class="modal" style="max-width:520px">
+    <h3>💬 Responder una reseña</h3>
+    <p style="font-size:13.5px;color:#666;margin-bottom:8px">Pega aquí la reseña del cliente (de Google, TripAdvisor...) y te preparo la respuesta.</p>
+    <textarea class="campo" id="resena-texto" placeholder="Pega aquí la reseña..." style="min-height:90px"></textarea>
+    <div id="resena-respuesta" style="display:none;background:#f0f7f0;border:1px solid var(--borde);border-radius:10px;padding:10px 12px;font-size:14.5px;line-height:1.55;margin:8px 0;white-space:pre-wrap"></div>
+    <div class="fila-acciones">
+      <button class="btn btn-primario btn-peq" id="btn-resena-generar">✨ Preparar respuesta</button>
+      <button class="btn btn-verde btn-peq" id="btn-resena-copiar" style="display:none">📋 Copiar</button>
+      <button class="btn btn-borde btn-peq" id="btn-resena-cerrar">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal firmar el registro de horas con el dedo -->
+<div class="modal-fondo" id="modal-firma">
+  <div class="modal" style="max-width:440px">
+    <h3 id="firma-titulo">✍️ Firmar mi registro de horas</h3>
+    <div id="firma-resumen" style="font-size:13.5px;color:#555;margin-bottom:8px"></div>
+    <canvas id="lienzo-firma" width="640" height="240" style="width:100%;border:2px dashed #bbb;border-radius:10px;background:#fff;touch-action:none"></canvas>
+    <p class="nota-turnos">Firma con el dedo dentro del recuadro. La firma se guarda con tus horas del mes en tus documentos.</p>
+    <div class="fila-acciones">
+      <button class="btn btn-primario btn-peq" id="btn-firma-guardar">✅ Firmar</button>
+      <button class="btn btn-borde btn-peq" id="btn-firma-limpiar">🧽 Repetir</button>
+      <button class="btn btn-borde btn-peq" id="btn-firma-cerrar">Cancelar</button>
+    </div>
+  </div>
+</div>
 
 <!-- Modal buzón de mensajes (lista de conversaciones del jefe) -->
 <div class="modal-fondo" id="modal-buzon">
@@ -853,7 +899,7 @@ function comprobarTareasNuevas(esPrimeraCarga) {
 }
 
 /* ---------- Pintar cada sección ---------- */
-function pintarTodo() { pintarPanel(); pintarMiDia(); pintarAvisos(); pintarTareas(); pintarHorario(); pintarFichar(); pintarVacaciones(); pintarPedidos(); pintarStock(); pintarEquipo(); if (chatCon != null) pintarChat(); try { aplicarLogoPersonalizado(); } catch (e) {} }
+function pintarTodo() { pintarPanel(); pintarMiDia(); pintarAvisos(); pintarTareas(); pintarHorario(); pintarFichar(); pintarVacaciones(); pintarPedidos(); pintarStock(); pintarEquipo(); if (chatCon != null) pintarChat(); try { aplicarLogoPersonalizado(); pintarFirmaRegistro(); } catch (e) {} }
 
 /* ---------- Panel con gráficos (solo jefe) ---------- */
 const graficos = {};
@@ -1271,6 +1317,7 @@ function pintarFichar() {
   if (esJefe) {
     $('#titulo-fichajes').textContent = 'Fichajes del equipo (últimos)';
     const chkAv = $('#chk-avisos-fichaje'); if (chkAv) chkAv.checked = !!(vista.config && vista.config.avisosFichaje);
+    const objInp = $('#objetivo-coste'); if (objInp && document.activeElement !== objInp) objInp.value = (vista.config && vista.config.objetivoCosteSemanal) || '';
     $('#lista-fichajes').innerHTML = [...(vista.fichajes || [])].reverse().slice(0, 40).map(f => `
       <div class="fich"><span>${f.tipo === 'entrada' ? '🟢 Entrada' : '🔴 Salida'} · <strong>${esc(nombreDe(f.empleadoId))}</strong>${f.dist != null ? ' <span style="color:#888;font-size:12px">📍 a ' + f.dist + ' m</span>' : ''}</span>
       <span>${fechaBonita(f.ts)}</span></div>`).join('') || '<div class="vacio">Sin fichajes todavía.</div>';
@@ -2007,6 +2054,103 @@ $('#logo-archivo').onchange = async function () {
     await refrescar('subirLogo', { base64 });
     aplicarLogoPersonalizado();
     aviso('✅ Logo cambiado: se verá en la entrada, la cabecera y el arranque');
+  } catch (e) { aviso(e.message, true); }
+};
+
+/* ---------- Asistente IA del negocio (panel del jefe) ---------- */
+$('#btn-ia').onclick = async () => {
+  const pregunta = $('#ia-pregunta').value.trim();
+  if (!pregunta) return aviso('Escribe la pregunta.', true);
+  const btn = $('#btn-ia'); btn.disabled = true; btn.textContent = 'Pensando...';
+  try {
+    const r = await llamar('preguntarIA', { pregunta });
+    const caja = $('#ia-respuesta');
+    caja.textContent = r.respuesta;
+    caja.style.display = 'block';
+    $('#ia-pregunta').value = '';
+  } catch (e) { aviso(e.message, true); }
+  btn.disabled = false; btn.textContent = 'Preguntar';
+};
+$('#ia-pregunta').addEventListener('keydown', e => { if (e.key === 'Enter') $('#btn-ia').click(); });
+
+/* ---------- Responder reseñas con IA ---------- */
+$('#btn-resena').onclick = () => { $('#modal-resena').style.display = 'flex'; };
+$('#btn-resena-cerrar').onclick = () => { $('#modal-resena').style.display = 'none'; };
+$('#btn-resena-generar').onclick = async () => {
+  const texto = $('#resena-texto').value.trim();
+  if (!texto) return aviso('Pega primero la reseña.', true);
+  const btn = $('#btn-resena-generar'); btn.disabled = true; btn.textContent = 'Preparando...';
+  try {
+    const r = await llamar('responderResena', { texto });
+    $('#resena-respuesta').textContent = r.respuesta;
+    $('#resena-respuesta').style.display = 'block';
+    $('#btn-resena-copiar').style.display = 'inline-block';
+  } catch (e) { aviso(e.message, true); }
+  btn.disabled = false; btn.textContent = '✨ Preparar respuesta';
+};
+$('#btn-resena-copiar').onclick = async () => {
+  const t = $('#resena-respuesta').textContent;
+  try { await navigator.clipboard.writeText(t); aviso('📋 Copiada: pégala en Google como respuesta del propietario.'); }
+  catch (e) { aviso('Cópiala a mano:\n\n' + t); }
+};
+
+/* ---------- Objetivo de coste semanal ---------- */
+$('#btn-objetivo').onclick = async () => {
+  try {
+    await refrescar('configurarObjetivo', { costeSemanal: $('#objetivo-coste').value || null });
+    const v = vista.config.objetivoCosteSemanal;
+    aviso(v ? '🎯 Objetivo guardado: te avisaré si el coste semanal pasa de ' + v + ' €' : 'Objetivo quitado');
+  } catch (e) { aviso(e.message, true); }
+};
+
+/* ---------- Firma digital del registro de horas (empleado) ---------- */
+let firmaMesActual = null, firmaHecha = false;
+function pintarFirmaRegistro() {
+  const z = $('#firma-zona'); if (!z || !vista) return;
+  if (vista.yo.rol === 'jefe') { z.innerHTML = ''; return; }
+  const mes = (() => { const d = new Date(); d.setDate(0); return d.toLocaleDateString('sv-SE').slice(0, 7); })();   // mes anterior
+  const yaFirmado = (vista.documentos || []).some(d => d.firmaMes === mes);
+  z.innerHTML = yaFirmado
+    ? `<div class="tarjeta">✍️ Registro de ${mes}: <span class="est est-aprobada">firmado</span> (está en 📁 Mis documentos)</div>`
+    : `<div class="tarjeta" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <span>✍️ Tu registro de horas de <strong>${mes}</strong> está pendiente de firma.</span>
+        <button class="btn btn-primario btn-peq" onclick="abrirFirma('${mes}')">Firmar</button></div>`;
+}
+window.abrirFirma = async mes => {
+  firmaMesActual = mes;
+  $('#firma-titulo').textContent = '✍️ Firmar mi registro de ' + mes;
+  $('#firma-resumen').textContent = 'Cargando tus horas...';
+  $('#modal-firma').style.display = 'flex';
+  iniciarLienzoFirma();
+  try {
+    const r = await llamar('miRegistroMes', { mes });
+    if (r.firmado) { $('#modal-firma').style.display = 'none'; return aviso('Ese mes ya está firmado.'); }
+    $('#firma-resumen').innerHTML = `Trabajaste <strong>${Object.keys(r.dias).length} día(s)</strong> y <strong>${fmtMin(r.totalMin)}</strong> en ${mes}. Al firmar confirmas que estas horas son correctas.`;
+  } catch (e) { $('#firma-resumen').textContent = e.message; }
+};
+function iniciarLienzoFirma() {
+  const c = $('#lienzo-firma'); const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.strokeStyle = '#1b2a4a'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  firmaHecha = false;
+  let dib = false, ult = null;
+  const pos = ev => { const r = c.getBoundingClientRect(); const t = ev.touches ? ev.touches[0] : ev;
+    return { x: (t.clientX - r.left) * c.width / r.width, y: (t.clientY - r.top) * c.height / r.height }; };
+  const abajo = ev => { dib = true; ult = pos(ev); ev.preventDefault(); };
+  const mueve = ev => { if (!dib) return; const p = pos(ev); ctx.beginPath(); ctx.moveTo(ult.x, ult.y); ctx.lineTo(p.x, p.y); ctx.stroke(); ult = p; firmaHecha = true; ev.preventDefault(); };
+  const arriba = () => { dib = false; };
+  c.onmousedown = abajo; c.onmousemove = mueve; c.onmouseup = arriba; c.onmouseleave = arriba;
+  c.ontouchstart = abajo; c.ontouchmove = mueve; c.ontouchend = arriba;
+}
+$('#btn-firma-limpiar').onclick = () => iniciarLienzoFirma();
+$('#btn-firma-cerrar').onclick = () => { $('#modal-firma').style.display = 'none'; };
+$('#btn-firma-guardar').onclick = async () => {
+  if (!firmaHecha) return aviso('Firma primero dentro del recuadro.', true);
+  try {
+    const base64 = $('#lienzo-firma').toDataURL('image/png').split(',')[1];
+    await refrescar('firmarRegistro', { mes: firmaMesActual, base64 });
+    $('#modal-firma').style.display = 'none';
+    aviso('✅ Registro de ' + firmaMesActual + ' firmado. Quedó en 📁 Mis documentos.');
   } catch (e) { aviso(e.message, true); }
 };
 

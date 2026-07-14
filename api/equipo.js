@@ -147,6 +147,42 @@ async function informeSemanal(datos, localClave) {
   return true;
 }
 
+// ---------- IA del negocio (la clave vive en el servidor, como en api/leer.js) ----------
+async function llamarIA(texto, maxTokens) {
+  if (!process.env.CLAVE_API_CLAUDE) { const e = new Error('La IA no está configurada en el servidor.'); e.codigo = 503; throw e; }
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.CLAVE_API_CLAUDE, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: process.env.MODELO_IA || 'claude-opus-4-8', max_tokens: maxTokens || 900, messages: [{ role: 'user', content: texto }] })
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error('La IA no pudo responder ahora mismo. Vuelve a intentarlo.'); e.codigo = 502; throw e; }
+  return (j.content || []).map(c => c.text || '').join('').trim();
+}
+
+// El resumen del negocio que se le da a la IA para que responda con datos REALES
+function resumenNegocio(datos, localClave) {
+  const hoy = hoyEspana();
+  const lunes = lunesDe(hoy);
+  const mesIni = hoy.slice(0, 8) + '01';
+  const gente = datos.empleados.filter(e => e.rol !== 'jefe');
+  return JSON.stringify({
+    negocio: LOCALES[localClave].nombre,
+    hoy,
+    equipo: gente.map(e => ({
+      nombre: e.nombre, puesto: e.puesto || '', activo: e.activo !== false,
+      contrato_h_semana: e.horasContrato || null, coste_eur_hora: e.costeHora || null,
+      horas_esta_semana: +(minutosEnRango(datos.fichajes, e.id, lunes, hoy) / 60).toFixed(1),
+      horas_este_mes: +(minutosEnRango(datos.fichajes, e.id, mesIni, hoy) / 60).toFixed(1)
+    })),
+    ausencias_proximas: (datos.ausencias || []).filter(a => a.hasta >= hoy)
+      .map(a => ({ quien: nombreEmpleado(datos, a.empleadoId), tipo: a.tipo, desde: a.desde, hasta: a.hasta, estado: a.estado })),
+    tareas_pendientes: datos.tareas.filter(t => t.estado === 'pendiente').map(t => t.titulo).slice(0, 40),
+    pedidos_pendientes: datos.pedidos.filter(p => p.estado === 'pendiente').map(p => p.texto).slice(0, 40),
+    stock: (datos.stock || []).map(s => `${s.nombre}: ${s.cantidad}${s.unidad ? ' ' + s.unidad : ''}`).slice(0, 60)
+  });
+}
+
 // Avisos de fichaje: si alguien no ha fichado a su hora o se dejó la salida abierta,
 // le llega un WhatsApp al jefe. Se comprueba "de paso" cada vez que alguien usa el portal.
 async function comprobarAvisosFichaje(datos, localClave) {
@@ -351,7 +387,7 @@ function vistaPara(datos, yo) {
     documentos: (datos.documentos || []).filter(d => esJefe || d.empleadoId === yo.id).slice(-300),
     // Lo que cuesta la hora de cada uno: SOLO lo ve el jefe
     ...(esJefe ? { costesHora: Object.fromEntries(datos.empleados.filter(e => e.costeHora).map(e => [e.id, e.costeHora])) } : {}),
-    config: { radioM: (datos.config && datos.config.radioM) || 100, controlUbicacion: !!(datos.config && datos.config.local), avisosFichaje: !!(datos.config && datos.config.avisosFichaje), logoPersonalizado: (datos.config && datos.config.logoPersonalizado) || null }
+    config: { radioM: (datos.config && datos.config.radioM) || 100, controlUbicacion: !!(datos.config && datos.config.local), avisosFichaje: !!(datos.config && datos.config.avisosFichaje), logoPersonalizado: (datos.config && datos.config.logoPersonalizado) || null, objetivoCosteSemanal: (esJefe && datos.config && datos.config.objetivoCosteSemanal) || null }
   };
 }
 
@@ -405,6 +441,22 @@ module.exports = async (req, res) => {
 
           // Los lunes: informe semanal del negocio por WhatsApp
           try { await informeSemanal(datos, clave); } catch (e) { /* sin romper el cron */ }
+
+          // Aviso si el coste de personal de la semana en curso ya pasa del objetivo del jefe
+          try {
+            const objetivo = datos.config && datos.config.objetivoCosteSemanal;
+            const lunesAct = lunesDe(hoy);
+            if (objetivo && process.env.WHATSAPP_TELEFONO && datos.avisoObjetivoSemana !== lunesAct) {
+              let coste = 0;
+              datos.empleados.filter(e => e.rol !== 'jefe' && e.costeHora).forEach(e => {
+                coste += minutosEnRango(datos.fichajes, e.id, lunesAct, hoy) / 60 * e.costeHora;
+              });
+              if (coste > objetivo) {
+                await avisarWhatsApp(`🎯 *${LOCALES[clave].nombre.toUpperCase()} · Objetivo*\nEl coste de personal de ESTA semana ya va por *${Math.round(coste)} €* y tu tope es ${objetivo} €.\n(mira el panel del portal para el detalle)`);
+                datos.avisoObjetivoSemana = lunesAct;
+              }
+            }
+          } catch (e) { /* sin romper el cron */ }
 
           // Archivar los fichajes de meses cerrados en el archivo del año
           // (así el registro horario legal se conserva años sin que crezca el archivo principal)
@@ -888,6 +940,82 @@ module.exports = async (req, res) => {
         const ausenciasMes = (datos.ausencias || []).filter(a => a.estado === 'aprobada' && a.desde.slice(0, 7) <= mes && a.hasta.slice(0, 7) >= mes)
           .map(a => ({ empleadoId: a.empleadoId, nombre: nombreEmpleado(datos, a.empleadoId), tipo: a.tipo, desde: a.desde, hasta: a.hasta }));
         return res.status(200).json({ ok: true, informe: { mes, empleados: empleadosInforme, ausencias: ausenciasMes, generado: ahora() } });
+      }
+
+      // ----- Asistente IA: pregúntale a tu negocio -----
+      case 'preguntarIA': {
+        if (!esJefe) soloJefe();
+        const pregunta = limpio(p.pregunta).slice(0, 400);
+        if (!pregunta) { const e = new Error('Escribe la pregunta.'); e.codigo = 400; throw e; }
+        const respuesta = await llamarIA(
+          `Eres el asistente del dueño de un bar-restaurante en España. Estos son los datos REALES de su negocio hoy (equipo, horas fichadas, costes, ausencias, tareas, pedidos y stock):\n${resumenNegocio(datos, localClave)}\n\n` +
+          `Su pregunta: "${pregunta}"\n\nResponde en español, claro y breve (máximo ~120 palabras), usando SOLO estos datos. Si la pregunta es de ventas, facturas o dinero de caja, dile que eso se consulta en su app de contabilidad. Si falta el dato, dilo sin inventar.`, 700);
+        return res.status(200).json({ ok: true, respuesta });
+      }
+
+      // ----- Responder reseñas de Google con IA -----
+      case 'responderResena': {
+        if (!esJefe) soloJefe();
+        const texto = limpio(p.texto).slice(0, 1500);
+        if (!texto) { const e = new Error('Pega el texto de la reseña.'); e.codigo = 400; throw e; }
+        const respuesta = await llamarIA(
+          `Eres el dueño de "${LOCALES[localClave].nombre}", un bar-restaurante en Palma de Mallorca. Un cliente dejó esta reseña en Google:\n"""${texto}"""\n\n` +
+          `Escribe la respuesta pública del dueño: cercana y profesional, en el mismo idioma de la reseña, máximo 80 palabras. Si es buena: agradece con calidez e invita a volver. Si es mala: disculpa sincera sin excusas, y ofrece hablarlo en el local. No inventes detalles ni ofrezcas descuentos. Devuelve SOLO el texto de la respuesta.`, 400);
+        return res.status(200).json({ ok: true, respuesta });
+      }
+
+      // ----- Objetivo de coste de personal semanal (aviso por WhatsApp si se pasa) -----
+      case 'configurarObjetivo': {
+        if (!esJefe) soloJefe();
+        const v = Number(p.costeSemanal);
+        datos.config = datos.config || {};
+        datos.config.objetivoCosteSemanal = (v > 0 && v < 100000) ? Math.round(v) : null;
+        break;
+      }
+
+      // ----- Mi registro del mes (el empleado ve sus propias horas para firmarlas) -----
+      case 'miRegistroMes': {
+        const mes = /^\d{4}-\d{2}$/.test(limpio(p.mes)) ? limpio(p.mes) : mesAnteriorDe(hoyEspana().slice(0, 7));
+        let delMes = datos.fichajes.filter(f => f.empleadoId === yo.id && fechaHoraEspana(f.ts).slice(0, 7) === mes);
+        try {
+          const { lista } = await leerLista(nombreArchivoFichajes(archivoLocal, mes.slice(0, 4)));
+          const yaIds = new Set(delMes.map(f => f.id));
+          lista.forEach(f => { if (f.empleadoId === yo.id && fechaHoraEspana(f.ts).slice(0, 7) === mes && !yaIds.has(f.id)) delMes.push(f); });
+        } catch (e) { /* sin archivo del año */ }
+        delMes.sort((a, b) => a.ts < b.ts ? -1 : 1);
+        const dias = {}; let abierta = null, totalMin = 0;
+        delMes.forEach(f => {
+          if (f.tipo === 'entrada') { abierta = f; return; }
+          if (!abierta) return;
+          const fecha = fechaHoraEspana(abierta.ts).slice(0, 10);
+          const d = dias[fecha] = dias[fecha] || { tramos: [], minutos: 0 };
+          const min = Math.max(0, Math.round((new Date(f.ts) - new Date(abierta.ts)) / 60000));
+          d.tramos.push({ e: fechaHoraEspana(abierta.ts).slice(11), s: fechaHoraEspana(f.ts).slice(11) });
+          d.minutos += min; totalMin += min; abierta = null;
+        });
+        const firmado = (datos.documentos || []).some(d => d.empleadoId === yo.id && d.firmaMes === mes);
+        return res.status(200).json({ ok: true, mes, dias, totalMin, firmado });
+      }
+
+      // ----- Firmar el registro del mes con el dedo (queda guardado como documento) -----
+      case 'firmarRegistro': {
+        const mes = limpio(p.mes);
+        if (!/^\d{4}-\d{2}$/.test(mes)) { const e = new Error('Mes no válido.'); e.codigo = 400; throw e; }
+        const base64 = String(p.base64 || '');
+        if (!base64 || base64.length > 400000) { const e = new Error('La firma no llegó bien. Vuelve a intentarlo.'); e.codigo = 400; throw e; }
+        datos.documentos = datos.documentos || [];
+        if (datos.documentos.some(d => d.empleadoId === yo.id && d.firmaMes === mes)) {
+          const e = new Error('Ese mes ya está firmado.'); e.codigo = 409; throw e;
+        }
+        const docId = id();
+        const ruta = `documentos/${yo.id}/${docId}-firma-registro-${mes}.png`;
+        const r = await gh('PUT', `/repos/${REPO_DATOS}/contents/${encodeURIComponent(ruta).replace(/%2F/g, '/')}`, {
+          message: 'firma del registro ' + mes, content: base64, branch: 'main'
+        });
+        if (!r.ok) { const e = new Error('No pude guardar la firma (código ' + r.status + ').'); e.codigo = 500; throw e; }
+        datos.documentos.push({ id: docId, empleadoId: yo.id, nombre: 'Registro firmado ' + mes, ruta, tipo: 'image/png',
+          tam: Math.round(base64.length * 3 / 4), subido: ahora(), subidoPor: yo.id, firmaMes: mes });
+        break;
       }
 
       // ----- Banco de horas: saldo acumulado del año (fichado vs contrato, orientativo) -----
