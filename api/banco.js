@@ -33,9 +33,11 @@ function textoDeCorreo(fuente) {
 
 // De un aviso del banco → un movimiento {fecha, concepto, importe}
 function parsearAviso(asunto, cuerpo, fechaEmail, banco) {
-  const texto = (asunto + ' — ' + cuerpo).slice(0, 4000);
-  // Importe español: 1.234,56 (con o sin € / EUR alrededor)
-  const m = texto.match(/(?:EUR\s*|€\s*)?(-?\d{1,3}(?:\.\d{3})*,\d{2})\s*(?:€|EUR|euros?)?/i);
+  const texto = (asunto + ' — ' + cuerpo).slice(0, 6000);
+  // Debe oler a movimiento de cuenta (no a publicidad): alguna de estas palabras
+  if (!/cargo|abono|ingreso|recibo|adeudo|compra|pago|transferencia|movimiento|n[oó]mina|retirada|reintegro|domiciliaci|tpv|tarjeta/i.test(texto)) return null;
+  // Importe SIEMPRE pegado a € o EUR (evita coger números sueltos de textos publicitarios)
+  const m = texto.match(/(-?\d{1,3}(?:\.\d{3})*,\d{2})\s*(?:€|EUR|euros?)\b/i) || texto.match(/(?:€|EUR)\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})/i);
   if (!m) return null;
   let importe = Number(m[1].replace(/\./g, '').replace(',', '.'));
   if (!isFinite(importe) || importe === 0) return null;
@@ -99,6 +101,10 @@ module.exports = async (req, res) => {
       const remitente = ((de.address || '') + ' ' + (de.name || '')).toLowerCase();
       const banco = /sabadell/.test(remitente) ? 'Sabadell' : (/santander/.test(remitente) ? 'Santander' : null);
       if (!banco) continue;
+      // Ignorar boletines / publicidad (no son avisos de movimientos)
+      if (/informa|emailing|news|newsletter|comercial|marketing|noreply.*(oferta|promo)|encuesta|opini[oó]n/.test(remitente)) continue;
+      const asuntoBajo = (msg.envelope.subject || '').toLowerCase();
+      if (/opini[oó]n|encuesta|newsletter|bolet[ií]n|promoci|oferta|descubre|te interesa/.test(asuntoBajo)) continue;
       deBancos++;
       const mid = msg.envelope.messageId || (banco + msg.uid);
       if (yaMid.has(mid)) continue;
