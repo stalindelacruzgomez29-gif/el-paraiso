@@ -48,6 +48,14 @@
     </div>
   </div>
 
+  <label>Tipo de negocio</label>
+  <select class="campo" id="tipo">
+    <option value="hosteleria">🍽 Hostelería (bar, restaurante, cafetería)</option>
+    <option value="comercio">🛍 Comercio (tienda, supermercado...)</option>
+    <option value="servicios">💇 Servicios con cita (peluquería, estética, taller, clínica...)</option>
+  </select>
+  <p class="pista">Cambia los textos: en servicios, las reservas se convierten en citas; fuera de hostelería no se habla de restaurante.</p>
+
   <label>CIF y razón social (opcional, sale en el pie)</label>
   <input class="campo" id="cif" placeholder="Ej.: LA TERRAZA SL · CIF B12345678" autocomplete="off">
 
@@ -101,6 +109,7 @@ $('#btn-crear').onclick = async () => {
     nombre: $('#nombre').value.trim(),
     slug: $('#slug').value.trim(),
     emoji: $('#emoji').value.trim(),
+    tipo: $('#tipo').value,
     cif: $('#cif').value.trim(),
     direccion: $('#direccion').value.trim(),
     email: $('#email').value.trim(),

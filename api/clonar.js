@@ -194,6 +194,7 @@ module.exports = async (req, res) => {
     let emoji = (String(p.emoji || '').trim() || '🍺').slice(0, 8);
     let cif = String(p.cif || '').trim().slice(0, 60);
     let direccion = String(p.direccion || '').trim().slice(0, 120);
+    let tipo = ['hosteleria', 'comercio', 'servicios'].includes(p.tipo) ? p.tipo : 'hosteleria';
 
     if (esActualizacion) {
       // La ficha del cliente vive en su propio repo de datos (config-app.json)
@@ -203,6 +204,7 @@ module.exports = async (req, res) => {
           const cfg = JSON.parse(Buffer.from((await rCfg.json()).content, 'base64').toString('utf8'));
           nombre = nombre || cfg.nombre; emoji = String(p.emoji || '').trim() ? emoji : (cfg.emoji || emoji);
           cif = cif || cfg.cif; direccion = direccion || cfg.direccion;
+          if (!p.tipo && cfg.tipo) tipo = cfg.tipo;
         } catch (e) { /* ficha ilegible: se usan los campos enviados */ }
       }
       if (!nombre) return res.status(400).json({ error: `Este cliente no tiene ficha guardada (config-app.json): manda también nombre, emoji, cif y dirección para actualizarlo.` });
@@ -240,11 +242,20 @@ module.exports = async (req, res) => {
     // 3) Personalizar cada archivo con la marca del cliente
     const marcaCorta = `${emoji} ${nombre}`;
 
+    const noHosteleria = tipo !== 'hosteleria';
     const apiEquipo = personalizar(b64aTexto(fuentes['api/equipo.js']), [
       [`const REPO_DATOS = '${USUARIO_GH}/el-paraiso-equipo-datos';`,
         `const REPO_DATOS = '${USUARIO_GH}/${repoDatos}';`, 'repo de datos'],
       [/const LOCALES = \{[\s\S]*?\};/,
-        `const LOCALES = {\n  paraiso: { archivo: 'datos.json', nombre: ${JSON.stringify(nombre)} }\n};`, 'lista de locales']
+        `const LOCALES = {\n  paraiso: { archivo: 'datos.json', nombre: ${JSON.stringify(nombre)} }\n};`, 'lista de locales'],
+      // Fuera de hostelería: nada de "restaurante" ni "bar" en los textos ni en la IA
+      ...(noHosteleria ? [
+        ['m del restaurante y solo se puede fichar', 'm del local y solo se puede fichar', 'texto del fichaje GPS'],
+        ['Eres el asistente del dueño de un bar-restaurante en España.', 'Eres el asistente del dueño de un negocio en España.', 'IA: asistente'],
+        [', un bar-restaurante en Palma de Mallorca', '', 'IA: reseñas'],
+        ['cuadrante semanal de un bar-restaurante en España', 'cuadrante semanal de un negocio en España', 'IA: cuadrante'],
+        ['con más gente en horas de comidas y cenas', 'con más gente en las horas de más clientela', 'IA: cuadrante horas']
+      ] : [])
     ], avisos, 'api/equipo.js');
 
     const portal = personalizar(b64aTexto(fuentes['equipo/index.html']), [
@@ -269,7 +280,10 @@ module.exports = async (req, res) => {
       [/const fb = \$\('#btn-hp-facebook'\); if \(fb\) fb\.href = [^\n]*;/,
         `const fb = $('#btn-hp-facebook'); if (fb) fb.href = 'https://www.facebook.com/';`, 'enlace de Facebook'],
       [/const otro = localActual\(\) === 'sazon' \? 'paraiso' : 'sazon';/,
-        `const claves = Object.keys(LOCALES_APP);\n  if (claves.length < 2) { alert('Este negocio solo tiene un local.'); return; }\n  const otro = claves[(claves.indexOf(localActual()) + 1) % claves.length];`, 'botón de cambiar de local']
+        `const claves = Object.keys(LOCALES_APP);\n  if (claves.length < 2) { alert('Este negocio solo tiene un local.'); return; }\n  const otro = claves[(claves.indexOf(localActual()) + 1) % claves.length];`, 'botón de cambiar de local'],
+      ...(noHosteleria ? [
+        ['Ponte DENTRO del restaurante', 'Ponte DENTRO del local', 'texto de fijar el local']
+      ] : [])
     ], avisos, 'equipo/index.html');
 
     const portada = personalizar(b64aTexto(fuentes['index.html']), [
@@ -283,13 +297,21 @@ module.exports = async (req, res) => {
     const reservasHtml = personalizar(b64aTexto(fuentes['reservas.html']), [
       [/const NOMBRES = \{[^\n]*\};/, `const NOMBRES = { paraiso: ${JSON.stringify(nombre)} };`, 'nombre en reservas (js)'],
       [/const LOGOS_FIJOS = \{[^\n]*\};/, `const LOGOS_FIJOS = { paraiso: '/equipo/logo-fondo.png' };`, 'logos en reservas'],
-      ['<h1 id="nombre-negocio">El Paraíso Bar Restaurante</h1>', `<h1 id="nombre-negocio">${nombre}</h1>`, 'nombre en reservas (html)']
+      ['<h1 id="nombre-negocio">El Paraíso Bar Restaurante</h1>', `<h1 id="nombre-negocio">${nombre}</h1>`, 'nombre en reservas (html)'],
+      // En negocios de servicios, la reserva de mesa se convierte en cita
+      ...(tipo === 'servicios' ? [
+        ['<title>Reservar mesa</title>', '<title>Pedir cita</title>', 'título de reservas'],
+        ['Reserva tu mesa y te la confirmamos enseguida', 'Pide tu cita y te la confirmamos enseguida', 'subtítulo de reservas'],
+        ["document.title = 'Reservar mesa · '", "document.title = 'Pedir cita · '", 'título dinámico'],
+        ['📅 Pedir la reserva', '📅 Pedir la cita', 'botón de reservas']
+      ] : [])
     ], avisos, 'reservas.html');
 
     const fidelidadHtml = personalizar(b64aTexto(fuentes['fidelidad.html']), [
       [/const NOMBRES = \{[^\n]*\};/, `const NOMBRES = { paraiso: ${JSON.stringify(nombre)} };`, 'nombre en fidelidad (js)'],
       [/const LOGOS_FIJOS = \{[^\n]*\};/, `const LOGOS_FIJOS = { paraiso: '/equipo/logo-fondo.png' };`, 'logos en fidelidad'],
-      ['<h1 id="nombre-negocio">El Paraíso Bar Restaurante</h1>', `<h1 id="nombre-negocio">${nombre}</h1>`, 'nombre en fidelidad (html)']
+      ['<h1 id="nombre-negocio">El Paraíso Bar Restaurante</h1>', `<h1 id="nombre-negocio">${nombre}</h1>`, 'nombre en fidelidad (html)'],
+      ["${i < j.sellos ? '🍺' : ''}", `\${i < j.sellos ? ${JSON.stringify(emoji)} : ''}`, 'emoji de los sellos']
     ], avisos, 'fidelidad.html');
 
     // vercel.json del cliente: igual que el nuestro pero SIN la parte del clonador
@@ -333,7 +355,7 @@ module.exports = async (req, res) => {
       // La ficha del cliente se guarda en su repo (para poder actualizarlo en el futuro)
       await gh('PUT', `/repos/${USUARIO_GH}/${repoDatos}/contents/config-app.json`, {
         message: 'ficha del cliente',
-        content: Buffer.from(JSON.stringify({ nombre, slug, emoji, cif, direccion, creado: new Date().toISOString() }, null, 2)).toString('base64'),
+        content: Buffer.from(JSON.stringify({ nombre, slug, emoji, cif, direccion, tipo, creado: new Date().toISOString() }, null, 2)).toString('base64'),
         branch: 'main'
       });
     }
@@ -380,7 +402,7 @@ module.exports = async (req, res) => {
       const shaCfg = rViejo.ok ? (await rViejo.json()).sha : undefined;
       await gh('PUT', `/repos/${USUARIO_GH}/${repoDatos}/contents/config-app.json`, {
         message: 'ficha del cliente',
-        content: Buffer.from(JSON.stringify({ nombre, slug, emoji, cif, direccion, actualizado: new Date().toISOString() }, null, 2)).toString('base64'),
+        content: Buffer.from(JSON.stringify({ nombre, slug, emoji, cif, direccion, tipo, actualizado: new Date().toISOString() }, null, 2)).toString('base64'),
         branch: 'main', ...(shaCfg ? { sha: shaCfg } : {})
       });
     }
