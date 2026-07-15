@@ -3577,8 +3577,105 @@ function renderPrevisionCaja() {
   } catch (e) { caja.innerHTML = ''; }
 }
 
+/* ── 🏦 BANCO: importar el extracto (pegado o CSV) y cotejarlo con el TPV ── */
+function bancoNormImporte(t) {
+  t = String(t).trim().replace(/[€\s]/g, '');
+  if (!t || !/\d/.test(t)) return NaN;
+  if (/,\d{1,2}$/.test(t)) t = t.replace(/\./g, '').replace(',', '.');   // 1.234,56 → 1234.56
+  else t = t.replace(/,/g, '');                                          // 1,234.56 → 1234.56
+  const n = Number(t);
+  return isFinite(n) ? n : NaN;
+}
+function bancoNormFecha(t) {
+  t = String(t).trim();
+  let m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if (m) { const a = m[3].length === 2 ? '20' + m[3] : m[3]; return `${a}-${String(m[2]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}`; }
+  return null;
+}
+function bancoParsear(texto) {
+  const movs = [];
+  for (const linea of String(texto).split(/\r?\n/)) {
+    const l = linea.trim();
+    if (!l) continue;
+    const sep = l.includes('\t') ? '\t' : (l.split(';').length > 2 ? ';' : (l.split(',').length > 2 ? ',' : null));
+    if (!sep) continue;
+    const celdas = l.split(sep).map(c => c.trim().replace(/^"|"$/g, ''));
+    let fecha = null, importe = NaN; const textos = [];
+    for (const c of celdas) {
+      if (!fecha) { const f = bancoNormFecha(c); if (f) { fecha = f; continue; } }
+      const n = bancoNormImporte(c);
+      // El primer número "con pinta de dinero" es el importe (el siguiente suele ser el saldo)
+      if (isNaN(importe) && !isNaN(n) && /[.,-]/.test(c)) { importe = n; continue; }
+      if (isNaN(bancoNormFecha(c) ? NaN : 0) && isNaN(n)) textos.push(c);
+    }
+    if (!fecha || isNaN(importe) || importe === 0) continue;
+    movs.push({ fecha, concepto: (textos.join(' · ') || '(sin concepto)').slice(0, 120), importe: Math.round(importe * 100) / 100 });
+  }
+  return movs;
+}
+function bancoImportar(texto) {
+  const movs = bancoParsear(texto);
+  if (!movs.length) return aviso('No encontré movimientos. Copia las filas del banco con su fecha, concepto e importe (como salen en el Excel).', true);
+  datos.banco = datos.banco || [];
+  const ya = new Set(datos.banco.map(m => m.fecha + '|' + m.importe + '|' + m.concepto));
+  let nuevos = 0;
+  movs.forEach(m => {
+    const k = m.fecha + '|' + m.importe + '|' + m.concepto;
+    if (!ya.has(k)) { ya.add(k); datos.banco.push({ id: nuevoId(), ...m }); nuevos++; }
+  });
+  datos.banco.sort((a, b) => (a.fecha < b.fecha ? -1 : 1));
+  if (datos.banco.length > 3000) datos.banco = datos.banco.slice(-2500);
+  guardar();
+  renderBanco();
+  aviso(`🏦 Importados ${nuevos} movimiento(s) nuevos${movs.length - nuevos ? ` (${movs.length - nuevos} ya estaban, no se duplican)` : ''}.`);
+}
+// ¿Este abono parece del datáfono (TPV)?
+function bancoEsTPV(m) {
+  return m.importe > 0 && /TPV|REDSYS|COMERCIA|DAT[AÁ]FONO|ADQUIREN|UNIVERSAL PAY|PAYCOMET|TARJETAS?|POS\b/i.test(m.concepto);
+}
+function renderBanco() {
+  const caja = document.getElementById('banco-resumen');
+  if (!caja) return;
+  const movs = datos.banco || [];
+  const env = document.getElementById('banco-tabla-env');
+  if (!movs.length) { caja.innerHTML = ''; document.getElementById('banco-cotejo').innerHTML = ''; env.style.display = 'none'; return; }
+  const mes = mesActual();
+  const delMes = movs.filter(m => m.fecha.slice(0, 7) === mes);
+  const ent = delMes.filter(m => m.importe > 0).reduce((s, m) => s + m.importe, 0);
+  const sal = delMes.filter(m => m.importe < 0).reduce((s, m) => s - m.importe, 0);
+  caja.innerHTML = `<div class="rejilla-kpis rejilla-kpis-3">
+    <div class="tarjeta kpi"><div class="kpi-etiqueta">💵 Entradas del mes (banco)</div><div class="kpi-valor positivo">${dinero(ent)}</div></div>
+    <div class="tarjeta kpi"><div class="kpi-etiqueta">🧾 Salidas del mes (banco)</div><div class="kpi-valor negativo">${dinero(sal)}</div></div>
+    <div class="tarjeta kpi"><div class="kpi-etiqueta">📒 Neto del mes (banco)</div><div class="kpi-valor">${dinero(ent - sal)}</div></div>
+  </div>`;
+  // Cotejo con el TPV: cada abono del datáfono contra las ventas del día anterior
+  const abonos = movs.filter(bancoEsTPV).slice(-15).reverse();
+  document.getElementById('banco-cotejo').innerHTML = abonos.length ? `
+    <h4 style="margin:10px 0 4px">🔎 Cotejo datáfono ↔ ventas del TPV</h4>
+    <div class="tabla-envoltura"><table class="tabla">
+      <thead><tr><th>Abono en banco</th><th class="num">Importe</th><th class="num">Ventas del día anterior</th><th class="num">Diferencia</th></tr></thead>
+      <tbody>${abonos.map(a => {
+        const d = new Date(a.fecha + 'T12:00:00'); d.setDate(d.getDate() - 1);
+        const dia = d.toLocaleDateString('sv-SE');
+        const ventasDia = datos.ventas.filter(v => v.fecha === dia).reduce((s, v) => s + (v.total ?? 0), 0);
+        const dif = a.importe - ventasDia;
+        return `<tr><td>${a.fecha.split('-').reverse().join('/')} · <small>${a.concepto.slice(0, 40)}</small></td>
+          <td class="num">${dinero(a.importe)}</td><td class="num">${ventasDia ? dinero(ventasDia) : '—'}</td>
+          <td class="num" style="color:${Math.abs(dif) < Math.max(5, ventasDia * 0.05) || !ventasDia ? 'inherit' : '#c62828'}">${ventasDia ? dinero(dif) : ''}</td></tr>`;
+      }).join('')}</tbody></table></div>
+    <p style="font-size:12px;color:#999">La diferencia normal son las comisiones del datáfono (1-2%). En rojo, cuando baila más de la cuenta.</p>` : '';
+  // Últimos movimientos
+  env.style.display = '';
+  document.getElementById('banco-lista').innerHTML = [...movs].reverse().slice(0, 40).map(m => `
+    <tr><td>${m.fecha.split('-').reverse().join('/')}</td><td><small>${m.concepto}</small></td>
+      <td class="num"><span class="${m.importe >= 0 ? 'monto-entrada' : 'monto-salida'}">${m.importe >= 0 ? '+ ' : '− '}${dinero(Math.abs(m.importe))}</span></td></tr>`).join('');
+}
+
 function renderBalance() {
   renderPrevisionCaja();
+  renderBanco();
   const tipo = ($('#bal-tipo') && $('#bal-tipo').value) || 'mes';
   $('#grupo-bal-dia').hidden = tipo !== 'dia';
   $('#grupo-bal-mes').hidden = tipo !== 'mes';
@@ -5666,6 +5763,26 @@ function configurarEventos() {
     if (fondo.id === 'modal-progreso') return; // el panel de progreso solo se cierra con su botón
     if (e.target === fondo) fondo.hidden = true;
   }));
+
+  // Banco (importar extracto)
+  $('#btn-banco-importar').addEventListener('click', () => {
+    bancoImportar($('#banco-pegado').value);
+    $('#banco-pegado').value = '';
+  });
+  $('#btn-banco-csv').addEventListener('click', () => $('#banco-archivo').click());
+  $('#banco-archivo').addEventListener('change', async function () {
+    const archivo = this.files && this.files[0];
+    this.value = '';
+    if (!archivo) return;
+    bancoImportar(await archivo.text());   // sin FileReader (el iPhone no lo tiene)
+  });
+  $('#btn-banco-borrar').addEventListener('click', () => {
+    if (!confirm('¿Vaciar TODOS los movimientos del banco importados? (tus ventas y gastos no se tocan)')) return;
+    datos.banco = [];
+    guardar();
+    renderBanco();
+    aviso('🏦 Movimientos del banco vaciados.');
+  });
 
   // Ingredientes
   $('#btn-nuevo-ingrediente').addEventListener('click', () => abrirModalIngrediente());

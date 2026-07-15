@@ -424,6 +424,26 @@
       </div>
     </div>
     <div id="prevision-caja"></div>
+    <div class="tarjeta" id="banco-caja" style="margin-bottom:14px">
+      <h3 style="margin-bottom:4px">🏦 Banco — tus movimientos reales</h3>
+      <p style="font-size:13.5px;color:#777;margin-bottom:8px">Descarga los movimientos desde la web o la app de tu banco (Excel o CSV) y tráelos aquí:
+        <strong>copia las filas y pégalas</strong> en la caja, o sube el archivo CSV. La fecha, el concepto y el importe se detectan solos y no se duplica nada.</p>
+      <textarea id="banco-pegado" class="campo" placeholder="Pega aquí las filas copiadas del Excel del banco (fecha, concepto, importe)..." style="min-height:64px;width:100%"></textarea>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+        <button class="btn btn-primario" id="btn-banco-importar">📥 Importar lo pegado</button>
+        <input type="file" id="banco-archivo" accept=".csv,text/csv,text/plain" hidden>
+        <button class="btn btn-secundario" id="btn-banco-csv">📎 Subir archivo CSV</button>
+        <button class="btn btn-secundario" id="btn-banco-borrar">🗑 Vaciar lo importado</button>
+      </div>
+      <div id="banco-resumen" style="margin-top:10px"></div>
+      <div id="banco-cotejo"></div>
+      <div class="tabla-envoltura" id="banco-tabla-env" style="display:none;margin-top:8px">
+        <table class="tabla">
+          <thead><tr><th>Fecha</th><th>Concepto</th><th class="num">Importe</th></tr></thead>
+          <tbody id="banco-lista"></tbody>
+        </table>
+      </div>
+    </div>
     <div class="tarjeta">
       <div class="tabla-envoltura">
         <table class="tabla">
