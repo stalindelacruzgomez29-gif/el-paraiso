@@ -3673,9 +3673,35 @@ function renderBanco() {
       <td class="num"><span class="${m.importe >= 0 ? 'monto-entrada' : 'monto-salida'}">${m.importe >= 0 ? '+ ' : '− '}${dinero(Math.abs(m.importe))}</span></td></tr>`).join('');
 }
 
+// El robot 🤖 deja los movimientos del banco guardados en la nube; la app los recoge y mezcla
+let bancoRobotPedido = false;
+async function sincronizarBancoRobot() {
+  if (bancoRobotPedido || !codigoSync()) return;
+  bancoRobotPedido = true;
+  try {
+    const r = await fetch('/api/banco', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigo: codigoSync() }) });
+    const j = await r.json();
+    if (!r.ok || !j.movimientos || !j.movimientos.length) return;
+    datos.banco = datos.banco || [];
+    const ya = new Set(datos.banco.map(m => m.fecha + '|' + m.importe + '|' + m.concepto));
+    let n = 0;
+    j.movimientos.forEach(m => {
+      const k = m.fecha + '|' + m.importe + '|' + m.concepto;
+      if (!ya.has(k)) { ya.add(k); datos.banco.push({ id: nuevoId(), fecha: m.fecha, concepto: m.concepto, importe: m.importe }); n++; }
+    });
+    if (n) {
+      datos.banco.sort((a, b) => (a.fecha < b.fecha ? -1 : 1));
+      guardar();
+      if (typeof vistaActual !== 'undefined' && vistaActual === 'balance') renderBanco();
+      aviso(`🤖🏦 El robot trajo ${n} movimiento(s) nuevos del banco.`);
+    }
+  } catch (e) { /* sin red o sin robot: no pasa nada */ }
+}
+
 function renderBalance() {
   renderPrevisionCaja();
   renderBanco();
+  sincronizarBancoRobot();
   const tipo = ($('#bal-tipo') && $('#bal-tipo').value) || 'mes';
   $('#grupo-bal-dia').hidden = tipo !== 'dia';
   $('#grupo-bal-mes').hidden = tipo !== 'mes';

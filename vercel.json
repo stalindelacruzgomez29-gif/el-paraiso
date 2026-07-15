@@ -1,6 +1,7 @@
 {
   "crons": [
-    { "path": "/api/equipo", "schedule": "0 6 * * *" }
+    { "path": "/api/equipo", "schedule": "0 6 * * *" },
+    { "path": "/api/banco", "schedule": "30 5 * * *" }
   ],
   "functions": {
     "api/clonar.js": { "maxDuration": 60 }

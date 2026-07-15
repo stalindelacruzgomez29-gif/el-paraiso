@@ -1,9 +1,10 @@
 {
-    "name": "el-paraiso",
+  "name": "el-paraiso",
   "version": "1.0.0",
   "private": true,
   "description": "El Paraíso Bar Restaurante — sistema de gestión",
   "dependencies": {
-    "@vercel/blob": "^0.27.0"
+    "@vercel/blob": "^0.27.0",
+    "imapflow": "^1.0.191"
   }
 }
