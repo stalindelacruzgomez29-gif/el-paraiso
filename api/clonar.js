@@ -89,6 +89,33 @@ function personalizar(texto, cambios, avisos, archivo) {
 function b64aTexto(b64) { return Buffer.from(b64, 'base64').toString('utf8'); }
 function textoAB64(t) { return Buffer.from(t, 'utf8').toString('base64'); }
 
+// ---------- Sectores: cada tipo de negocio con sus características ----------
+//  lugar  = cómo se llama el sitio en los textos (fichaje GPS, etc.)
+//  ia     = cómo se le describe el negocio a la IA (asistente, reseñas, cuadrante)
+//  punta  = sus horas fuertes (para que la IA cuadre bien los turnos)
+//  reserva= qué reserva el cliente en la página pública (null = mesa, como hostelería)
+const SECTORES = {
+  hosteleria: { etiqueta: 'Hostelería', ia: 'bar-restaurante', lugar: 'restaurante', punta: 'horas de comidas y cenas', reserva: null },
+  discoteca:  { etiqueta: 'Discoteca / ocio nocturno', ia: 'discoteca (local de ocio nocturno)', lugar: 'local', punta: 'las noches, sobre todo de jueves a sábado',
+                reserva: { titulo: 'Reservar mesa o VIP', sub: 'Reserva tu mesa o tu zona VIP y te la confirmamos enseguida', boton: '📅 Pedir la reserva' } },
+  comercio:   { etiqueta: 'Comercio / tienda', ia: 'comercio (tienda)', lugar: 'tienda', punta: 'las horas de más clientela',
+                reserva: { titulo: 'Pedir cita', sub: 'Pide tu cita y te la confirmamos enseguida', boton: '📅 Pedir la cita' } },
+  servicios:  { etiqueta: 'Peluquería / estética', ia: 'negocio de servicios con cita (peluquería, estética, barbería...)', lugar: 'local', punta: 'las horas con más citas',
+                reserva: { titulo: 'Pedir cita', sub: 'Pide tu cita y te la confirmamos enseguida', boton: '📅 Pedir la cita' } },
+  clinica:    { etiqueta: 'Clínica / salud', ia: 'clínica (salud)', lugar: 'clínica', punta: 'las horas de consulta',
+                reserva: { titulo: 'Pedir cita', sub: 'Pide tu cita y te la confirmamos enseguida', boton: '📅 Pedir la cita' } },
+  taller:     { etiqueta: 'Taller / reparaciones', ia: 'taller de reparaciones', lugar: 'taller', punta: 'las mañanas',
+                reserva: { titulo: 'Pedir cita', sub: 'Pide tu cita para el taller y te la confirmamos enseguida', boton: '📅 Pedir la cita' } },
+  gimnasio:   { etiqueta: 'Gimnasio / deporte', ia: 'gimnasio (centro deportivo)', lugar: 'gimnasio', punta: 'primeras horas de la mañana y las tardes',
+                reserva: { titulo: 'Reservar clase', sub: 'Reserva tu clase o sesión y te la confirmamos enseguida', boton: '📅 Reservar mi plaza' } },
+  hotel:      { etiqueta: 'Hotel / alojamiento', ia: 'hotel (alojamiento)', lugar: 'hotel', punta: 'los turnos de mañana, tarde y noche (recepción y limpieza)',
+                reserva: { titulo: 'Reservar habitación', sub: 'Reserva tu habitación y te la confirmamos enseguida', boton: '📅 Pedir la reserva' } },
+  academia:   { etiqueta: 'Academia / formación', ia: 'academia de formación', lugar: 'academia', punta: 'las tardes',
+                reserva: { titulo: 'Pedir cita', sub: 'Pide tu cita o clase de prueba y te la confirmamos enseguida', boton: '📅 Pedir la cita' } },
+  otros:      { etiqueta: 'Otro negocio', ia: 'negocio', lugar: 'local', punta: 'las horas de más trabajo',
+                reserva: { titulo: 'Pedir cita', sub: 'Pide tu cita y te la confirmamos enseguida', boton: '📅 Pedir la cita' } }
+};
+
 module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido.' });
@@ -194,7 +221,7 @@ module.exports = async (req, res) => {
     let emoji = (String(p.emoji || '').trim() || '🍺').slice(0, 8);
     let cif = String(p.cif || '').trim().slice(0, 60);
     let direccion = String(p.direccion || '').trim().slice(0, 120);
-    let tipo = ['hosteleria', 'comercio', 'servicios'].includes(p.tipo) ? p.tipo : 'hosteleria';
+    let tipo = SECTORES[p.tipo] ? p.tipo : 'hosteleria';
 
     if (esActualizacion) {
       // La ficha del cliente vive en su propio repo de datos (config-app.json)
@@ -204,7 +231,7 @@ module.exports = async (req, res) => {
           const cfg = JSON.parse(Buffer.from((await rCfg.json()).content, 'base64').toString('utf8'));
           nombre = nombre || cfg.nombre; emoji = String(p.emoji || '').trim() ? emoji : (cfg.emoji || emoji);
           cif = cif || cfg.cif; direccion = direccion || cfg.direccion;
-          if (!p.tipo && cfg.tipo) tipo = cfg.tipo;
+          if (!p.tipo && SECTORES[cfg.tipo]) tipo = cfg.tipo;
         } catch (e) { /* ficha ilegible: se usan los campos enviados */ }
       }
       if (!nombre) return res.status(400).json({ error: `Este cliente no tiene ficha guardada (config-app.json): manda también nombre, emoji, cif y dirección para actualizarlo.` });
@@ -242,19 +269,20 @@ module.exports = async (req, res) => {
     // 3) Personalizar cada archivo con la marca del cliente
     const marcaCorta = `${emoji} ${nombre}`;
 
+    const sector = SECTORES[tipo];
     const noHosteleria = tipo !== 'hosteleria';
     const apiEquipo = personalizar(b64aTexto(fuentes['api/equipo.js']), [
       [`const REPO_DATOS = '${USUARIO_GH}/el-paraiso-equipo-datos';`,
         `const REPO_DATOS = '${USUARIO_GH}/${repoDatos}';`, 'repo de datos'],
       [/const LOCALES = \{[\s\S]*?\};/,
         `const LOCALES = {\n  paraiso: { archivo: 'datos.json', nombre: ${JSON.stringify(nombre)} }\n};`, 'lista de locales'],
-      // Fuera de hostelería: nada de "restaurante" ni "bar" en los textos ni en la IA
+      // Fuera de hostelería: los textos y la IA hablan del sector del cliente
       ...(noHosteleria ? [
-        ['m del restaurante y solo se puede fichar', 'm del local y solo se puede fichar', 'texto del fichaje GPS'],
-        ['Eres el asistente del dueño de un bar-restaurante en España.', 'Eres el asistente del dueño de un negocio en España.', 'IA: asistente'],
+        ['m del restaurante y solo se puede fichar', `m del ${sector.lugar} y solo se puede fichar`, 'texto del fichaje GPS'],
+        ['Eres el asistente del dueño de un bar-restaurante en España.', `Eres el asistente del dueño de un ${sector.ia} en España.`, 'IA: asistente'],
         [', un bar-restaurante en Palma de Mallorca', '', 'IA: reseñas'],
-        ['cuadrante semanal de un bar-restaurante en España', 'cuadrante semanal de un negocio en España', 'IA: cuadrante'],
-        ['con más gente en horas de comidas y cenas', 'con más gente en las horas de más clientela', 'IA: cuadrante horas']
+        ['cuadrante semanal de un bar-restaurante en España', `cuadrante semanal de un ${sector.ia} en España`, 'IA: cuadrante'],
+        ['con más gente en horas de comidas y cenas', `con más gente en ${sector.punta}`, 'IA: cuadrante horas']
       ] : [])
     ], avisos, 'api/equipo.js');
 
@@ -282,7 +310,7 @@ module.exports = async (req, res) => {
       [/const otro = localActual\(\) === 'sazon' \? 'paraiso' : 'sazon';/,
         `const claves = Object.keys(LOCALES_APP);\n  if (claves.length < 2) { alert('Este negocio solo tiene un local.'); return; }\n  const otro = claves[(claves.indexOf(localActual()) + 1) % claves.length];`, 'botón de cambiar de local'],
       ...(noHosteleria ? [
-        ['Ponte DENTRO del restaurante', 'Ponte DENTRO del local', 'texto de fijar el local']
+        ['Ponte DENTRO del restaurante', `Ponte DENTRO del ${sector.lugar}`, 'texto de fijar el local']
       ] : [])
     ], avisos, 'equipo/index.html');
 
@@ -298,12 +326,12 @@ module.exports = async (req, res) => {
       [/const NOMBRES = \{[^\n]*\};/, `const NOMBRES = { paraiso: ${JSON.stringify(nombre)} };`, 'nombre en reservas (js)'],
       [/const LOGOS_FIJOS = \{[^\n]*\};/, `const LOGOS_FIJOS = { paraiso: '/equipo/logo-fondo.png' };`, 'logos en reservas'],
       ['<h1 id="nombre-negocio">El Paraíso Bar Restaurante</h1>', `<h1 id="nombre-negocio">${nombre}</h1>`, 'nombre en reservas (html)'],
-      // En negocios de servicios, la reserva de mesa se convierte en cita
-      ...(tipo === 'servicios' ? [
-        ['<title>Reservar mesa</title>', '<title>Pedir cita</title>', 'título de reservas'],
-        ['Reserva tu mesa y te la confirmamos enseguida', 'Pide tu cita y te la confirmamos enseguida', 'subtítulo de reservas'],
-        ["document.title = 'Reservar mesa · '", "document.title = 'Pedir cita · '", 'título dinámico'],
-        ['📅 Pedir la reserva', '📅 Pedir la cita', 'botón de reservas']
+      // Cada sector reserva lo suyo: mesa, VIP, cita, clase o habitación
+      ...(sector.reserva ? [
+        ['<title>Reservar mesa</title>', `<title>${sector.reserva.titulo}</title>`, 'título de reservas'],
+        ['Reserva tu mesa y te la confirmamos enseguida', sector.reserva.sub, 'subtítulo de reservas'],
+        ["document.title = 'Reservar mesa · '", `document.title = ${JSON.stringify(sector.reserva.titulo + ' · ')}`, 'título dinámico'],
+        ['📅 Pedir la reserva', sector.reserva.boton, 'botón de reservas']
       ] : [])
     ], avisos, 'reservas.html');
 
