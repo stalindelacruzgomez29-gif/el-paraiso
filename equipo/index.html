@@ -1955,8 +1955,8 @@ function pintarReservas() {
   const z = $('#zona-reservas'); if (!z || !vista) return;
   const hoy = new Date().toLocaleDateString('sv-SE');
   const rs = (vista.reservas || []).filter(r => r.fecha >= hoy).sort((a, b) => (a.fecha + a.hora) < (b.fecha + b.hora) ? -1 : 1);
-  if (!rs.length) { z.innerHTML = ''; return; }
   const esJefe = vista.yo.rol === 'jefe';
+  if (!rs.length && !esJefe) { z.innerHTML = ''; return; }   // el jefe la ve siempre (ahí está el interruptor automático)
   const deHoy = rs.filter(r => r.fecha === hoy && r.estado !== 'anulada').length;
   const fBonita = f => f === hoy ? 'HOY' : new Date(f + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
   z.innerHTML = `<div class="tarjeta">
@@ -1969,8 +1969,16 @@ function pintarReservas() {
         ${r.estado !== 'anulada' ? `<button class="btn btn-borde btn-peq" onclick="resolverReserva('${r.id}','anulada')">❌</button>` : ''}
         ${esJefe ? `<button class="btn btn-borde btn-peq" onclick="borrarReserva('${r.id}')">🗑</button>` : ''}</span>
     </div>`).join('')}
-    <div class="meta">El cliente reserva desde el enlace público (🕐 Horario → 📅 Copiar enlace de reservas). Confírmale la mesa con una llamada o WhatsApp.</div>
+    ${vista.yo.rol === 'jefe' ? `<label style="font-size:13px;display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer">
+      <input type="checkbox" id="chk-reservas-auto" ${vista.config && vista.config.reservasAuto ? 'checked' : ''} style="width:17px;height:17px">
+      🤖 Confirmar las reservas automáticamente (el cliente recibe "confirmada" al momento)</label>` : ''}
+    <div class="meta">El cliente reserva desde el enlace público (🕐 Horario → 📅 Copiar enlace de reservas).${vista.config && vista.config.reservasAuto ? '' : ' Confírmale la mesa con una llamada o WhatsApp.'}</div>
   </div>`;
+  const chkRA = $('#chk-reservas-auto');
+  if (chkRA) chkRA.onchange = async function () {
+    try { await refrescar('configurarReservasAuto', { activar: this.checked }); aviso(this.checked ? '🤖 Reservas en automático: se confirman solas' : 'Reservas en manual: las confirmas tú'); }
+    catch (e) { this.checked = !this.checked; aviso(e.message, true); }
+  };
 }
 window.resolverReserva = async (id, estado) => {
   try { await refrescar('resolverReserva', { id, estado }); aviso(estado === 'confirmada' ? '✅ Reserva confirmada: avisa al cliente' : '❌ Reserva anulada'); }

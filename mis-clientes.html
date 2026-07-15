@@ -46,7 +46,10 @@
   <div id="panel" style="display:none">
     <div class="fila" style="justify-content:space-between;align-items:center">
       <strong id="resumen" style="font-size:15px;color:#4b3416"></strong>
-      <a class="btn btn-borde btn-peq" href="/crear-cliente.html">➕ Crear cliente nuevo</a>
+      <span>
+        <button class="btn btn-borde btn-peq" onclick="actualizarTodos()">⬆️ Actualizar todos</button>
+        <a class="btn btn-borde btn-peq" href="/crear-cliente.html">➕ Crear cliente nuevo</a>
+      </span>
     </div>
     <div id="lista"></div>
     <div id="cobros" style="margin-top:20px"></div>
@@ -133,6 +136,17 @@ window.actualizarCliente = async slug => {
     aviso('info', '⬆️ ' + slug + ': ' + r.nota + (r.avisos && r.avisos.length ? ' · ' + r.avisos.join(' · ') : ''));
   } catch (e) { aviso('error', e.message); }
   if (btn) { btn.disabled = false; btn.textContent = '⬆️ Actualizar app'; }
+};
+window.actualizarTodos = async () => {
+  const vivos = clientes.filter(c => c.estado === 'READY');
+  if (!vivos.length) return aviso('info', 'No hay clientes con la web viva que actualizar.');
+  if (!confirm('¿Actualizar las apps de ' + vivos.length + ' cliente(s) a la última versión? Sus datos no se tocan.')) return;
+  let bien = 0; const fallos = [];
+  for (const c of vivos) {
+    try { await llamar({ accion: 'actualizar', slug: c.slug }); bien++; }
+    catch (e) { fallos.push(c.slug + ' (' + e.message + ')'); }
+  }
+  aviso(fallos.length ? 'error' : 'info', '⬆️ Actualizados ' + bien + ' de ' + vivos.length + (fallos.length ? ' · Fallaron: ' + fallos.join(', ') : ' · En 1-2 minutos estarán publicados.'));
 };
 window.darDeBaja = async slug => {
   if (!confirm('¿Dar de baja la web de "' + slug + '"? Su página dejará de funcionar.')) return;

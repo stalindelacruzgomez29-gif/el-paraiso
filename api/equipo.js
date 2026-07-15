@@ -400,7 +400,7 @@ function vistaPara(datos, yo) {
     }).slice(-200),
     // Lo que cuesta la hora de cada uno: SOLO lo ve el jefe
     ...(esJefe ? { costesHora: Object.fromEntries(datos.empleados.filter(e => e.costeHora).map(e => [e.id, e.costeHora])) } : {}),
-    config: { radioM: (datos.config && datos.config.radioM) || 100, controlUbicacion: !!(datos.config && datos.config.local), avisosFichaje: !!(datos.config && datos.config.avisosFichaje), logoPersonalizado: (datos.config && datos.config.logoPersonalizado) || null, objetivoCosteSemanal: (esJefe && datos.config && datos.config.objetivoCosteSemanal) || null }
+    config: { radioM: (datos.config && datos.config.radioM) || 100, controlUbicacion: !!(datos.config && datos.config.local), avisosFichaje: !!(datos.config && datos.config.avisosFichaje), reservasAuto: !!(datos.config && datos.config.reservasAuto), logoPersonalizado: (datos.config && datos.config.logoPersonalizado) || null, objetivoCosteSemanal: (esJefe && datos.config && datos.config.objetivoCosteSemanal) || null }
   };
 }
 
@@ -454,6 +454,56 @@ module.exports = async (req, res) => {
 
           // Los lunes: informe semanal del negocio por WhatsApp
           try { await informeSemanal(datos, clave); } catch (e) { /* sin romper el cron */ }
+
+          // AUTOMÁTICO: si la semana en curso no tiene horario publicado, se copia solo
+          // de la semana anterior (o de la semana tipo) y se avisa al jefe
+          try {
+            const lunesAct = lunesDe(hoy);
+            datos.horario.semanas = datos.horario.semanas || {};
+            if (!datos.horario.semanas[lunesAct]) {
+              const ant = new Date(lunesAct + 'T12:00:00Z'); ant.setUTCDate(ant.getUTCDate() - 7);
+              const base = datos.horario.semanas[ant.toISOString().slice(0, 10)] || datos.horario.turnos || {};
+              if (Object.keys(base).length) {
+                datos.horario.semanas[lunesAct] = JSON.parse(JSON.stringify(base));
+                datos.horario.actualizado = ahora();
+                await avisarWhatsApp(`🕐 *${LOCALES[clave].nombre.toUpperCase()} · Horario*\nLa semana del ${lunesAct} no tenía horario: lo publiqué copiando el anterior. Revísalo en el portal si hay cambios.`);
+              }
+            }
+          } catch (e) { /* sin romper el cron */ }
+
+          // AUTOMÁTICO: el día 1, tarea de firmar el registro del mes anterior a cada
+          // empleado + recordatorio de gestoría al jefe
+          try {
+            const mesAnt = mesAnteriorDe(hoy.slice(0, 7));
+            if (hoy.slice(8, 10) === '01' && datos.cierreMesHecho !== mesAnt) {
+              datos.cierreMesHecho = mesAnt;
+              datos.empleados.filter(e => e.rol !== 'jefe' && e.activo !== false).forEach(e => {
+                const yaFirmado = (datos.documentos || []).some(d => d.empleadoId === e.id && d.firmaMes === mesAnt);
+                const yaTiene = datos.tareas.some(t => t.estado === 'pendiente' && t.paraId === e.id && t.titulo.includes('Firmar tu registro'));
+                if (!yaFirmado && !yaTiene) {
+                  datos.tareas.push({ id: id(), titulo: `✍️ Firmar tu registro de horas de ${mesAnt} (en 🏖 Libres)`, detalle: '',
+                    paraId: e.id, fechaLimite: hoy, creada: ahora(), estado: 'pendiente', hechaPor: null, hechaEn: null });
+                }
+              });
+              await avisarWhatsApp(`📄 *${LOCALES[clave].nombre.toUpperCase()} · Cierre de mes*\nYa puedes mandar ${mesAnt} a la gestoría: en el portal → ⏱ Fichar → "Horas para la gestoría" y "Mes en Excel".\nA los trabajadores les puse la tarea de firmar su registro.`);
+            }
+          } catch (e) { /* sin romper el cron */ }
+
+          // AUTOMÁTICO: aviso de fichajes que se quedaron abiertos de días anteriores
+          try {
+            if (process.env.WHATSAPP_TELEFONO) {
+              datos.avisosAbiertosHechos = datos.avisosAbiertosHechos || {};
+              const ultimoDe = {};
+              datos.fichajes.forEach(f => { ultimoDe[f.empleadoId] = f; });
+              for (const emp of datos.empleados.filter(e => e.rol !== 'jefe' && e.activo !== false)) {
+                const u = ultimoDe[emp.id];
+                if (u && u.tipo === 'entrada' && fechaHoraEspana(u.ts).slice(0, 10) < hoy && datos.avisosAbiertosHechos[emp.id] !== u.id) {
+                  datos.avisosAbiertosHechos[emp.id] = u.id;
+                  await avisarWhatsApp(`⏰ *${LOCALES[clave].nombre.toUpperCase()} · Fichajes*\n${emp.nombre} dejó una ENTRADA abierta el ${fechaHoraEspana(u.ts).slice(0, 10)} y no fichó la salida. Dile que fiche la salida para que el registro del mes salga bien.`);
+                }
+              }
+            }
+          } catch (e) { /* sin romper el cron */ }
 
           // Aviso si el coste de personal de la semana en curso ya pasa del objetivo del jefe
           try {
@@ -557,11 +607,12 @@ module.exports = async (req, res) => {
       if (datos.reservas.filter(r => r.estado === 'pendiente' && r.fecha >= hoy).length >= 300) {
         return res.status(503).json({ error: 'Ahora mismo no podemos aceptar más reservas por aquí. Llámanos por teléfono.' });
       }
-      datos.reservas.push({ id: id(), nombre, telefono, personas, fecha, hora, nota, estado: 'pendiente', creada: ahora(), resueltaPor: null });
+      const autoConfirmar = !!(datos.config && datos.config.reservasAuto);
+      datos.reservas.push({ id: id(), nombre, telefono, personas, fecha, hora, nota, estado: autoConfirmar ? 'confirmada' : 'pendiente', creada: ahora(), resueltaPor: null });
       if (datos.reservas.length > 800) datos.reservas = datos.reservas.slice(-600);
       if (!await guardarDatos(archivoLocal, datos, sha)) continue;
-      await avisarWhatsApp(`📅 *${LOCALES[localClave].nombre.toUpperCase()} · Reserva nueva*\n${nombre} · ${personas} pers.\n${fecha} a las ${hora}\n📞 ${telefono}${nota ? '\n📝 ' + nota : ''}\n(confírmala en el portal)`);
-      return res.status(200).json({ ok: true, mensaje: '¡Reserva apuntada! Te llamaremos o escribiremos para confirmarla.' });
+      await avisarWhatsApp(`📅 *${LOCALES[localClave].nombre.toUpperCase()} · Reserva ${autoConfirmar ? 'CONFIRMADA sola' : 'nueva'}*\n${nombre} · ${personas} pers.\n${fecha} a las ${hora}\n📞 ${telefono}${nota ? '\n📝 ' + nota : ''}${autoConfirmar ? '' : '\n(confírmala en el portal)'}`);
+      return res.status(200).json({ ok: true, mensaje: autoConfirmar ? '¡Reserva CONFIRMADA! Te esperamos. Si hay cualquier cambio, te llamamos.' : '¡Reserva apuntada! Te llamaremos o escribiremos para confirmarla.' });
     }
 
     if (accion === 'verFidelidad') {
@@ -905,6 +956,12 @@ module.exports = async (req, res) => {
         if (!esJefe) soloJefe();
         datos.config = datos.config || {};
         datos.config.avisosFichaje = !!p.activar;
+        break;
+      }
+      case 'configurarReservasAuto': {
+        if (!esJefe) soloJefe();
+        datos.config = datos.config || {};
+        datos.config.reservasAuto = !!p.activar;
         break;
       }
 
