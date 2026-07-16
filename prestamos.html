@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Préstamos · El Paraíso</title>
+<style>
+:root{--bg:#0f1115;--card:#1a1d26;--card2:#222634;--line:#2e3342;--txt:#e7e9ee;--mut:#8b93a7;
+--acc:#4f8cff;--ok:#27c08a;--warn:#ffb020;--bad:#ff5c6c;--gold:#e8b84b;--green:#1d5e44;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--txt);font-size:14px}
+header{position:sticky;top:0;z-index:20;background:#12151c;border-bottom:1px solid var(--line);padding:12px 18px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+header h1{font-size:17px;font-weight:700;letter-spacing:.3px}header h1 span{color:var(--gold)}
+nav{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap}
+.btn{background:var(--card2);color:var(--txt);border:1px solid var(--line);padding:8px 14px;border-radius:9px;cursor:pointer;font-size:13px;font-weight:600;transition:.15s}
+.btn:hover{border-color:var(--acc);color:#fff}
+.btn.act{background:var(--acc);border-color:var(--acc);color:#fff}
+.btn.ok{background:var(--ok);border-color:var(--ok);color:#04261b}
+.btn.warn{background:var(--warn);border-color:var(--warn);color:#3a2600}
+.btn.gold{background:var(--gold);border-color:var(--gold);color:#3a2c00}
+.btn.ghost{background:transparent}.btn.sm{padding:5px 10px;font-size:12px}
+.btn.bad{background:transparent;border-color:var(--bad);color:var(--bad)}
+.chip{background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:6px 11px;cursor:pointer;font-size:12px;font-weight:700}
+.chip.on{background:var(--acc);border-color:var(--acc);color:#fff}
+main{padding:20px;max-width:1180px;margin:0 auto}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:22px}
+.kpi{background:linear-gradient(160deg,var(--card),var(--card2));border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.kpi .lab{color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.kpi .val{font-size:24px;font-weight:800}
+.kpi .val.g{color:var(--ok)}.kpi .val.y{color:var(--gold)}.kpi .val.r{color:var(--bad)}.kpi .val.b{color:var(--acc)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:18px}
+.panel h2{font-size:14px;text-transform:uppercase;letter-spacing:.6px;color:var(--mut);margin-bottom:14px}
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+input,select{background:var(--card2);border:1px solid var(--line);color:var(--txt);padding:9px 12px;border-radius:9px;font-size:13px;font-family:inherit}
+input:focus,select:focus{outline:none;border-color:var(--acc)}#search{flex:1;min-width:220px}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);font-size:13px}
+th{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;user-select:none}
+tbody tr.click{cursor:pointer}tbody tr.click:hover{background:var(--card2)}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.tag{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.tag.act{background:rgba(39,192,138,.15);color:var(--ok)}
+.tag.clo{background:rgba(139,147,167,.18);color:var(--mut)}
+.tag.emp{background:rgba(255,176,32,.13);color:var(--warn)}
+.tg{font-size:10px;padding:1px 7px;border-radius:12px;font-weight:700}
+.tg.n{background:rgba(79,140,255,.15);color:var(--acc)}.tg.i{background:rgba(232,184,75,.15);color:var(--gold)}.tg.c{background:rgba(39,192,138,.15);color:var(--ok)}
+.paid{background:rgba(39,192,138,.13)!important}
+.paid td{color:#bff3df}
+.hide{display:none!important}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:40;display:flex;justify-content:center;align-items:flex-start;padding:30px 16px;overflow:auto}
+.modal{background:var(--bg);border:1px solid var(--line);border-radius:16px;width:100%;max-width:940px;padding:22px}
+.modal h2{font-size:18px;margin-bottom:4px}.modal .sub{color:var(--mut);font-size:13px;margin-bottom:18px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px}
+.fld label{display:block;color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.fld input,.fld select{width:100%}
+.simbox{background:linear-gradient(160deg,#1c2030,#171a24);border:1px solid var(--acc);border-radius:14px;padding:16px;margin:16px 0}
+.garbox{background:linear-gradient(160deg,#241f17,#1c1812);border:1px solid var(--gold);border-radius:14px;padding:16px;margin:16px 0}
+.simhead{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}
+.simhead .b{background:rgba(79,140,255,.08);border:1px solid var(--line);border-radius:11px;padding:12px;text-align:center}
+.simhead .b .l{color:var(--mut);font-size:11px;text-transform:uppercase;margin-bottom:5px}
+.simhead .b .v{font-size:19px;font-weight:800;color:var(--acc)}
+.addpay{display:flex;gap:10px;align-items:flex-end;margin:14px 0;flex-wrap:wrap}
+.foot{display:flex;justify-content:space-between;gap:10px;margin-top:18px;flex-wrap:wrap}
+.right{margin-left:auto;display:flex;gap:8px}
+small.mut{color:var(--mut)}.del{color:var(--bad);cursor:pointer;font-weight:700}
+.scroll{max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+.pbreak{page-break-before:always;margin-top:24px}
+.kpi:hover{border-color:var(--acc)}
+/* contrato */
+.doc{background:#fff;color:#111;border-radius:10px;padding:46px 54px;font-family:Georgia,'Times New Roman',serif;line-height:1.55}
+.doc h1{font-size:20px;text-align:center;margin-bottom:6px;letter-spacing:.5px}
+.doc h3{font-size:14px;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #ccc;padding-bottom:3px}
+.doc p{margin:7px 0;font-size:13.5px}
+.doc table{margin-top:8px}.doc th,.doc td{border-bottom:1px solid #ddd;color:#111;font-size:12px}
+.doc th{color:#555}
+.firmas{display:flex;justify-content:space-between;margin-top:48px;gap:40px}
+.firmas div{flex:1;text-align:center;border-top:1px solid #333;padding-top:6px;font-size:12.5px}
+@media print{header,nav,.toolbar,.addpay,.foot,.btn,.chip,.simbox .scroll button{display:none!important}
+body{background:#fff;color:#000}.overlay{position:static;padding:0;background:#fff}.modal{border:none;max-width:none}
+.doc{padding:0}}
+</style></head><body>
+<header><h1>PRÉSTAMOS · <span>EL PARAÍSO</span></h1>
+<nav>
+  <button class="btn act" id="navPanel" onclick="show('panel')">Panel</button>
+  <button class="btn" id="navList" onclick="show('list')">Deudores</button>
+  <button class="btn ok" onclick="nuevo()">+ Nuevo préstamo</button>
+  <span id="estadoSync" style="font-size:11px;color:#8b93a7;margin-right:8px"></span><button class="btn ghost sm" onclick="pedirCodigo()">🔑 Código</button><button class="btn ghost sm" onclick="backup()">⬇ Copia</button>
+  <button class="btn ghost sm" onclick="document.getElementById('imp').click()">⬆ Restaurar</button>
+  <input type="file" id="imp" accept="application/json" class="hide" onchange="restore(event)">
+</nav></header>
+<main>
+  <section id="view-panel">
+    <div style="color:var(--mut);font-size:12px;margin-bottom:10px">📊 PANEL INTERNO · pulsa cada cifra para ver e imprimir su detalle por separado</div>
+    <div class="cards" id="kpis"></div>
+    <div class="panel"><h2>Mayores deudas pendientes</h2>
+      <table><thead><tr><th>Deudor</th><th class="num">Concedido</th><th class="num">Cobrado</th><th class="num">Pendiente</th><th>Estado</th></tr></thead>
+      <tbody id="topdeb"></tbody></table></div>
+  </section>
+  <section id="view-list" class="hide">
+    <div class="toolbar">
+      <input id="search" placeholder="🔍 Buscar deudor por nombre o teléfono..." oninput="render()">
+      <select id="filtro" onchange="render()">
+        <option value="activos">Activos (con deuda)</option><option value="todos">Todos</option>
+        <option value="cerrados">Cerrados (pagados)</option><option value="vacios">Plantillas / sin importe</option>
+      </select><small class="mut" id="count"></small>
+    </div>
+    <div class="panel" style="padding:6px 0"><table><thead><tr>
+      <th onclick="sortBy('nombre')">Deudor</th><th onclick="sortBy('tel')">Teléfono</th>
+      <th class="num" onclick="sortBy('concedido')">Concedido</th><th class="num" onclick="sortBy('interes')">Interés</th>
+      <th class="num" onclick="sortBy('cobrado')">Cobrado</th><th class="num" onclick="sortBy('pending')">Pendiente</th>
+      <th onclick="sortBy('estado')">Estado</th></tr></thead><tbody id="rows"></tbody></table></div>
+  </section>
+</main>
+<div id="overlay" class="overlay hide" onclick="if(event.target===this)closeModal()"><div class="modal" id="modal"></div></div>
+<script>
+const SEED=[]; const KEY='prestamos_elparaiso_v2';
+let DB=load(); let sortKey='pending',sortDir=-1;
+function load(){try{const s=localStorage.getItem(KEY);if(s)return JSON.parse(s);}catch(e){}return [];}
+function save(){localStorage.setItem(KEY,JSON.stringify(DB));subirNube();}
+const eur=n=>(n||0).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+const eur0=n=>Math.round(n||0).toLocaleString('es-ES')+' €';
+const ceilE=x=>Math.ceil(x-1e-9);
+const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function fmtF(s){if(!s)return'____________';const p=String(s).split('-');return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:s;}
+
+// ====== MOTOR: cobros reales + plan restante (redondeo al alza) ======
+function calc(loan){
+  const r=(parseFloat(loan.interes)||0)/100, P=parseFloat(loan.concedido)||0, n=parseInt(loan.plazo)||0, modo=loan.modo||'constante';
+  const pagos=[...(loan.pagos||[])].sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||''));
+  let saldo=P,tInt=0,tCob=0,meses=0; const paid=[];
+  for(const p of pagos){
+    const imp=parseFloat(p.importe)||0, tipo=p.tipo||'normal'; let interes,capital;
+    if(tipo==='interes'){interes=imp;capital=0;meses++;}
+    else if(tipo==='capital'){interes=0;capital=imp;}
+    else {interes=saldo*r;capital=imp-interes;meses++;}
+    saldo-=capital; tInt+=interes; tCob+=imp;
+    paid.push({fecha:p.fecha,importe:imp,interes,capital,saldo:Math.max(saldo,0),tipo});
+  }
+  saldo=Math.max(saldo,0);
+  const remMeses=Math.max(0,n-meses); const proj=[];
+  if(saldo>0.5){
+    let s=saldo, mr=remMeses>0?remMeses:1;
+    if(modo==='interes'){
+      for(let i=1;i<=mr;i++){const it=s*r,cap=(i===mr)?s:0;proj.push({cuota:ceilE(it+cap),capital:cap,interes:it,saldo:(i===mr)?0:s});}
+    } else {
+      const base=(r===0)?s/mr:s*r/(1-Math.pow(1+r,-mr));
+      let ss=s;
+      for(let i=1;i<=mr+6 && ss>0.005;i++){
+        let it=ss*r, cap=base-it, cuota;
+        if(cap>=ss){cap=ss;cuota=ceilE(it+cap);} else {cuota=ceilE(base);cap=cuota-it;}
+        ss-=cap; if(ss<0.005)ss=0;
+        proj.push({cuota,capital:cap,interes:it,saldo:ss});
+      }
+    }
+  }
+  const queda=proj.reduce((a,b)=>a+b.cuota,0);
+  return {paid,proj,saldo,tInt,tCob,queda,meses,remMeses,pending:saldo,
+    cerrado:P>0&&saldo<=0.5, vacio:!P, rentab:P?tInt/P:0,
+    estado:!P?'vacio':(saldo<=0.5?'cerrado':'activo'),
+    cuotaMes:proj[0]?proj[0].cuota:0};
+}
+function tag(e){return e==='activo'?'<span class="tag act">ACTIVO</span>':e==='cerrado'?'<span class="tag clo">PAGADO</span>':'<span class="tag emp">PLANTILLA</span>';}
+
+function show(v){
+  document.getElementById('view-panel').classList.toggle('hide',v!=='panel');
+  document.getElementById('view-list').classList.toggle('hide',v!=='list');
+  document.getElementById('navPanel').classList.toggle('act',v==='panel');
+  document.getElementById('navList').classList.toggle('act',v==='list');
+  if(v==='panel')renderPanel();else render();
+}
+function renderPanel(){
+  let prestado=0,cobrado=0,pendiente=0,interes=0,act=0,cer=0,vac=0;const arr=[];
+  for(const l of DB){const c=calc(l);if(c.vacio){vac++;continue;}
+    prestado+=parseFloat(l.concedido)||0;cobrado+=c.tCob;interes+=c.tInt;
+    if(c.cerrado)cer++;else{act++;pendiente+=c.saldo;}arr.push({l,c});}
+  document.getElementById('kpis').innerHTML=`
+    <div class="kpi" style="cursor:pointer" onclick="reporte('prestado')"><div class="lab">Total prestado ›</div><div class="val b">${eur0(prestado)}</div></div>
+    <div class="kpi" style="cursor:pointer" onclick="reporte('cobrado')"><div class="lab">Total cobrado ›</div><div class="val g">${eur0(cobrado)}</div></div>
+    <div class="kpi" style="cursor:pointer" onclick="reporte('pendiente')"><div class="lab">Capital pendiente ›</div><div class="val r">${eur0(pendiente)}</div></div>
+    <div class="kpi" style="cursor:pointer" onclick="reporte('interes')"><div class="lab">Intereses ganados ›</div><div class="val y">${eur0(interes)}</div></div>
+    <div class="kpi" style="cursor:pointer" onclick="reporte('activos')"><div class="lab">Préstamos activos ›</div><div class="val">${act}</div></div>
+    <div class="kpi" style="cursor:pointer" onclick="reporte('cerrados')"><div class="lab">Cerrados / Plantillas ›</div><div class="val">${cer} / ${vac}</div></div>`;
+  arr.sort((a,b)=>b.c.saldo-a.c.saldo);
+  document.getElementById('topdeb').innerHTML=arr.slice(0,15).map(({l,c})=>`
+    <tr class="click" onclick="ficha(${l.id})"><td>${esc(l.nombre)}</td><td class="num">${eur(l.concedido)}</td>
+    <td class="num">${eur(c.tCob)}</td><td class="num" style="color:var(--bad);font-weight:700">${eur(c.saldo)}</td><td>${tag(c.estado)}</td></tr>`).join('');
+}
+function render(){
+  const q=(document.getElementById('search').value||'').toLowerCase().trim(),f=document.getElementById('filtro').value;
+  let list=DB.map(l=>({l,c:calc(l)}));
+  if(f==='activos')list=list.filter(x=>x.c.estado==='activo');
+  else if(f==='cerrados')list=list.filter(x=>x.c.estado==='cerrado');
+  else if(f==='vacios')list=list.filter(x=>x.c.estado==='vacio');
+  if(q)list=list.filter(x=>(x.l.nombre||'').toLowerCase().includes(q)||(x.l.tel||'').toLowerCase().includes(q));
+  list.sort((a,b)=>{let av,bv;
+    if(sortKey==='nombre'){av=(a.l.nombre||'').toLowerCase();bv=(b.l.nombre||'').toLowerCase();return av<bv?-sortDir:av>bv?sortDir:0;}
+    if(sortKey==='tel'){av=a.l.tel||'';bv=b.l.tel||'';return av<bv?-sortDir:sortDir;}
+    if(sortKey==='concedido'){av=+a.l.concedido||0;bv=+b.l.concedido||0;}
+    else if(sortKey==='interes'){av=+a.l.interes||0;bv=+b.l.interes||0;}
+    else if(sortKey==='cobrado'){av=a.c.tCob;bv=b.c.tCob;}
+    else if(sortKey==='estado'){av=a.c.estado;bv=b.c.estado;return av<bv?-sortDir:sortDir;}
+    else{av=a.c.saldo;bv=b.c.saldo;}return(av-bv)*sortDir;});
+  document.getElementById('count').textContent=list.length+' deudores';
+  document.getElementById('rows').innerHTML=list.map(({l,c})=>`
+    <tr class="click" onclick="ficha(${l.id})"><td><b>${esc(l.nombre)}</b></td>
+    <td>${esc(l.tel)||'<small class="mut">—</small>'}</td>
+    <td class="num">${l.concedido?eur(l.concedido):'<small class="mut">—</small>'}</td>
+    <td class="num">${l.concedido?(l.interes+'%'):''}</td>
+    <td class="num">${c.tCob?eur(c.tCob):'<small class="mut">—</small>'}</td>
+    <td class="num" style="${c.estado==='activo'?'color:var(--bad);font-weight:700':''}">${l.concedido?eur(c.saldo):''}</td>
+    <td>${tag(c.estado)}</td></tr>`).join('')||'<tr><td colspan=7 style="text-align:center;color:var(--mut);padding:30px">Sin resultados</td></tr>';
+}
+function sortBy(k){if(sortKey===k)sortDir*=-1;else{sortKey=k;sortDir=(k==='nombre'||k==='tel')?1:-1;}render();}
+
+let cur=null;
+function ficha(id){cur=DB.find(l=>l.id===id);if(!cur)return;prep(cur);drawFicha();document.getElementById('overlay').classList.remove('hide');}
+function prep(l){if(!l.modo)l.modo='constante';if(!l.plazo)l.plazo=6;if(!l.garantia)l.garantia={desc:'',valor:'',estado:'En depósito'};if(l.dni===undefined)l.dni='';if(!l.aval)l.aval={nombre:'',dni:'',tel:'',direccion:'',poblacion:''};}
+function nuevo(){const id=Math.max(0,...DB.map(l=>l.id))+1;
+  cur={id,nombre:'NUEVO DEUDOR',tel:'',dni:'',direccion:'',cp:'',poblacion:'',observaciones:'',
+       concedido:0,interes:15,plazo:6,modo:'constante',inicio:new Date().toISOString().slice(0,10),pagos:[],garantia:{desc:'',valor:'',estado:'En depósito'},aval:{nombre:'',dni:'',tel:'',direccion:'',poblacion:''}};
+  DB.push(cur);save();drawFicha();document.getElementById('overlay').classList.remove('hide');}
+
+function drawFicha(){
+  const c=calc(cur),modo=cur.modo||'constante',n=parseInt(cur.plazo)||6,av=cur.aval||{};
+  let opts='';for(let m=1;m<=24;m++)opts+=`<option value="${m}" ${m===n?'selected':''}>${m} ${m===1?'mes':'meses'}</option>`;
+  const g=cur.garantia||{};
+  document.getElementById('modal').innerHTML=`
+    <h2>${esc(cur.nombre)}</h2><div class="sub">${tag(c.estado)} &nbsp; Ficha · cuotas redondeadas al alza · todo automático</div>
+    <div class="grid3">
+      <div class="fld"><label>Nombre</label><input value="${esc(cur.nombre)}" onchange="upd('nombre',this.value)"></div>
+      <div class="fld"><label>Teléfono</label><input value="${esc(cur.tel)}" onchange="upd('tel',this.value)"></div>
+      <div class="fld"><label>DNI / NIE</label><input value="${esc(cur.dni)}" onchange="upd('dni',this.value)"></div>
+    </div>
+    <div class="grid3">
+      <div class="fld"><label>Dirección</label><input value="${esc(cur.direccion)}" onchange="upd('direccion',this.value)"></div>
+      <div class="fld"><label>Población</label><input value="${esc(cur.poblacion)}" onchange="upd('poblacion',this.value)"></div>
+      <div class="fld"><label>Fecha concesión</label><input type="date" value="${cur.inicio||''}" onchange="upd('inicio',this.value)"></div>
+    </div>
+    <div class="grid3">
+      <div class="fld"><label>Capital concedido (€)</label><input type="number" step="0.01" value="${cur.concedido||''}" onchange="upd('concedido',this.value)"></div>
+      <div class="fld"><label>Interés mensual (%)</label><input type="number" step="0.1" value="${cur.interes||''}" onchange="upd('interes',this.value)"></div>
+      <div class="fld"><label>Plazo (1 a 24 meses)</label><select onchange="upd('plazo',this.value)">${opts}</select></div>
+    </div>
+
+    <div class="simbox">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px">
+        <b style="font-size:14px">📅 PLAN DE CUOTAS (con seguimiento)</b>
+        <div style="display:flex;gap:6px;margin-left:auto">
+          <button class="chip ${modo==='constante'?'on':''}" onclick="setModo('constante')">Cuota constante</button>
+          <button class="chip ${modo==='interes'?'on':''}" onclick="setModo('interes')">Solo interés</button>
+        </div>
+      </div>
+      <div class="simhead">
+        <div class="b"><div class="l">Cuota mensual</div><div class="v">${eur(c.cuotaMes)}</div></div>
+        <div class="b"><div class="l">Saldo capital</div><div class="v" style="color:var(--bad)">${eur(c.saldo)}</div></div>
+        <div class="b"><div class="l">Queda por pagar</div><div class="v" style="color:var(--warn)">${eur(c.queda)}</div></div>
+        <div class="b"><div class="l">Cobrado</div><div class="v" style="color:var(--ok)">${eur(c.tCob)}</div></div>
+      </div>
+      <div class="scroll"><table><thead><tr><th>#</th><th>Fecha</th><th>Estado</th><th class="num">Importe</th><th class="num">Interés</th><th class="num">Capital</th><th class="num">Saldo</th><th></th></tr></thead><tbody>
+      ${c.paid.map((r,i)=>`<tr class="paid"><td>${i+1}</td><td>${fmtF(r.fecha)}</td>
+        <td><span class="tg c">✓ PAGADA</span> ${r.tipo==='interes'?'<span class="tg i">int.</span>':r.tipo==='capital'?'<span class="tg n">capital</span>':''}</td>
+        <td class="num">${eur(r.importe)}</td><td class="num" style="color:var(--gold)">${eur(r.interes)}</td>
+        <td class="num">${eur(r.capital)}</td><td class="num">${eur(r.saldo)}</td>
+        <td><span class="del" onclick="delPay(${i})">✕</span></td></tr>`).join('')}
+      ${c.proj.map((r,i)=>`<tr><td>${c.paid.length+i+1}</td><td><small class="mut">prevista</small></td>
+        <td><span class="tg n">pendiente</span></td><td class="num">${eur(r.cuota)}</td>
+        <td class="num" style="color:var(--gold)">${eur(r.interes)}</td><td class="num">${eur(r.capital)}</td>
+        <td class="num">${eur(r.saldo)}</td><td>${i===0?`<button class="btn ok sm" onclick="cobrarCuota(${r.cuota})">✓ Cobrar</button>`:''}</td></tr>`).join('')}
+      ${c.paid.length===0&&c.proj.length===0?'<tr><td colspan=8 style="color:var(--mut)">Pon capital, interés y plazo para generar el plan.</td></tr>':''}
+      </tbody></table></div>
+      ${modo==='interes'?`<small class="mut">Modo «solo interés»: cobra el interés cada mes; el capital se devuelve al final.</small>`:`<small class="mut">Cuotas redondeadas al alza (margen a tu favor). Si cobras de más, el sobrante baja el capital y se recalcula solo.</small>`}
+    </div>
+
+    <div class="addpay">
+      <div class="fld"><label>Fecha cobro</label><input type="date" id="pf" value="${new Date().toISOString().slice(0,10)}"></div>
+      <div class="fld"><label>Importe cobrado (€)</label><input type="number" step="0.01" id="pi" placeholder="ej. 270"></div>
+      <div class="fld"><label>Concepto</label><select id="pt">
+        <option value="normal">Cuota (interés + capital)</option>
+        <option value="interes">Solo interés</option>
+        <option value="capital">Capital anticipado</option></select></div>
+      <button class="btn ok" onclick="addPay()">+ Registrar cobro</button>
+    </div>
+    <small class="mut">«Cuota»: paga interés del mes y el resto baja capital. «Solo interés»: el capital NO baja. «Capital anticipado»: todo baja el capital.</small>
+
+    <div class="garbox">
+      <b style="font-size:14px">🔒 GARANTÍA / AVAL (objeto de valor en depósito)</b>
+      <div class="grid3" style="margin-top:12px">
+        <div class="fld"><label>Descripción del bien</label><input value="${esc(g.desc)}" onchange="updG('desc',this.value)" placeholder="Ej. Cadena de oro 18k, móvil iPhone..."></div>
+        <div class="fld"><label>Valor estimado (€)</label><input type="number" step="0.01" value="${g.valor||''}" onchange="updG('valor',this.value)"></div>
+        <div class="fld"><label>Estado</label><select onchange="updG('estado',this.value)">
+          <option ${g.estado==='En depósito'?'selected':''}>En depósito</option>
+          <option ${g.estado==='Devuelta'?'selected':''}>Devuelta</option>
+          <option ${g.estado==='Ejecutada'?'selected':''}>Ejecutada</option></select></div>
+      </div>
+    </div>
+
+    <div class="garbox" style="border-color:var(--acc);background:linear-gradient(160deg,#171c28,#141821)">
+      <b style="font-size:14px">🧑‍🤝‍🧑 AVAL / GARANTE (responde si el deudor no paga)</b>
+      <div class="grid3" style="margin-top:12px">
+        <div class="fld"><label>Nombre del avalista</label><input value="${esc(av.nombre)}" onchange="updA('nombre',this.value)"></div>
+        <div class="fld"><label>DNI / NIE</label><input value="${esc(av.dni)}" onchange="updA('dni',this.value)"></div>
+        <div class="fld"><label>Teléfono</label><input value="${esc(av.tel)}" onchange="updA('tel',this.value)"></div>
+      </div>
+      <div class="grid3">
+        <div class="fld"><label>Dirección</label><input value="${esc(av.direccion)}" onchange="updA('direccion',this.value)"></div>
+        <div class="fld"><label>Población</label><input value="${esc(av.poblacion)}" onchange="updA('poblacion',this.value)"></div>
+        <div class="fld"></div>
+      </div>
+    </div>
+
+    <div class="foot">
+      <button class="btn bad" onclick="borrar()">🗑 Eliminar</button>
+      <div class="right">
+        <button class="btn gold" onclick="contrato('cliente')">📄 Contrato cliente</button>
+        <button class="btn warn" onclick="contrato('interno')">📑 Contrato interno</button>
+        <button class="btn act" onclick="closeModal()">Hecho</button>
+      </div>
+    </div>`;
+}
+function upd(k,v){cur[k]=(k==='concedido'||k==='interes'||k==='plazo')?(parseFloat(v)||0):v;save();drawFicha();}
+function updG(k,v){cur.garantia=cur.garantia||{};cur.garantia[k]=v;save();drawFicha();}
+function updA(k,v){cur.aval=cur.aval||{};cur.aval[k]=v;save();drawFicha();}
+function setModo(m){cur.modo=m;save();drawFicha();}
+function addPay(){const f=document.getElementById('pf').value,i=parseFloat(document.getElementById('pi').value),t=document.getElementById('pt').value;
+  if(!f||!i){alert('Pon fecha e importe');return;}cur.pagos=cur.pagos||[];
+  cur.pagos.push(t==='normal'?{fecha:f,importe:i}:{fecha:f,importe:i,tipo:t});save();drawFicha();}
+function cobrarCuota(imp){const f=document.getElementById('pf').value||new Date().toISOString().slice(0,10);
+  cur.pagos=cur.pagos||[];cur.pagos.push({fecha:f,importe:imp});save();drawFicha();}
+function delPay(idx){const sorted=[...cur.pagos].sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||''));
+  const t=sorted[idx],real=cur.pagos.indexOf(t);if(real>-1){cur.pagos.splice(real,1);save();drawFicha();}}
+function borrar(){if(confirm('¿Eliminar a '+cur.nombre+'? No se puede deshacer.')){DB=DB.filter(l=>l.id!==cur.id);save();closeModal();}}
+function closeModal(){document.getElementById('overlay').classList.add('hide');show(document.getElementById('view-panel').classList.contains('hide')?'list':'panel');}
+function reporte(tipo){
+  const items=DB.map(l=>({l,c:calc(l)}));
+  let titulo='',cols='',filas='',total=0,rows=[];
+  if(tipo==='prestado'){titulo='TOTAL PRESTADO';rows=items.filter(x=>!x.c.vacio).sort((a,b)=>(+b.l.concedido||0)-(+a.l.concedido||0));
+    cols='<th>Deudor</th><th>Fecha</th><th style="text-align:right">Capital prestado</th>';
+    filas=rows.map(x=>`<tr><td>${esc(x.l.nombre)}</td><td>${fmtF(x.l.inicio)}</td><td style="text-align:right">${eur(x.l.concedido)}</td></tr>`).join('');
+    total=rows.reduce((a,x)=>a+(+x.l.concedido||0),0);}
+  else if(tipo==='cobrado'){titulo='TOTAL COBRADO';rows=items.filter(x=>x.c.tCob>0).sort((a,b)=>b.c.tCob-a.c.tCob);
+    cols='<th>Deudor</th><th style="text-align:right">Cobrado</th>';
+    filas=rows.map(x=>`<tr><td>${esc(x.l.nombre)}</td><td style="text-align:right">${eur(x.c.tCob)}</td></tr>`).join('');
+    total=rows.reduce((a,x)=>a+x.c.tCob,0);}
+  else if(tipo==='pendiente'){titulo='CAPITAL PENDIENTE';rows=items.filter(x=>x.c.estado==='activo').sort((a,b)=>b.c.saldo-a.c.saldo);
+    cols='<th>Deudor</th><th>Teléfono</th><th style="text-align:right">Pendiente</th>';
+    filas=rows.map(x=>`<tr><td>${esc(x.l.nombre)}</td><td>${esc(x.l.tel)}</td><td style="text-align:right">${eur(x.c.saldo)}</td></tr>`).join('');
+    total=rows.reduce((a,x)=>a+x.c.saldo,0);}
+  else if(tipo==='interes'){titulo='INTERESES GANADOS';rows=items.filter(x=>x.c.tInt>0).sort((a,b)=>b.c.tInt-a.c.tInt);
+    cols='<th>Deudor</th><th style="text-align:right">Intereses cobrados</th>';
+    filas=rows.map(x=>`<tr><td>${esc(x.l.nombre)}</td><td style="text-align:right">${eur(x.c.tInt)}</td></tr>`).join('');
+    total=rows.reduce((a,x)=>a+x.c.tInt,0);}
+  else if(tipo==='activos'){titulo='PRÉSTAMOS ACTIVOS';rows=items.filter(x=>x.c.estado==='activo').sort((a,b)=>b.c.saldo-a.c.saldo);
+    cols='<th>Deudor</th><th style="text-align:right">Concedido</th><th style="text-align:right">Cobrado</th><th style="text-align:right">Pendiente</th>';
+    filas=rows.map(x=>`<tr><td>${esc(x.l.nombre)}</td><td style="text-align:right">${eur(x.l.concedido)}</td><td style="text-align:right">${eur(x.c.tCob)}</td><td style="text-align:right">${eur(x.c.saldo)}</td></tr>`).join('');
+    total=rows.reduce((a,x)=>a+x.c.saldo,0);}
+  else if(tipo==='cerrados'){titulo='CERRADOS Y PLANTILLAS';rows=items.filter(x=>x.c.estado!=='activo');
+    cols='<th>Deudor</th><th style="text-align:right">Concedido</th><th>Estado</th>';
+    filas=rows.map(x=>`<tr><td>${esc(x.l.nombre)}</td><td style="text-align:right">${x.l.concedido?eur(x.l.concedido):'—'}</td><td>${x.c.estado==='cerrado'?'PAGADO':'PLANTILLA'}</td></tr>`).join('');}
+  document.getElementById('modal').innerHTML=`
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button class="btn act" onclick="window.print()">🖨 Imprimir</button>
+      <button class="btn ghost" onclick="closeModal()">← Volver</button>
+    </div>
+    <div class="doc">
+      <h1>${titulo}</h1>
+      <p style="text-align:center;color:#a00;font-weight:bold">El Paraíso · USO INTERNO</p>
+      <p style="text-align:right;color:#666">Fecha: ${fmtF(new Date().toISOString().slice(0,10))} · ${rows.length} registros</p>
+      <table><thead><tr>${cols}</tr></thead><tbody>${filas}</tbody></table>
+      ${total?`<p style="text-align:right;font-size:17px;margin-top:12px"><b>TOTAL: ${eur(total)}</b></p>`:''}
+    </div>`;
+  document.getElementById('overlay').classList.remove('hide');
+}
+
+function contrato(tipo){
+  const c=calc(cur),g=cur.garantia||{},av=cur.aval||{};
+  const hoy=new Date().toISOString().slice(0,10);
+  const intFut=c.proj.reduce((a,b)=>a+b.interes,0);
+  const intTotal=c.tInt+intFut;
+  const totalPagar=c.tCob+c.queda;
+  const cuotas=[...c.paid.map((r,i)=>({n:i+1,f:fmtF(r.fecha),imp:r.importe,pag:true})),
+    ...c.proj.map((r,i)=>({n:c.paid.length+i+1,f:'—',imp:r.cuota,pag:false}))];
+  const barra=`<div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap;align-items:center">
+      <button class="btn act" onclick="window.print()">🖨 Imprimir / Guardar PDF</button>
+      <button class="btn ghost" onclick="drawFicha()">← Volver a la ficha</button>
+      <button class="btn ${tipo==='cliente'?'warn':'gold'} sm" onclick="contrato('${tipo==='cliente'?'interno':'cliente'}')">Ver versión ${tipo==='cliente'?'INTERNA':'CLIENTE'}</button>
+      <small class="mut">✏️ Puedes editar el texto antes de imprimir</small>
+    </div>`;
+
+  if(tipo==='interno'){
+    document.getElementById('modal').innerHTML=barra+`
+    <div class="doc" contenteditable="true" spellcheck="false">
+      <h1>FICHA INTERNA DE PRÉSTAMO</h1>
+      <p style="text-align:center;color:#a00;font-weight:bold">USO INTERNO · NO ENTREGAR AL CLIENTE</p>
+      <h3>Datos del deudor</h3>
+      <p><b>Nombre:</b> ${esc(cur.nombre)} &nbsp;·&nbsp; <b>DNI/NIE:</b> ${esc(cur.dni)||'—'} &nbsp;·&nbsp; <b>Tel:</b> ${esc(cur.tel)||'—'}</p>
+      <p><b>Domicilio:</b> ${esc(cur.direccion)||'—'} ${esc(cur.poblacion)||''} &nbsp;·&nbsp; <b>Concesión:</b> ${fmtF(cur.inicio)}</p>
+      <h3>Resumen económico (lo que ganamos)</h3>
+      <table><tbody>
+      <tr><td>Capital concedido</td><td style="text-align:right"><b>${eur(cur.concedido)}</b></td></tr>
+      <tr><td>Interés mensual</td><td style="text-align:right">${cur.interes}% (${cur.modo==='interes'?'solo interés':'cuota constante'}, ${cur.plazo} meses)</td></tr>
+      <tr><td>Total cobrado hasta hoy</td><td style="text-align:right;color:#1a7">${eur(c.tCob)}</td></tr>
+      <tr><td>Saldo de capital pendiente</td><td style="text-align:right;color:#b33">${eur(c.saldo)}</td></tr>
+      <tr><td>Queda por cobrar</td><td style="text-align:right">${eur(c.queda)}</td></tr>
+      <tr style="background:#eafaf2"><td><b>INTERESES / BENEFICIO (cobrado + previsto)</b></td><td style="text-align:right;color:#127a52"><b>${eur(intTotal)}</b></td></tr>
+      <tr style="background:#eafaf2"><td><b>Rentabilidad sobre el capital</b></td><td style="text-align:right"><b>${(intTotal/(cur.concedido||1)*100).toFixed(1)}%</b></td></tr>
+      </tbody></table>
+      <h3>Garantía en depósito</h3>
+      <p>${g.desc?`${esc(g.desc)} — valor estimado <b>${eur(g.valor)}</b> — estado: ${esc(g.estado)}`:'Sin garantía registrada.'}</p>
+      <h3>Aval / Garante</h3>
+      <p>${av.nombre?`${esc(av.nombre)}${av.dni?` · DNI/NIE ${esc(av.dni)}`:''}${av.tel?` · Tel ${esc(av.tel)}`:''}${(av.direccion||av.poblacion)?` · ${esc(av.direccion)} ${esc(av.poblacion)}`:''}`:'Sin avalista registrado.'}</p>
+      <h3>Cuadro completo de cuotas</h3>
+      <table><thead><tr><th>Nº</th><th>Fecha</th><th style="text-align:right">Importe</th><th style="text-align:right">Interés</th><th style="text-align:right">Capital</th><th style="text-align:right">Saldo</th><th>Estado</th></tr></thead><tbody>
+      ${c.paid.map((r,i)=>`<tr><td>${i+1}</td><td>${fmtF(r.fecha)}</td><td style="text-align:right">${eur(r.importe)}</td><td style="text-align:right">${eur(r.interes)}</td><td style="text-align:right">${eur(r.capital)}</td><td style="text-align:right">${eur(r.saldo)}</td><td>PAGADA</td></tr>`).join('')}
+      ${c.proj.map((r,i)=>`<tr><td>${c.paid.length+i+1}</td><td>—</td><td style="text-align:right">${eur(r.cuota)}</td><td style="text-align:right">${eur(r.interes)}</td><td style="text-align:right">${eur(r.capital)}</td><td style="text-align:right">${eur(r.saldo)}</td><td>Pendiente</td></tr>`).join('')}
+      </tbody></table>
+    </div>`;
+    return;
+  }
+
+  const garHtml=g.desc?`<p><b>${'SÉPTIMA'}.- Garantía.</b> En garantía del cumplimiento de las obligaciones de este contrato, LA PARTE PRESTATARIA entrega en depósito a LA PARTE PRESTAMISTA el bien: <b>${esc(g.desc)}</b>. Dicho bien le será devuelto una vez satisfecha la totalidad de la deuda. En caso de impago conforme a la cláusula sexta, la parte prestamista podrá retenerlo o realizarlo hasta cubrir lo adeudado.</p>`:'';
+  const c8=g.desc?'OCTAVA':'SÉPTIMA', c9=g.desc?'NOVENA':'OCTAVA';
+  document.getElementById('modal').innerHTML=barra+`
+    <div class="doc" contenteditable="true" spellcheck="false">
+      <h1>CONTRATO DE PRÉSTAMO ENTRE PARTICULARES</h1>
+      <p style="text-align:center;color:#666">Reconocimiento de deuda y plan de pagos</p>
+      <p>En ____________________, a ${fmtF(hoy)}.</p>
+      <h3>Reunidos</h3>
+      <p>De una parte, <b>EL PARAÍSO</b> (en adelante, «LA PARTE PRESTAMISTA»).</p>
+      <p>De otra parte, <b>${esc(cur.nombre)}</b>${cur.dni?`, con DNI/NIE <b>${esc(cur.dni)}</b>`:''}${cur.tel?`, teléfono ${esc(cur.tel)}`:''}${(cur.direccion||cur.poblacion)?`, con domicilio en ${esc(cur.direccion)} ${esc(cur.poblacion)}`:''} (en adelante, «LA PARTE PRESTATARIA»).</p>
+      ${av.nombre?`<p>Y de otra parte, como FIADOR Y AVALISTA SOLIDARIO, <b>${esc(av.nombre)}</b>${av.dni?`, con DNI/NIE <b>${esc(av.dni)}</b>`:''}${av.tel?`, teléfono ${esc(av.tel)}`:''}${(av.direccion||av.poblacion)?`, con domicilio en ${esc(av.direccion)} ${esc(av.poblacion)}`:''} (en adelante, «EL AVALISTA»).</p>`:''}
+      <p>Las partes se reconocen capacidad legal suficiente para obligarse y, a tal efecto, acuerdan las siguientes</p>
+      <h3>Cláusulas</h3>
+      <p><b>PRIMERA.- Objeto.</b> LA PARTE PRESTAMISTA entrega en este acto a LA PARTE PRESTATARIA, que la recibe de conformidad, la cantidad de <b>${eur(cur.concedido)}</b> en concepto de préstamo, sirviendo el presente documento como recibo de dicha entrega.</p>
+      <p><b>SEGUNDA.- Interés.</b> El préstamo devenga un interés remuneratorio del <b>${cur.interes}% mensual</b> calculado sobre el capital pendiente en cada momento.</p>
+      <p><b>TERCERA.- Devolución.</b> LA PARTE PRESTATARIA se obliga a devolver el capital y sus intereses en <b>${cur.plazo} ${cur.plazo==1?'mensualidad':'mensualidades'}</b>, conforme al cuadro de pagos que figura al final. La cuota mensual asciende aproximadamente a <b>${eur(c.cuotaMes)}</b>.</p>
+      <p><b>CUARTA.- Amortización anticipada.</b> LA PARTE PRESTATARIA podrá adelantar pagos o cancelar anticipadamente la deuda en cualquier momento, reduciéndose proporcionalmente el capital pendiente y los intereses futuros.</p>
+      <p><b>QUINTA.- Imputación de pagos.</b> Cada pago se aplicará en primer lugar a los intereses vencidos y el resto a la amortización del capital pendiente.</p>
+      <p><b>SEXTA.- Impago y vencimiento anticipado.</b> El impago de cualquiera de las cuotas a su vencimiento facultará a LA PARTE PRESTAMISTA para declarar vencida la totalidad de la deuda y reclamar, judicial o extrajudicialmente, las cantidades pendientes.</p>
+      ${av.nombre?`<p><b>AVAL SOLIDARIO.-</b> EL AVALISTA garantiza el cumplimiento de las obligaciones de pago de LA PARTE PRESTATARIA y responde solidariamente del abono de las cantidades adeudadas en caso de impago, con renuncia expresa a los beneficios de orden, división y excusión.</p>`:''}
+      ${garHtml}
+      <p><b>${c8}.- Protección de datos.</b> Los datos personales facilitados se tratarán con la única finalidad de gestionar el presente préstamo, conforme al RGPD y la LOPDGDD, y no se cederán a terceros salvo obligación legal.</p>
+      <p><b>${c9}.- Legislación y fuero.</b> El presente contrato se rige por el Código Civil y demás legislación española aplicable. Para cualquier controversia, las partes se someten a los Juzgados y Tribunales del domicilio de LA PARTE PRESTATARIA.</p>
+      <p style="margin-top:14px">Y en prueba de conformidad, las partes firman el presente contrato por duplicado en el lugar y fecha indicados, declarando LA PARTE PRESTATARIA haber recibido el capital y conocer y aceptar el cuadro de pagos que figura al dorso.</p>
+      <div class="firmas"><div>LA PARTE PRESTAMISTA<br>El Paraíso</div><div>LA PARTE PRESTATARIA<br>${esc(cur.nombre)}</div>${av.nombre?`<div>EL AVALISTA<br>${esc(av.nombre)}</div>`:''}</div>
+      <div class="pbreak">
+        <h1 style="margin-top:0">PLAN DE PAGOS</h1>
+        <p style="text-align:center;color:#666">${esc(cur.nombre)}</p>
+        <p>Préstamo de <b>${eur(cur.concedido)}</b> al <b>${cur.interes}%</b> a devolver en <b>${cur.plazo} ${cur.plazo==1?'mes':'meses'}</b>. La cuota a pagar es de aproximadamente <b>${eur(c.cuotaMes)}</b> al mes.</p>
+        <table><thead><tr><th>Nº</th><th>Vencimiento</th><th style="text-align:right">A pagar</th><th>Estado</th></tr></thead><tbody>
+        ${cuotas.map(q=>`<tr><td>${q.n}</td><td>${q.f}</td><td style="text-align:right">${eur(q.imp)}</td><td>${q.pag?'PAGADA ✓':'Pendiente'}</td></tr>`).join('')}
+        <tr style="background:#f4f6fb"><td colspan=2><b>Total a pagar</b></td><td style="text-align:right"><b>${eur(totalPagar)}</b></td><td></td></tr>
+        <tr><td colspan=2>Pagado hasta hoy</td><td style="text-align:right">${eur(c.tCob)}</td><td></td></tr>
+        <tr style="background:#fff6ec"><td colspan=2><b>Queda por pagar</b></td><td style="text-align:right"><b>${eur(c.queda)}</b></td><td></td></tr>
+        </tbody></table>
+        <p style="color:#666;font-size:12px;margin-top:10px">Las cuotas se redondean al alza. El último pago puede ajustarse para saldar exactamente la deuda.</p>
+      </div>
+    </div>`;
+}
+
+function backup(){const blob=new Blob([JSON.stringify(DB,null,1)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='prestamos_copia_'+new Date().toISOString().slice(0,10)+'.json';a.click();}
+async function restore(e){const file=e.target.files[0];if(!file)return;try{DB=JSON.parse(await file.text());save();alert('Datos restaurados: '+DB.length+' deudores');renderPanel();}catch(x){alert('Archivo no válido');}}
+
+/* ===== Sincronización en la nube + acceso (añadido para Vercel) ===== */
+const CLAVE_SYNC_PREST='prestamos_sync_codigo';
+function codigoSync(){return localStorage.getItem(CLAVE_SYNC_PREST)||'';}
+let subiendoT=null, bajando=false;
+function subirNube(){
+  const cod=codigoSync(); if(!cod||bajando) return;
+  clearTimeout(subiendoT);
+  subiendoT=setTimeout(async()=>{
+    try{ marcaSync('Guardando…');
+      await fetch('/api/datos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({codigo:cod,datos:{DB:DB,v:2}})});
+      marcaSync('Guardado en la nube ✓');
+    }catch(e){ marcaSync('Sin conexión (guardado en este aparato)'); }
+  },800);
+}
+async function bajarNube(){
+  const cod=codigoSync(); if(!cod) return false;
+  bajando=true; marcaSync('Trayendo tus datos…');
+  try{
+    const r=await fetch('/api/datos?codigo='+encodeURIComponent(cod)+'&t='+Date.now());
+    const j=await r.json();
+    if(j.existe && j.datos && Array.isArray(j.datos.DB)){ DB=j.datos.DB; save2local(); marcaSync('Al día ✓ ('+DB.length+' deudores)'); }
+    else marcaSync('Código nuevo: empieza a apuntar y se guardará en la nube');
+  }catch(e){ marcaSync('Sin conexión'); }
+  bajando=false; return true;
+}
+function save2local(){localStorage.setItem(KEY,JSON.stringify(DB));}
+function marcaSync(t){const e=document.getElementById('estadoSync'); if(e) e.textContent=t;}
+function pedirCodigo(){
+  const actual=codigoSync();
+  const c=prompt('Escribe tu CÓDIGO SECRETO de préstamos (te lo dio Claude). Con él ves tus datos en cualquier aparato:', actual);
+  if(c===null) return;
+  localStorage.setItem(CLAVE_SYNC_PREST, c.trim());
+  location.reload();
+}
+async function arrancar(){
+  if(!codigoSync()){
+    document.body.insertAdjacentHTML('afterbegin','<div id=\'lock\' style=\'position:fixed;inset:0;background:#0f1115;z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;padding:24px\'><h1 style=\'color:#e8b84b;font-size:22px\'>🔒 Préstamos · El Paraíso</h1><p style=\'color:#8b93a7;max-width:340px\'>Para ver tus préstamos, escribe tu código secreto. Se queda guardado en este aparato.</p><button onclick=\'pedirCodigo()\' style=\'background:#4f8cff;color:#fff;border:0;padding:14px 26px;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer\'>Escribir mi código</button></div>');
+    return;
+  }
+  await bajarNube();
+  const l=document.getElementById('lock'); if(l) l.remove();
+  renderPanel();
+}
+
+arrancar();
+</script></body></html>
