@@ -60,9 +60,9 @@ module.exports = async (req, res) => {
       const { blobs } = await list({ prefix: ruta });
       const blob = blobs.find(b => b.pathname === ruta);
       if (!blob) return res.status(200).json({ existe: false });
-      const r = await fetch(blob.url + '?t=' + Date.now());
+      const r = await fetch(blob.url + '?t=' + Date.now(), { cache: 'no-store' });
       const carta = await r.json();
-      res.setHeader('Cache-Control', 'public, max-age=60');
+      res.setHeader('Cache-Control', 'no-store');   // el cliente siempre pide lo último
       return res.status(200).json({ existe: true, carta });
     } catch (e) { return res.status(500).json({ error: 'No pude leer la carta.' }); }
   }
@@ -117,7 +117,8 @@ module.exports = async (req, res) => {
       if (cadena.length > 8 * 1024 * 1024) return res.status(400).json({ error: 'La carta con fotos es demasiado grande. Usa fotos más ligeras.' });
       const id = idCartaWebDe(String(codigo));
       await put(`cartaweb/${id}.json`, cadena, {
-        access: 'public', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json'
+        access: 'public', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json',
+        cacheControlMaxAge: 5   // caché muy corta: los cambios se ven casi al instante
       });
       const platos = c.secciones.reduce((n, s) => n + ((s.platos && s.platos.length) || 0), 0);
       return res.status(200).json({ publicada: true, id, platos });

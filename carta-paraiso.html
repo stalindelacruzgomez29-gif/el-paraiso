@@ -19,7 +19,15 @@
   *{box-sizing:border-box;margin:0;padding:0}
   html{-webkit-text-size-adjust:100%}
   body{background:var(--papel);color:var(--tinta);font-family:"Palatino Linotype","Book Antiqua",Palatino,Georgia,serif;line-height:1.45}
-  .lienzo{max-width:860px;margin:0 auto}
+  .lienzo{max-width:860px;margin:0 auto;position:relative}
+  /* Logo de El Paraíso, marca de agua difuminada detrás de la carta */
+  main{position:relative}
+  main::before{
+    content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+    background:url('/logo-paraiso-oficial.png') center 60px / 66% auto no-repeat;
+    opacity:.07;filter:blur(1px);
+  }
+  main .cols{position:relative;z-index:1}
 
   .barra-print{text-align:center;padding:12px;background:var(--verde-hoja);color:#fff;font-family:Georgia,serif;font-size:14px}
   .barra-print button{background:var(--oro);color:#2a1c08;border:0;padding:9px 18px;border-radius:8px;font-weight:700;cursor:pointer;margin-left:8px}
