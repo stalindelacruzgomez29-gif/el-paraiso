@@ -19,14 +19,14 @@
   *{box-sizing:border-box;margin:0;padding:0}
   html{-webkit-text-size-adjust:100%}
   body{background:var(--papel);color:var(--tinta);font-family:"Palatino Linotype","Book Antiqua",Palatino,Georgia,serif;line-height:1.45}
-  .lienzo{max-width:860px;margin:0 auto;position:relative}
-  /* Logo de El Paraíso, marca de agua difuminada detrás de la carta */
-  main{position:relative}
-  main::before{
-    content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
-    background:url('/logo-paraiso-oficial.png') center 60px / 70% auto no-repeat;
-    opacity:.15;   /* con sus colores, resaltando detrás de las letras */
+  .lienzo{max-width:860px;margin:0 auto;position:relative;z-index:1}
+  /* Logo de El Paraíso como marca de agua difuminada: FIJA, aparece en TODAS las hojas */
+  .marca-agua{
+    position:fixed;inset:0;z-index:0;pointer-events:none;
+    background:url('/logo-paraiso-oficial.png') center center / 58% auto no-repeat;
+    opacity:.12;filter:blur(1px);
   }
+  main{position:relative;z-index:1}
   main .cols{position:relative;z-index:1}
 
   .barra-print{text-align:center;padding:12px;background:var(--verde-hoja);color:#fff;font-family:Georgia,serif;font-size:14px}
@@ -93,7 +93,8 @@
     body{background:#fff}
     .lienzo{max-width:none}
     .no-print{display:none!important}
-    .portada,.pie,.premium,.kids,.con-foto .foto{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .portada,.pie,.premium,.kids,.con-foto .foto,.marca-agua{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .marca-agua{opacity:.13}   /* se repite en cada hoja al imprimir (elemento fijo) */
     main{padding:16px 6px 6px}
     .cols{column-gap:22px}
     .seccion{margin-bottom:16px}
@@ -105,6 +106,7 @@
 <body>
 <div class="barra-print no-print" id="barra-gestion" style="display:none">📄 Modo gestión (solo tú lo ves) · <button onclick="window.print()">🖨 Imprimir / PDF</button> <button onclick="location.href='editar-carta.html'" style="background:#1d5a41;color:#fff">✏️ Editar la carta</button> <button onclick="location.href='cartel-carta-qr.html'" style="background:#1d5a41;color:#fff">🖼 Cartel del QR</button></div>
 
+<div class="marca-agua"></div>
 <div class="lienzo" id="lienzo">
   <div style="text-align:center;padding:60px;color:#8b8b7a">Cargando la carta…</div>
 </div>
