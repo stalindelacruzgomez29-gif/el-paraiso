@@ -66,6 +66,13 @@
     <div class="fila2"><div><label>Desde (año)</label><input id="c-desde"></div><div><label>Teléfono</label><input id="c-tel"></div></div>
     <label>Lema (frase de la portada)</label><input id="c-lema">
     <div class="fila2"><div><label>Horario</label><input id="c-horario"></div><div><label>Web</label><input id="c-web"></div></div>
+    <div style="border-top:1px solid var(--linea);margin:12px 0 4px;padding-top:10px">
+      <label style="color:var(--verde)">📱 Redes sociales (pega el enlace completo de cada una)</label>
+      <input id="r-instagram" placeholder="Instagram — ej. https://instagram.com/elparaiso" style="margin-bottom:7px">
+      <input id="r-tiktok" placeholder="TikTok — ej. https://tiktok.com/@elparaiso" style="margin-bottom:7px">
+      <input id="r-facebook" placeholder="Facebook — ej. https://facebook.com/elparaiso" style="margin-bottom:7px">
+      <input id="r-whatsapp" placeholder="WhatsApp — ej. https://wa.me/34689980202">
+    </div>
   </div>
   <div id="secciones"></div>
   <button class="btn add" onclick="addSeccion()" style="width:100%;padding:12px">➕ Añadir una sección nueva</button>
@@ -105,10 +112,13 @@ function cargarCabecera(){
   $('#c-nombre').value=CARTA.nombre||''; $('#c-desde').value=CARTA.desde||'';
   $('#c-lema').value=CARTA.lema||''; CARTA.contacto=CARTA.contacto||{};
   $('#c-tel').value=CARTA.contacto.tel||''; $('#c-horario').value=CARTA.contacto.horario||''; $('#c-web').value=CARTA.contacto.web||'';
+  const r=CARTA.contacto.redes||{};
+  $('#r-instagram').value=r.instagram||''; $('#r-tiktok').value=r.tiktok||''; $('#r-facebook').value=r.facebook||''; $('#r-whatsapp').value=r.whatsapp||'';
 }
 function leerCabecera(){
   CARTA.nombre=$('#c-nombre').value; CARTA.desde=$('#c-desde').value; CARTA.lema=$('#c-lema').value;
-  CARTA.contacto={tel:$('#c-tel').value,horario:$('#c-horario').value,web:$('#c-web').value};
+  CARTA.contacto={tel:$('#c-tel').value,horario:$('#c-horario').value,web:$('#c-web').value,
+    redes:{instagram:$('#r-instagram').value.trim(),tiktok:$('#r-tiktok').value.trim(),facebook:$('#r-facebook').value.trim(),whatsapp:$('#r-whatsapp').value.trim()}};
 }
 function pintar(){
   $('#secciones').innerHTML = CARTA.secciones.map((s,si)=>`

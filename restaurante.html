@@ -176,6 +176,7 @@
 
 <footer>
   <div style="font-size:22px;letter-spacing:.12em">EL <span style="color:var(--oro-claro)">PARAÍSO</span></div>
+  <div class="redes" id="redes-sociales"></div>
   <div class="redes">
     <a href="reservas.html">📅 Reservar</a>
     <a href="carta-paraiso.html">📖 Carta</a>
@@ -184,5 +185,22 @@
   <div class="fina">Bar Restaurante · Desde 1968 · Palma de Mallorca</div>
 </footer>
 
+<script>
+// Trae las redes sociales de la carta (mismas que pone Stalin en el editor)
+(async()=>{
+  try{
+    const ID="4495a9d146be62a0d3e18df04b424802dd4f6e8a686403b8e5439844826205f9";
+    const j=await (await fetch('/api/datos?cartaweb='+ID+'&t='+Date.now())).json();
+    const r=j.existe&&j.carta&&j.carta.contacto&&j.carta.contacto.redes;
+    if(!r) return;
+    const it=[];
+    if(r.instagram) it.push('<a href="'+r.instagram+'" target="_blank" rel="noopener">📷 Instagram</a>');
+    if(r.tiktok) it.push('<a href="'+r.tiktok+'" target="_blank" rel="noopener">🎵 TikTok</a>');
+    if(r.facebook) it.push('<a href="'+r.facebook+'" target="_blank" rel="noopener">👍 Facebook</a>');
+    if(r.whatsapp) it.push('<a href="'+r.whatsapp+'" target="_blank" rel="noopener">💬 WhatsApp</a>');
+    if(it.length) document.getElementById('redes-sociales').innerHTML=it.join('');
+  }catch(e){}
+})();
+</script>
 </body>
 </html>

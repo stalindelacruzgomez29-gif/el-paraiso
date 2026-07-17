@@ -1,0 +1,15 @@
+{
+  "name": "Carta · El Paraíso Bar Restaurante",
+  "short_name": "Carta Paraíso",
+  "description": "La carta de El Paraíso Bar Restaurante, siempre actualizada.",
+  "start_url": "/carta-paraiso.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#123f2e",
+  "theme_color": "#123f2e",
+  "icons": [
+    { "src": "/carta-icono-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/carta-icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
