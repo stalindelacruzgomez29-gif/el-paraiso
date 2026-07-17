@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cartel QR · Carta El Paraíso</title>
+<style>
+  :root{
+    --verde:#123f2e; --verde-hoja:#1d5a41; --oro:#b4884a; --oro-claro:#cba15f;
+    --papel:#f6efe0; --tinta:#2a2a24;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#e7e0cf;font-family:"Palatino Linotype","Book Antiqua",Palatino,Georgia,serif;padding:24px;display:flex;flex-direction:column;align-items:center;gap:20px}
+
+  .barra{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+  .barra button{background:var(--verde);color:#fff;border:0;padding:11px 20px;border-radius:9px;font-size:15px;font-weight:700;cursor:pointer;font-family:-apple-system,sans-serif}
+  .barra button.oro{background:var(--oro);color:#2a1c08}
+
+  /* CARTEL A5 vertical (encaja 2 por hoja A4, o solo, o en la tablet) */
+  .cartel{
+    width:420px;max-width:100%;aspect-ratio:1/1.414;
+    background:radial-gradient(130% 90% at 50% -10%, #1a5540 0%, var(--verde) 58%, #0c2c20 100%);
+    color:var(--papel);border-radius:20px;
+    padding:38px 30px;text-align:center;
+    display:flex;flex-direction:column;align-items:center;justify-content:space-between;
+    box-shadow:0 14px 40px rgba(18,63,46,.35);
+    border:2px solid var(--oro);
+  }
+  .emblema{width:78px;height:78px}
+  .marca{font-family:Georgia,serif;font-size:11px;letter-spacing:.4em;text-transform:uppercase;color:var(--oro-claro);margin-top:8px}
+  .nombre{font-size:40px;line-height:.95;font-weight:400;letter-spacing:.02em;margin-top:6px}
+  .nombre .the{display:block;font-size:.32em;letter-spacing:.5em;color:var(--oro-claro);text-transform:uppercase;margin-bottom:.3em}
+  .desde{display:inline-block;margin-top:10px;padding:4px 16px;border:1px solid var(--oro);border-radius:30px;font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--oro-claro);font-family:Georgia,serif}
+
+  .qr-caja{background:#fff;border-radius:18px;padding:16px;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+  .qr-caja img{display:block;width:210px;height:210px}
+  .qr-caja .peque{width:140px;height:140px}
+
+  .llamada{font-size:23px;font-style:italic;color:#fff;line-height:1.25}
+  .instru{font-family:-apple-system,sans-serif;font-size:13.5px;color:#e9dfc6;line-height:1.5;letter-spacing:.02em}
+  .instru b{color:var(--oro-claro);font-weight:600}
+  .pie{font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--oro-claro)}
+
+  @media print{
+    @page{size:A4;margin:14mm}
+    body{background:#fff;padding:0;gap:0}
+    .no-print{display:none!important}
+    .cartel{box-shadow:none;width:150mm;aspect-ratio:auto;min-height:250mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  }
+</style>
+</head>
+<body>
+
+<div class="barra no-print">
+  <button class="oro" onclick="window.print()">🖨 Imprimir el cartel</button>
+  <button onclick="cambiarTam()">🔍 Cambiar tamaño del QR</button>
+  <span style="font-family:-apple-system,sans-serif;font-size:13px;color:#5a5647;align-self:center">↓ Así se verá el cartel en las mesas y en la tablet</span>
+</div>
+
+<div class="cartel">
+  <div>
+    <svg class="emblema" viewBox="0 0 120 120" aria-hidden="true">
+      <circle cx="60" cy="60" r="57" fill="none" stroke="#cba15f" stroke-width="1.5"/>
+      <circle cx="60" cy="60" r="50" fill="none" stroke="#cba15f" stroke-width=".6" opacity=".6"/>
+      <g fill="#cba15f"><path d="M60 92c-2-14-3-26-2-40l4 0c1 14 0 26-2 40z"/>
+      <path d="M60 50c-10-9-22-11-32-6 9-1 19 2 27 9-11-4-22-2-30 5 10-4 20-3 29 3-9 1-17 6-21 14 8-8 18-11 27-9-4-6-3-13 0-20z"/>
+      <path d="M60 50c10-9 22-11 32-6-9-1-19 2-27 9 11-4 22-2 30 5-10-4-20-3-29 3 9 1 17 6 21 14-8-8-18-11-27-9 4-6 3-13 0-20z" opacity=".8"/>
+      <circle cx="60" cy="47" r="4"/></g>
+    </svg>
+    <div class="marca">Bar · Restaurante</div>
+    <h1 class="nombre"><span class="the">El</span>PARAÍSO</h1>
+    <div class="desde">Desde 1968</div>
+  </div>
+
+  <div class="llamada">Escanea y mira<br>nuestra carta 📲</div>
+
+  <div class="qr-caja"><img id="qr" alt="Código QR de la carta"
+    src="https://api.qrserver.com/v1/create-qr-code/?size=440x440&margin=8&data=https%3A%2F%2Fel-paraiso-eight.vercel.app%2Fcarta-paraiso.html"></div>
+
+  <div>
+    <p class="instru">Abre la <b>cámara</b> del móvil y apunta al código.<br>Scan with your phone camera · <b>Menu in English too</b></p>
+    <p class="pie" style="margin-top:12px">Sin papel · Siempre actualizada</p>
+  </div>
+</div>
+
+<script>
+let grande=true;
+function cambiarTam(){grande=!grande;document.getElementById('qr').classList.toggle('peque',!grande);}
+</script>
+</body>
+</html>
