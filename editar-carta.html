@@ -55,7 +55,8 @@
 <div class="top" id="top" style="display:none">
   <div><h1>✏️ Editar la carta</h1><div class="estado" id="estado">Listo</div></div>
   <div style="display:flex;gap:8px">
-    <a class="btn btn-b" href="carta-paraiso.html">👁 Ver carta</a>
+    <a class="btn btn-b" href="carta-paraiso.html?gestion" target="_blank">👁 Ver carta</a>
+    <button class="btn btn-b" onclick="olvidarCodigo()" title="Quitar el acceso guardado en este ordenador">🔒</button>
     <button class="btn btn-g" onclick="guardar()">💾 Guardar cambios</button>
   </div>
 </div>
@@ -93,11 +94,12 @@ async function sha256(txt){
   const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
   return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
 }
-async function entrar(){
-  codigo = $('#cod').value.trim();
+async function entrar(auto){
+  codigo = auto || $('#cod').value.trim();
   if(!codigo) return;
   const id = await sha256('cartaweb:'+codigo);
-  if(id !== ID_CARTA){ $('#lock-err').style.display='block'; return; }
+  if(id !== ID_CARTA){ if(!auto){$('#lock-err').style.display='block';} localStorage.removeItem('carta_codigo_editor'); return; }
+  localStorage.setItem('carta_codigo_editor', codigo);   // recordar en ESTE ordenador
   // código correcto: bajar de la nube o usar el de por defecto
   CARTA = JSON.parse(JSON.stringify(window.CARTA_DEFECTO));
   try{
@@ -193,6 +195,10 @@ async function guardar(){
   }catch(e){ $('#estado').textContent='Error al guardar'; aviso('⚠️ '+e.message); }
 }
 $('#cod').addEventListener('keydown',e=>{if(e.key==='Enter')entrar();});
+// Si este ordenador ya recordó el código, entrar directo (sin pedirlo otra vez)
+(async()=>{ const g=localStorage.getItem('carta_codigo_editor'); if(g) await entrar(g); })();
+// Botón para "cerrar sesión" del editor en este ordenador
+window.olvidarCodigo=()=>{ localStorage.removeItem('carta_codigo_editor'); location.reload(); };
 </script>
 </body>
 </html>
