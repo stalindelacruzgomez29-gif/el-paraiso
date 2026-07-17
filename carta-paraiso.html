@@ -96,8 +96,24 @@
   .redes a{display:inline-flex;align-items:center;gap:6px;background:rgba(203,161,95,.14);border:1px solid var(--oro);color:var(--oro-claro);
     padding:8px 15px;border-radius:30px;font-family:-apple-system,sans-serif;font-size:13.5px;font-weight:600;text-decoration:none}
   .redes a:hover{background:rgba(203,161,95,.26)}
+  /* PESTAÑAS de la app: 🌴 Carta · 🎉 Promos (solo pantalla) */
+  body{padding-bottom:78px}
+  .tabs{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:55;display:flex;gap:6px;
+    background:var(--verde);border:1px solid var(--oro);border-radius:999px;padding:6px;box-shadow:0 10px 26px rgba(0,0,0,.30)}
+  .tab{border:0;background:transparent;color:#e9dfc6;font-family:Georgia,serif;font-size:14.5px;padding:9px 20px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+  .tab.act{background:var(--oro);color:#2a1c08;font-weight:700}
+  .tab .num{background:#9b2c2c;color:#fff;font-size:11px;border-radius:999px;padding:1px 7px;font-family:-apple-system,sans-serif;font-weight:700}
+  /* vista de la pestaña Promos */
+  .vista-promos{display:none;max-width:860px;margin:0 auto;padding:30px 22px 26px;position:relative;z-index:1}
+  .vista-promos.act{display:block}
+  .vista-promos .promo-card{flex:none;width:100%;max-width:520px;margin:0 auto 14px}
+  .vp-estado{display:inline-block;margin-top:9px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-family:Georgia,serif;
+    border:1px solid var(--oro);border-radius:999px;padding:3px 11px;color:var(--oro-claro)}
+  .vp-estado.ahora{background:var(--oro);color:#2a1c08;font-weight:700}
+  .vp-vacio{text-align:center;color:var(--tinta-suave);font-family:Georgia,serif;font-style:italic;padding:26px 10px;line-height:1.6}
+
   /* aviso instalar app */
-  .instalar{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:60;background:var(--verde);color:#fff;
+  .instalar{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);z-index:60;background:var(--verde);color:#fff;
     display:none;align-items:center;gap:12px;padding:12px 16px;border-radius:14px;box-shadow:0 8px 26px rgba(0,0,0,.3);font-family:-apple-system,sans-serif;max-width:92vw}
   .instalar img{width:38px;height:38px;border-radius:9px}
   .instalar .txt{font-size:13.5px;line-height:1.3}
@@ -107,7 +123,9 @@
 
   @media print{
     @page{size:A4;margin:9mm}
-    body{background:#fff}
+    body{background:#fff;padding-bottom:0}
+    .tabs,.vista-promos{display:none!important}
+    .lienzo{display:block!important}
     .lienzo{max-width:none}
     .no-print{display:none!important}
     .portada,.pie,.premium,.kids,.con-foto .foto,.marca-agua{-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -127,6 +145,13 @@
 <div class="lienzo" id="lienzo">
   <div style="text-align:center;padding:60px;color:#8b8b7a">Cargando la carta…</div>
 </div>
+
+<div class="vista-promos" id="vista-promos"></div>
+
+<nav class="tabs no-print" id="tabs">
+  <button class="tab act" id="tab-carta" onclick="verPestana('carta')">🌴 Carta</button>
+  <button class="tab" id="tab-promos" onclick="verPestana('promos')">🎉 Promos <span class="num" id="tab-num" style="display:none">0</span></button>
+</nav>
 
 <div class="instalar no-print" id="instalar">
   <img src="/carta-icono-192.png" alt="">
@@ -170,7 +195,9 @@ function seccionHTML(s){
     ${(s.platos||[]).map(platoHTML).join('')}
   </section>`;
 }
+let CARTA_ACTUAL = window.CARTA_DEFECTO;
 function pintar(c){
+  CARTA_ACTUAL = c;
   document.title = 'Carta · '+(c.nombre||'El Paraíso');
   document.getElementById('lienzo').innerHTML = `
     <header class="portada">${emblemaSVG()}
@@ -190,7 +217,49 @@ function pintar(c){
       <p class="alerg">Si tienes alguna alergia o intolerancia alimentaria, pregunta a nuestro personal. · Please inform our staff of any food allergy or intolerance. IVA incluido.</p>
       <div class="grx">El Paraíso · Desde ${esc(c.desde||'1968')}</div>
     </footer>`;
+  pintarVistaPromos();
 }
+
+// ── PESTAÑA "🎉 PROMOS": todas las promos del día, dentro de la misma app ──
+function pintarVistaPromos(){
+  const cont=document.getElementById('vista-promos'); if(!cont) return;
+  const todas=(CARTA_ACTUAL.promos||[]).filter(p=>p&&p.titulo&&p.activa!==false);
+  const ahora=todas.filter(promoEnHora);
+  // numerito rojo de la pestaña: promos activas EN ESTE MOMENTO
+  const num=document.getElementById('tab-num');
+  if(num){ num.textContent=ahora.length; num.style.display=ahora.length?'inline-block':'none'; }
+  // primero las de ahora mismo, luego las que empiezan más tarde
+  const orden=[...todas].sort((a,b)=>(promoEnHora(b)?1:0)-(promoEnHora(a)?1:0));
+  cont.innerHTML = `
+    <div class="cab" style="margin-bottom:18px"><h2>Promociones<span class="en">Offers · El Paraíso</span></h2></div>
+    ${orden.length ? orden.map(p=>`
+      <div class="promo-card">
+        ${p.icono?'<div style="font-size:30px;line-height:1;margin-bottom:8px">'+esc(p.icono)+'</div>':''}
+        <div class="promo-nom" style="font-size:19px">${esc(p.titulo)}</div>
+        ${p.en?'<div class="promo-en">'+esc(p.en)+'</div>':''}
+        ${p.desc?'<div class="promo-desc">'+esc(p.desc)+'</div>':''}
+        ${p.precio?'<div class="promo-precio">'+esc(conEuro(p.precio))+'</div>':''}
+        ${p.desde&&p.hasta
+          ? (promoEnHora(p)
+              ? '<span class="vp-estado ahora">● Ahora mismo · hasta las '+esc(p.hasta)+'</span>'
+              : '<span class="vp-estado">🕗 Hoy de '+esc(p.desde)+' a '+esc(p.hasta)+'</span>')
+          : ''}
+      </div>`).join('')
+    : `<div class="vp-vacio">Ahora mismo no hay promociones…<br>¡pero pronto llegará la próxima! 🌴</div>`}
+    <div style="text-align:center;margin-top:8px">
+      <button class="avisos-btn">🔔 Avísame de las promociones</button>
+    </div>`;
+  estadoAvisos();
+}
+window.verPestana=cual=>{
+  const esPromos = cual==='promos';
+  document.getElementById('lienzo').style.display = esPromos?'none':'';
+  document.getElementById('vista-promos').classList.toggle('act',esPromos);
+  document.getElementById('tab-carta').classList.toggle('act',!esPromos);
+  document.getElementById('tab-promos').classList.toggle('act',esPromos);
+  window.scrollTo({top:0});
+  if(esPromos) pintarVistaPromos();
+};
 // Promo con horario diario (ej. 17:00–19:00): solo se enseña dentro de su hora.
 // La carta se refresca sola cada minuto, así que se enciende y se apaga en tiempo real.
 function promoEnHora(p){
@@ -252,14 +321,14 @@ function b64aBytes(s){
   for(let i=0;i<raw.length;i++)a[i]=raw.charCodeAt(i);
   return a;
 }
+const botonesAvisos=()=>[...document.querySelectorAll('.avisos-btn')];
 function estadoAvisos(){
-  const b=document.getElementById('btn-avisos'); if(!b) return;
   if(('Notification' in window)&&Notification.permission==='granted'&&localStorage.getItem('carta_avisos')==='1'){
-    b.textContent='🔔 Avisos activados ✓'; b.disabled=true;
+    botonesAvisos().forEach(b=>{ b.textContent='🔔 Avisos activados ✓'; b.disabled=true; });
   }
 }
 async function activarAvisos(){
-  const b=document.getElementById('btn-avisos');
+  const b={ set disabled(v){ botonesAvisos().forEach(x=>x.disabled=v); } };
   if(!('Notification' in window)||!('serviceWorker' in navigator)||!('PushManager' in window)){
     if(esiOS) alert('Para recibir avisos en el iPhone:\n1. Pulsa Compartir (el cuadrito con la flecha ↑).\n2. Elige "Añadir a pantalla de inicio".\n3. Abre la Carta desde ese icono y pulsa otra vez "Avísame".');
     else alert('Este navegador no admite avisos.');
@@ -279,8 +348,10 @@ async function activarAvisos(){
     estadoAvisos();
   }catch(e){ if(b) b.disabled=false; alert('No pude activar los avisos. Inténtalo otra vez.'); }
 }
-// La carta se repinta sola cada minuto: el botón se engancha por delegación
-document.addEventListener('click',e=>{ const t=e.target.closest&&e.target.closest('#btn-avisos'); if(t&&!t.disabled) activarAvisos(); });
+// La carta se repinta sola cada minuto: los botones se enganchan por delegación
+document.addEventListener('click',e=>{ const t=e.target.closest&&e.target.closest('.avisos-btn'); if(t&&!t.disabled) activarAvisos(); });
+// Enlace directo a la pestaña de promos: carta-paraiso.html#promos
+if(location.hash==='#promos') verPestana('promos');
 
 // TIEMPO REAL: al volver a la carta (o cada 60 s si está abierta), recarga los datos
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') cargarCarta(); });
