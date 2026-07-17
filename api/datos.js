@@ -24,6 +24,20 @@ function idCartaDe(codigo) {
 function idCartaWebDe(codigo) {
   return crypto.createHash('sha256').update('cartaweb:' + codigo).digest('hex');
 }
+// La carta-web se guarda en GitHub (no en Blob) para que los cambios se vean AL INSTANTE
+// (el Blob de Vercel tiene caché CDN y retrasaba las lecturas).
+const REPO_CARTA = 'stalindelacruzgomez29-gif/el-paraiso-equipo-datos';
+async function ghCarta(metodo, ruta, cuerpo) {
+  return fetch('https://api.github.com' + ruta, {
+    method: metodo,
+    headers: {
+      'Authorization': 'Bearer ' + process.env.EQUIPO_GITHUB_TOKEN,
+      'Accept': 'application/vnd.github+json', 'Cache-Control': 'no-cache',
+      'User-Agent': 'el-paraiso-carta', ...(cuerpo ? { 'Content-Type': 'application/json' } : {})
+    },
+    body: cuerpo ? JSON.stringify(cuerpo) : undefined
+  });
+}
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -56,13 +70,12 @@ module.exports = async (req, res) => {
     const id = String(req.query.cartaweb);
     if (!/^[a-f0-9]{64}$/.test(id)) return res.status(400).json({ error: 'Enlace no válido.' });
     try {
-      const ruta = `cartaweb/${id}.json`;
-      const { blobs } = await list({ prefix: ruta });
-      const blob = blobs.find(b => b.pathname === ruta);
-      if (!blob) return res.status(200).json({ existe: false });
-      const r = await fetch(blob.url + '?t=' + Date.now(), { cache: 'no-store' });
-      const carta = await r.json();
-      res.setHeader('Cache-Control', 'no-store');   // el cliente siempre pide lo último
+      const r = await ghCarta('GET', `/repos/${REPO_CARTA}/contents/cartaweb/${id}.json?ref=main&t=${Date.now()}`);
+      if (r.status === 404) return res.status(200).json({ existe: false });
+      if (!r.ok) return res.status(200).json({ existe: false });
+      const j = await r.json();
+      const carta = JSON.parse(Buffer.from(j.content, 'base64').toString('utf8'));
+      res.setHeader('Cache-Control', 'no-store');
       return res.status(200).json({ existe: true, carta });
     } catch (e) { return res.status(500).json({ error: 'No pude leer la carta.' }); }
   }
@@ -116,10 +129,14 @@ module.exports = async (req, res) => {
       const cadena = JSON.stringify(c);
       if (cadena.length > 8 * 1024 * 1024) return res.status(400).json({ error: 'La carta con fotos es demasiado grande. Usa fotos más ligeras.' });
       const id = idCartaWebDe(String(codigo));
-      await put(`cartaweb/${id}.json`, cadena, {
-        access: 'public', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json',
-        cacheControlMaxAge: 5   // caché muy corta: los cambios se ven casi al instante
+      const rutaGh = `/repos/${REPO_CARTA}/contents/cartaweb/${id}.json`;
+      const actual = await ghCarta('GET', rutaGh + '?ref=main&t=' + Date.now());
+      const sha = actual.ok ? (await actual.json()).sha : undefined;
+      const guardado = await ghCarta('PUT', rutaGh, {
+        message: 'carta actualizada', branch: 'main',
+        content: Buffer.from(cadena).toString('base64'), ...(sha ? { sha } : {})
       });
+      if (!guardado.ok) return res.status(500).json({ error: 'No pude guardar la carta (código ' + guardado.status + ').' });
       const platos = c.secciones.reduce((n, s) => n + ((s.platos && s.platos.length) || 0), 0);
       return res.status(200).json({ publicada: true, id, platos });
     }
