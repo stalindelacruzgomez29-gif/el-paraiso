@@ -270,6 +270,31 @@ async function avisarWhatsApp(msg) {
   } catch (e) { /* el dato queda guardado igual */ }
 }
 
+// Aviso push al móvil del ADMINISTRADOR (suscrito desde la app Promos de la carta),
+// sin romper nada si falla: la reserva queda guardada igual.
+const CARTA_PUB_ID = '4244bca40f5248ee217447ae96196df2b63dd8d0c83bad2e01995251a87329ba';
+async function avisarAdminPush(titulo, cuerpo) {
+  if (!process.env.VAPID_PRIVATE_KEY || !process.env.VAPID_PUBLIC_KEY || !process.env.BLOB_READ_WRITE_TOKEN) return;
+  try {
+    const webpush = require('web-push');
+    const { list, del } = require('@vercel/blob');
+    webpush.setVapidDetails(
+      process.env.VAPID_SUBJECT || 'mailto:info@elparaiso.com',
+      process.env.VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY
+    );
+    const payload = JSON.stringify({ titulo, cuerpo, url: '/promos-paraiso.html' });
+    const { blobs } = await list({ prefix: `pushadmin/${CARTA_PUB_ID}/` });
+    await Promise.all(blobs.map(async bl => {
+      try {
+        const s = await (await fetch(bl.url + '?t=' + Date.now())).json();
+        await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload);
+      } catch (err) {
+        if (err && (err.statusCode === 404 || err.statusCode === 410)) await del(bl.url).catch(() => {});
+      }
+    }));
+  } catch (e) { /* el aviso es un extra: nunca frena la reserva */ }
+}
+
 async function gh(metodo, ruta, cuerpo) {
   const r = await fetch('https://api.github.com' + ruta, {
     method: metodo,
@@ -612,6 +637,10 @@ module.exports = async (req, res) => {
       if (datos.reservas.length > 800) datos.reservas = datos.reservas.slice(-600);
       if (!await guardarDatos(archivoLocal, datos, sha)) continue;
       await avisarWhatsApp(`📅 *${LOCALES[localClave].nombre.toUpperCase()} · Reserva ${autoConfirmar ? 'CONFIRMADA sola' : 'nueva'}*\n${nombre} · ${personas} pers.\n${fecha} a las ${hora}\n📞 ${telefono}${nota ? '\n📝 ' + nota : ''}${autoConfirmar ? '' : '\n(confírmala en el portal)'}`);
+      await avisarAdminPush(
+        `📅 Reserva ${autoConfirmar ? 'confirmada' : 'nueva'} · ${LOCALES[localClave].nombre}`,
+        `${nombre} · ${personas} pers. · ${fecha} a las ${hora} · 📞 ${telefono}${autoConfirmar ? '' : ' · Confírmala en el portal'}`
+      );
       return res.status(200).json({ ok: true, mensaje: autoConfirmar ? '¡Reserva CONFIRMADA! Te esperamos. Si hay cualquier cambio, te llamamos.' : '¡Reserva apuntada! Te llamaremos o escribiremos para confirmarla.' });
     }
 

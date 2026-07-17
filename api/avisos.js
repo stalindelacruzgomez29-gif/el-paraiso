@@ -13,6 +13,26 @@ const webpush = require('web-push');
 const sha = t => crypto.createHash('sha256').update(t).digest('hex');
 const ID_OK = /^[a-f0-9]{64}$/;
 
+// El código del editor se verifica comprobando que SU carta existe en GitHub
+// (el id deriva del código: sin el código correcto no hay carta que encontrar)
+const REPO_DATOS = 'stalindelacruzgomez29-gif/el-paraiso-equipo-datos';
+async function ghLeer(ruta) {
+  return fetch('https://api.github.com/repos/' + REPO_DATOS + '/contents/' + ruta + '?ref=main&t=' + Date.now(), {
+    headers: {
+      'Authorization': 'Bearer ' + process.env.EQUIPO_GITHUB_TOKEN,
+      'Accept': 'application/vnd.github+json', 'Cache-Control': 'no-cache',
+      'User-Agent': 'el-paraiso-avisos'
+    }
+  });
+}
+async function verificarCodigo(codigo) {
+  codigo = String(codigo || '');
+  if (codigo.length < 4) return null;
+  const id = sha('cartaweb:' + codigo);
+  const r = await ghLeer('cartaweb/' + id + '.json');
+  return r.ok ? id : null;
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -88,6 +108,40 @@ module.exports = async (req, res) => {
         }
       }));
       return res.status(200).json({ ok: true, enviadas, caducadas, total: blobs.length });
+    }
+
+    // ── El ADMIN apunta su móvil para recibir aviso de cada reserva (requiere el código) ──
+    if (b.accion === 'suscribir-admin') {
+      const id = await verificarCodigo(b.codigo);
+      if (!id) return res.status(403).json({ error: 'Código incorrecto.' });
+      const s = b.sub;
+      if (!s || !s.endpoint || !s.keys || !s.keys.p256dh || !s.keys.auth) {
+        return res.status(400).json({ error: 'Suscripción incompleta.' });
+      }
+      await put(`pushadmin/${id}/${sha(String(s.endpoint))}.json`, JSON.stringify({
+        endpoint: String(s.endpoint), p256dh: String(s.keys.p256dh), auth: String(s.keys.auth),
+        alta: new Date().toISOString()
+      }), { access: 'public', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json' });
+      return res.status(200).json({ guardada: true });
+    }
+
+    // ── Lista de reservas para la app del admin (requiere el código del editor) ──
+    if (b.accion === 'reservas') {
+      const id = await verificarCodigo(b.codigo);
+      if (!id) return res.status(403).json({ error: 'Código incorrecto.' });
+      const r = await ghLeer('datos.json');
+      if (!r.ok) return res.status(200).json({ reservas: [], avisosAdmin: 0 });
+      const j = await r.json();
+      const datos = JSON.parse(Buffer.from(j.content, 'base64').toString('utf8'));
+      const ayer = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      const reservas = (datos.reservas || [])
+        .filter(rv => rv.fecha >= ayer && rv.estado !== 'anulada')
+        .sort((a, c) => (a.fecha + a.hora).localeCompare(c.fecha + c.hora))
+        .slice(0, 60)
+        .map(rv => ({ nombre: rv.nombre, telefono: rv.telefono, personas: rv.personas, fecha: rv.fecha, hora: rv.hora, nota: rv.nota || '', estado: rv.estado }));
+      const { blobs } = await list({ prefix: `pushadmin/${id}/` });
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(200).json({ reservas, avisosAdmin: blobs.length });
     }
 
     return res.status(400).json({ error: 'Acción desconocida.' });

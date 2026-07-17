@@ -1,7 +1,7 @@
 /* Service worker de la carta — "network-first": SIEMPRE intenta traer lo último
    (para que los cambios de Stalin se vean en tiempo real). Solo usa la copia
    guardada si no hay internet, para que la carta funcione aunque falle la red. */
-const CACHE = 'carta-paraiso-v2';
+const CACHE = 'carta-paraiso-v3';
 const BASICOS = ['/carta-paraiso.html', '/carta-datos.js', '/carta-icono-192.png', '/carta-icono-512.png'];
 
 self.addEventListener('install', e => {
@@ -27,7 +27,8 @@ self.addEventListener('notificationclick', e => {
   e.notification.close();
   const url = (e.notification.data && e.notification.data.url) || '/carta-paraiso.html';
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(ws => {
-    for (const w of ws) { if (w.url.includes('carta-paraiso') && 'focus' in w) return w.focus(); }
+    // abrimos (o traemos al frente) la página a la que apunta el aviso
+    for (const w of ws) { if (w.url.includes(url) && 'focus' in w) return w.focus(); }
     return self.clients.openWindow ? self.clients.openWindow(url) : null;
   }));
 });

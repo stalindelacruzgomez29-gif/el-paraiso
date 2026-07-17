@@ -90,6 +90,19 @@
   </div>
 
   <div class="caja">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <h2>📅 Reservas de mesa</h2>
+      <button class="btn btn-b btn-peq" onclick="cargarReservas()" title="Actualizar">↻ Actualizar</button>
+    </div>
+    <p class="mini" style="margin:2px 0 10px">Las que piden los clientes desde la carta (pestaña 📅 Reservar). Se confirman o anulan en el portal del equipo. También llegan por WhatsApp.</p>
+    <div style="margin-bottom:10px">
+      <button class="btn btn-g btn-peq" id="btn-avisos-admin" onclick="activarAvisosAdmin()">🔔 Avisarme en este móvil de cada reserva</button>
+      <span class="mini" id="n-admin"></span>
+    </div>
+    <div id="lista-reservas" class="mini">Cargando reservas…</div>
+  </div>
+
+  <div class="caja">
     <h2>⚡ Poner en promoción con un toque</h2>
     <p class="mini">Toca un producto y se crea la promo ya rellenada: solo ajustas el precio y guardas.</p>
     <div id="catalogo"></div>
@@ -129,8 +142,54 @@ async function entrar(auto){
   }catch(e){}
   CARTA.promos = CARTA.promos||[];
   $('#lock').style.display='none'; $('#top').style.display='flex'; $('#main').style.display='block';
-  pintarPromos(); pintarCatalogo(); pintarDeLaCarta(); cargarNAvisos();
+  pintarPromos(); pintarCatalogo(); pintarDeLaCarta(); cargarNAvisos(); cargarReservas();
 }
+
+// ── RESERVAS DE MESA (las ve el admin aquí mismo) ──
+function fFecha(f){ try{ return new Date(f+'T00:00:00').toLocaleDateString('es-ES',{weekday:'short',day:'numeric',month:'numeric'}); }catch(e){ return f; } }
+async function cargarReservas(){
+  try{
+    const r=await fetch('/api/avisos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'reservas',codigo})});
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||'Error');
+    const na=j.avisosAdmin||0;
+    $('#n-admin').textContent=' · 🔔 '+na+' móvil'+(na===1?'':'es')+' recibe el aviso';
+    if(localStorage.getItem('promos_avisos_admin')==='1'){ const b=$('#btn-avisos-admin'); b.textContent='🔔 Este móvil recibe las reservas ✓'; b.disabled=true; }
+    const el=$('#lista-reservas');
+    if(!(j.reservas||[]).length){ el.textContent='No hay reservas próximas.'; return; }
+    el.innerHTML=j.reservas.map(rv=>`
+      <div style="border:1px solid #eadfc6;border-radius:10px;padding:9px 12px;margin-bottom:7px;background:#fff;font-size:13.5px;color:var(--tinta)">
+        <b>${esc(rv.nombre)}</b> · ${esc(rv.personas)} pers. — <b>${esc(fFecha(rv.fecha))}</b> a las <b>${esc(rv.hora)}</b>
+        <span style="float:right;font-size:11.5px;font-weight:700;border-radius:999px;padding:2px 9px;${rv.estado==='confirmada'?'background:#def7ec;color:#03543f':'background:#fdf0d5;color:#8a5a00'}">${rv.estado==='confirmada'?'✓ confirmada':'⏳ pendiente'}</span>
+        <br>📞 ${esc(rv.telefono)}${rv.nota?' · 📝 '+esc(rv.nota):''}
+      </div>`).join('');
+  }catch(e){ $('#lista-reservas').textContent='No pude cargar las reservas ('+e.message+').'; }
+}
+// El admin apunta ESTE móvil para recibir un aviso con cada reserva nueva
+const CLAVE_AVISOS="BOeVjJvIFCUGI-TRZkebiwMEnXKolDq8PinCh1tlUkFswql89dDUiy4gonmv7Qba3EdymP3AqRUsaxCIdo6lprs";
+function b64aBytes(s){const pad='='.repeat((4-s.length%4)%4);const raw=atob((s+pad).replace(/-/g,'+').replace(/_/g,'/'));const a=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)a[i]=raw.charCodeAt(i);return a;}
+window.activarAvisosAdmin=async()=>{
+  const b=$('#btn-avisos-admin');
+  if(!('Notification' in window)||!('serviceWorker' in navigator)||!('PushManager' in window)){
+    alert('En el iPhone: ancla primero esta app a la pantalla de inicio (📌) y ábrela desde su icono. Entonces podrás activar los avisos.');
+    return;
+  }
+  try{
+    b.disabled=true;
+    const permiso=await Notification.requestPermission();
+    if(permiso!=='granted'){ b.disabled=false; alert('No diste permiso para las notificaciones.'); return; }
+    const reg=await navigator.serviceWorker.ready;
+    const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64aBytes(CLAVE_AVISOS)});
+    const js=sub.toJSON();
+    const r=await fetch('/api/avisos',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({accion:'suscribir-admin',codigo,sub:{endpoint:js.endpoint,keys:js.keys}})});
+    if(!r.ok) throw new Error('servidor');
+    localStorage.setItem('promos_avisos_admin','1');
+    b.textContent='🔔 Este móvil recibe las reservas ✓';
+    aviso('✅ Hecho: cada reserva nueva te sonará en este móvil.');
+    cargarReservas();
+  }catch(e){ b.disabled=false; aviso('⚠️ No pude activar los avisos. Inténtalo otra vez.'); }
+};
 
 // ── LISTA DE PROMOS ──
 function pintarPromos(){
