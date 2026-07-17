@@ -108,6 +108,8 @@ let CARTA=null, codigo="", promoNueva=-1;
 const $ = s => document.querySelector(s);
 const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function aviso(t){const a=$('#aviso');a.textContent=t;a.style.display='block';clearTimeout(a._t);a._t=setTimeout(()=>a.style.display='none',3000);}
+// € automático: escribe "1" y queda "1 €" (si ya lleva €, se respeta)
+function conEuro(v){ v=(v==null?'':String(v)).trim(); if(!v) return ''; return /€/.test(v)?v:v+' €'; }
 
 async function sha256(txt){
   const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
@@ -139,7 +141,7 @@ function pintarPromos(){
         <div class="fila-ico">
           <input title="Icono (emoji)" value="${esc(p.icono||'')}" placeholder="🍺" style="text-align:center;font-size:20px" onchange="CARTA.promos[${i}].icono=this.value.trim()">
           <input placeholder="Título de la promo (ej. 2x1 en mojitos)" value="${esc(p.titulo||'')}" onchange="CARTA.promos[${i}].titulo=this.value">
-          <input placeholder="Precio" value="${esc(p.precio||'')}" onchange="CARTA.promos[${i}].precio=this.value">
+          <input placeholder="Precio (ej. 1)" value="${esc(p.precio||'')}" onchange="this.value=conEuro(this.value);CARTA.promos[${i}].precio=this.value">
         </div>
         <input placeholder="Título en inglés (opcional)" value="${esc(p.en||'')}" onchange="CARTA.promos[${i}].en=this.value">
         <textarea placeholder="Descripción (opcional)" rows="2" onchange="CARTA.promos[${i}].desc=this.value">${esc(p.desc||'')}</textarea>
@@ -242,7 +244,7 @@ window.avisarPromo=async i=>{
     $('#estado').textContent='Enviando avisos…';
     const r=await fetch('/api/avisos',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({accion:'enviar',codigo,titulo:(p.icono||'🌴')+' '+p.titulo,
-        cuerpo:(p.desc||'')+(p.precio?((p.desc?' · ':'')+p.precio):''),url:'/carta-paraiso.html'})});
+        cuerpo:(p.desc||'')+(p.precio?((p.desc?' · ':'')+conEuro(p.precio)):''),url:'/carta-paraiso.html'})});
     const j=await r.json();
     if(!r.ok||!j.ok) throw new Error(j.error||'Error del servidor');
     $('#estado').textContent='Aviso enviado ✓';

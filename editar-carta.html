@@ -184,7 +184,7 @@ function pintarPromos(){
       <div class="campos">
         <div class="fila2">
           <input placeholder="Título de la promo (ej. 2x1 en mojitos)" value="${esc(p.titulo||'')}" onchange="CARTA.promos[${i}].titulo=this.value">
-          <input placeholder="Precio (ej. 8,90 €)" value="${esc(p.precio||'')}" onchange="CARTA.promos[${i}].precio=this.value">
+          <input placeholder="Precio (ej. 1 → 1 €)" value="${esc(p.precio||'')}" onchange="this.value=this.value.trim()&&!/€/.test(this.value)?this.value.trim()+' €':this.value.trim();CARTA.promos[${i}].precio=this.value">
         </div>
         <input placeholder="Título en inglés (opcional)" value="${esc(p.en||'')}" onchange="CARTA.promos[${i}].en=this.value">
         <textarea placeholder="Descripción (opcional)" rows="2" onchange="CARTA.promos[${i}].desc=this.value">${esc(p.desc||'')}</textarea>

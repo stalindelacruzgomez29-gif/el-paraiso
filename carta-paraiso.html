@@ -70,9 +70,10 @@
   .estrella{color:var(--oro);font-size:11px;letter-spacing:.3em;text-transform:uppercase;display:block;text-align:center;margin-bottom:6px}
   .kids{background:var(--papel-2);border-radius:12px;padding:16px 18px}
 
-  /* PROMOCIONES (solo pantalla: no salen al imprimir, el PDF de la carta no cambia) */
+  /* PROMOCIONES: un apartado más de la carta, con la misma cabecera que las secciones
+     (solo pantalla: no sale al imprimir, el PDF de la carta no cambia) */
   .promos-zona{padding:26px 30px 0}
-  .promos-tit{text-align:center;color:var(--oro);font-size:12px;letter-spacing:.35em;text-transform:uppercase;font-family:Georgia,serif;margin-bottom:14px}
+  .promos-zona .cab{margin-bottom:14px}
   .promos-lista{display:flex;gap:14px;overflow-x:auto;padding-bottom:10px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
   .promos-lista::-webkit-scrollbar{height:5px}
   .promos-lista::-webkit-scrollbar-thumb{background:rgba(180,136,74,.45);border-radius:999px}
@@ -200,17 +201,23 @@ function promoEnHora(p){
   const ah=new Date(), m=ah.getHours()*60+ah.getMinutes();
   return a<=b ? (m>=a&&m<=b) : (m>=a||m<=b);   // también vale de noche (22:00–02:00)
 }
+// El precio de una promo lleva SIEMPRE el €: si Stalin escribe "1", se enseña "1 €"
+function conEuro(v){
+  v=(v==null?'':String(v)).trim();
+  if(!v) return '';
+  return /€/.test(v) ? v : v+' €';
+}
 function promosHTML(promos){
   const act=(promos||[]).filter(p=>p&&p.titulo&&p.activa!==false&&promoEnHora(p));
   if(!act.length) return '';
   return `<section class="promos-zona no-print">
-    <div class="promos-tit">✦ Promociones · Offers ✦</div>
+    <div class="cab"><h2>Promociones<span class="en">Offers · Promo del día</span></h2></div>
     <div class="promos-lista">${act.map(p=>`<div class="promo-card${act.length===1?' sola':''}">
       ${p.icono?'<div style="font-size:26px;line-height:1;margin-bottom:7px">'+esc(p.icono)+'</div>':''}
       <div class="promo-nom">${esc(p.titulo)}</div>
       ${p.en?'<div class="promo-en">'+esc(p.en)+'</div>':''}
       ${p.desc?'<div class="promo-desc">'+esc(p.desc)+'</div>':''}
-      ${p.precio?'<div class="promo-precio">'+esc(p.precio)+'</div>':''}
+      ${p.precio?'<div class="promo-precio">'+esc(conEuro(p.precio))+'</div>':''}
       ${p.desde&&p.hasta?'<div style="margin-top:8px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#cdbf9f;font-family:Georgia,serif">🕗 Hoy '+esc(p.desde)+' – '+esc(p.hasta)+'</div>':''}
     </div>`).join('')}</div>
   </section>`;
