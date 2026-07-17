@@ -82,6 +82,17 @@
       <input id="r-whatsapp" placeholder="WhatsApp — ej. https://wa.me/34689980202">
     </div>
   </div>
+
+  <div class="cabecera-form" style="border-color:var(--oro);background:#fbf6ea">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <label style="margin:0;color:var(--verde);font-size:14px">🎉 Promociones (salen arriba del todo en la carta)</label>
+      <span class="mini" id="n-avisos"></span>
+    </div>
+    <p class="mini" style="margin:4px 0 10px">Crea la promo, pulsa <b>💾 Guardar cambios</b> y, si quieres, <b>📣 Avisar</b>: les llega una notificación al móvil a todos los clientes que activaron los avisos en la carta.</p>
+    <div id="promos"></div>
+    <button class="btn add btn-peq" onclick="addPromo()">➕ Añadir promoción</button>
+  </div>
+
   <div id="secciones"></div>
   <button class="btn add" onclick="addSeccion()" style="width:100%;padding:12px">➕ Añadir una sección nueva</button>
 </main>
@@ -115,7 +126,8 @@ async function entrar(auto){
     if(j.existe && j.carta && Array.isArray(j.carta.secciones)) CARTA = j.carta;
   }catch(e){}
   $('#lock').style.display='none'; $('#top').style.display='flex'; $('#main').style.display='block';
-  cargarCabecera(); pintar();
+  CARTA.promos=CARTA.promos||[];
+  cargarCabecera(); pintar(); pintarPromos(); cargarNAvisos();
 }
 function cargarCabecera(){
   $('#c-nombre').value=CARTA.nombre||''; $('#c-desde').value=CARTA.desde||'';
@@ -164,6 +176,61 @@ function platoForm(si,pi,p){
     </div>
   </div>`;
 }
+// ── PROMOCIONES ──
+function pintarPromos(){
+  CARTA.promos=CARTA.promos||[];
+  $('#promos').innerHTML = CARTA.promos.map((p,i)=>`
+    <div class="plato" style="grid-template-columns:1fr;background:#fff">
+      <div class="campos">
+        <div class="fila2">
+          <input placeholder="Título de la promo (ej. 2x1 en mojitos)" value="${esc(p.titulo||'')}" onchange="CARTA.promos[${i}].titulo=this.value">
+          <input placeholder="Precio (ej. 8,90 €)" value="${esc(p.precio||'')}" onchange="CARTA.promos[${i}].precio=this.value">
+        </div>
+        <input placeholder="Título en inglés (opcional)" value="${esc(p.en||'')}" onchange="CARTA.promos[${i}].en=this.value">
+        <textarea placeholder="Descripción (opcional)" rows="2" onchange="CARTA.promos[${i}].desc=this.value">${esc(p.desc||'')}</textarea>
+        <div class="acciones-plato">
+          <label style="display:inline-flex;align-items:center;gap:6px;margin:0;text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--tinta)">
+            <input type="checkbox" style="width:auto" ${p.activa!==false?'checked':''} onchange="CARTA.promos[${i}].activa=this.checked"> Visible en la carta
+          </label>
+          <button class="btn btn-b btn-peq" onclick="moverPromo(${i},-1)" title="Subir">⬆️</button>
+          <button class="btn btn-b btn-peq" onclick="moverPromo(${i},1)" title="Bajar">⬇️</button>
+          <button class="btn btn-g btn-peq" onclick="avisarPromo(${i})">📣 Avisar a los móviles</button>
+          <button class="btn quitar btn-peq" onclick="borrarPromo(${i})">🗑 Quitar</button>
+        </div>
+      </div>
+    </div>`).join('') || '<p class="mini" style="margin-bottom:8px">Todavía no hay promociones. Crea la primera con el botón de abajo.</p>';
+}
+window.addPromo=()=>{CARTA.promos=CARTA.promos||[];CARTA.promos.push({titulo:'',en:'',desc:'',precio:'',activa:true});pintarPromos();};
+window.borrarPromo=i=>{if(confirm('¿Quitar la promoción "'+(CARTA.promos[i].titulo||'sin título')+'"?')){CARTA.promos.splice(i,1);pintarPromos();}};
+window.moverPromo=(i,d)=>{const j=i+d;if(j<0||j>=CARTA.promos.length)return;const t=CARTA.promos[i];CARTA.promos[i]=CARTA.promos[j];CARTA.promos[j]=t;pintarPromos();};
+window.avisarPromo=async i=>{
+  const p=CARTA.promos[i];
+  if(!p.titulo){aviso('Ponle un título a la promo antes de avisar');return;}
+  if(!confirm('Se guardará la carta y se enviará este aviso al móvil de todos los clientes con avisos activados:\n\n🌴 '+p.titulo+'\n'+(p.desc||'')+(p.precio?' · '+p.precio:'')+'\n\n¿Enviar ahora?'))return;
+  p.activa=true;
+  const ok=await guardar();
+  if(!ok) return;
+  try{
+    $('#estado').textContent='Enviando avisos…';
+    const r=await fetch('/api/avisos',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({accion:'enviar',codigo,titulo:'🌴 '+p.titulo,
+        cuerpo:(p.desc||'')+(p.precio?((p.desc?' · ':'')+p.precio):''),url:'/carta-paraiso.html'})});
+    const j=await r.json();
+    if(!r.ok||!j.ok) throw new Error(j.error||'Error del servidor');
+    $('#estado').textContent='Aviso enviado ✓';
+    aviso(j.enviadas?('📣 Aviso enviado a '+j.enviadas+' móvil'+(j.enviadas===1?'':'es')):'Guardado, pero todavía nadie tiene los avisos activados');
+    cargarNAvisos();
+  }catch(e){ $('#estado').textContent='Error al avisar'; aviso('⚠️ No pude enviar el aviso: '+e.message); }
+};
+async function cargarNAvisos(){
+  try{
+    const r=await fetch('/api/avisos?cuantos='+ID_CARTA);
+    const j=await r.json();
+    const n=j.cuantos||0;
+    $('#n-avisos').textContent='🔔 '+n+' móvil'+(n===1?'':'es')+' con avisos activados';
+  }catch(e){}
+}
+
 window.addSeccion=()=>{CARTA.secciones.push({titulo:'Nueva sección',en:'',platos:[{nom:'Nuevo plato',en:'',desc:'',precio:'0,00 €'}]});pintar();};
 window.borrarSeccion=si=>{if(confirm('¿Borrar toda la sección "'+CARTA.secciones[si].titulo+'"?')){CARTA.secciones.splice(si,1);pintar();}};
 window.addPlato=si=>{CARTA.secciones[si].platos.push({nom:'Nuevo plato',en:'',desc:'',precio:'0,00 €'});pintar();};
@@ -199,7 +266,8 @@ async function guardar(){
     if(!r.ok||!j.publicada) throw new Error(j.error||'Error');
     $('#estado').textContent='Guardado ✓ '+j.platos+' platos';
     aviso('✅ Carta guardada. Ya se ve actualizada en la web.');
-  }catch(e){ $('#estado').textContent='Error al guardar'; aviso('⚠️ '+e.message); }
+    return true;
+  }catch(e){ $('#estado').textContent='Error al guardar'; aviso('⚠️ '+e.message); return false; }
 }
 $('#cod').addEventListener('keydown',e=>{if(e.key==='Enter')entrar();});
 // Si este ordenador ya recordó el código, entrar directo (sin pedirlo otra vez)

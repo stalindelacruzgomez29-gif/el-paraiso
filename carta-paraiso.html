@@ -70,6 +70,22 @@
   .estrella{color:var(--oro);font-size:11px;letter-spacing:.3em;text-transform:uppercase;display:block;text-align:center;margin-bottom:6px}
   .kids{background:var(--papel-2);border-radius:12px;padding:16px 18px}
 
+  /* PROMOCIONES (solo pantalla: no salen al imprimir, el PDF de la carta no cambia) */
+  .promos-zona{padding:26px 30px 0}
+  .promos-tit{text-align:center;color:var(--oro);font-size:12px;letter-spacing:.35em;text-transform:uppercase;font-family:Georgia,serif;margin-bottom:14px}
+  .promos-lista{display:flex;gap:14px;overflow-x:auto;padding-bottom:10px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+  .promos-lista::-webkit-scrollbar{height:5px}
+  .promos-lista::-webkit-scrollbar-thumb{background:rgba(180,136,74,.45);border-radius:999px}
+  .promo-card{scroll-snap-align:start;flex:0 0 240px;background:linear-gradient(150deg,#1a5540,var(--verde) 70%);color:var(--papel);border:1px solid var(--oro);border-radius:14px;padding:16px 18px;box-shadow:0 8px 20px rgba(18,63,46,.25)}
+  .promo-card.sola{flex:1 1 auto}
+  .promo-nom{font-size:17px;color:var(--oro-claro);line-height:1.25}
+  .promo-en{font-family:Georgia,serif;font-style:italic;font-size:11.5px;color:#cdbf9f;margin-top:2px}
+  .promo-desc{font-family:Georgia,serif;font-size:12.5px;color:#e9dfc6;margin-top:6px;line-height:1.4}
+  .promo-precio{margin-top:10px;font-size:20px;font-weight:700;color:var(--oro-claro);font-variant-numeric:tabular-nums}
+  /* botón para activar los avisos de promociones */
+  .avisos-btn{display:inline-flex;align-items:center;gap:8px;background:rgba(203,161,95,.14);border:1px solid var(--oro);color:var(--oro-claro);padding:9px 16px;border-radius:30px;font-family:-apple-system,sans-serif;font-size:13.5px;font-weight:600;cursor:pointer;margin-top:16px}
+  .avisos-btn:disabled{opacity:.75;cursor:default}
+
   .pie{background:var(--verde);color:var(--papel);text-align:center;padding:28px 30px 34px;margin-top:14px;border-top:6px double var(--oro)}
   .pie .datos{display:flex;justify-content:center;gap:12px 26px;flex-wrap:wrap;font-size:14px}
   .pie .datos b{color:var(--oro-claro);font-weight:400}
@@ -162,15 +178,30 @@ function pintar(c){
       <div class="desde">Desde ${esc(c.desde||'1968')}</div>
       <p class="lema">${esc(c.lema||'')}</p>
     </header>
+    ${promosHTML(c.promos)}
     <main><div class="cols">${(c.secciones||[]).map(seccionHTML).join('')}</div></main>
     <footer class="pie">
       <div class="datos">${c.contacto&&c.contacto.tel?'<span>📞 <b>'+esc(c.contacto.tel)+'</b></span>':''}
         ${c.contacto&&c.contacto.horario?'<span>🕗 <b>'+esc(c.contacto.horario)+'</b></span>':''}
         ${c.contacto&&c.contacto.web?'<span>🌐 <b>'+esc(c.contacto.web)+'</b></span>':''}</div>
       ${redesHTML(c.contacto&&c.contacto.redes)}
+      <button class="avisos-btn no-print" id="btn-avisos">🔔 Avísame de las promociones</button>
       <p class="alerg">Si tienes alguna alergia o intolerancia alimentaria, pregunta a nuestro personal. · Please inform our staff of any food allergy or intolerance. IVA incluido.</p>
       <div class="grx">El Paraíso · Desde ${esc(c.desde||'1968')}</div>
     </footer>`;
+}
+function promosHTML(promos){
+  const act=(promos||[]).filter(p=>p&&p.titulo&&p.activa!==false);
+  if(!act.length) return '';
+  return `<section class="promos-zona no-print">
+    <div class="promos-tit">✦ Promociones · Offers ✦</div>
+    <div class="promos-lista">${act.map(p=>`<div class="promo-card${act.length===1?' sola':''}">
+      <div class="promo-nom">${esc(p.titulo)}</div>
+      ${p.en?'<div class="promo-en">'+esc(p.en)+'</div>':''}
+      ${p.desc?'<div class="promo-desc">'+esc(p.desc)+'</div>':''}
+      ${p.precio?'<div class="promo-precio">'+esc(p.precio)+'</div>':''}
+    </div>`).join('')}</div>
+  </section>`;
 }
 function redesHTML(r){
   if(!r) return '';
@@ -189,8 +220,48 @@ async function cargarCarta(){
     if(j.existe && j.carta && Array.isArray(j.carta.secciones)) carta = j.carta;
   }catch(e){}
   pintar(carta);
+  estadoAvisos();
 }
 cargarCarta();
+
+// ── AVISOS DE PROMOCIONES (notificaciones al móvil del cliente) ──
+const CLAVE_AVISOS = "BOeVjJvIFCUGI-TRZkebiwMEnXKolDq8PinCh1tlUkFswql89dDUiy4gonmv7Qba3EdymP3AqRUsaxCIdo6lprs";
+function b64aBytes(s){
+  const pad='='.repeat((4-s.length%4)%4);
+  const raw=atob((s+pad).replace(/-/g,'+').replace(/_/g,'/'));
+  const a=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++)a[i]=raw.charCodeAt(i);
+  return a;
+}
+function estadoAvisos(){
+  const b=document.getElementById('btn-avisos'); if(!b) return;
+  if(('Notification' in window)&&Notification.permission==='granted'&&localStorage.getItem('carta_avisos')==='1'){
+    b.textContent='🔔 Avisos activados ✓'; b.disabled=true;
+  }
+}
+async function activarAvisos(){
+  const b=document.getElementById('btn-avisos');
+  if(!('Notification' in window)||!('serviceWorker' in navigator)||!('PushManager' in window)){
+    if(esiOS) alert('Para recibir avisos en el iPhone:\n1. Pulsa Compartir (el cuadrito con la flecha ↑).\n2. Elige "Añadir a pantalla de inicio".\n3. Abre la Carta desde ese icono y pulsa otra vez "Avísame".');
+    else alert('Este navegador no admite avisos.');
+    return;
+  }
+  try{
+    if(b) b.disabled=true;
+    const permiso=await Notification.requestPermission();
+    if(permiso!=='granted'){ if(b) b.disabled=false; alert('No diste permiso para los avisos. Puedes activarlos cuando quieras desde los ajustes del navegador.'); return; }
+    const reg=await navigator.serviceWorker.ready;
+    const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64aBytes(CLAVE_AVISOS)});
+    const j=sub.toJSON();
+    const r=await fetch('/api/avisos',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({accion:'suscribir',carta:ID_CARTA,sub:{endpoint:j.endpoint,keys:j.keys}})});
+    if(!r.ok) throw new Error('servidor');
+    localStorage.setItem('carta_avisos','1');
+    estadoAvisos();
+  }catch(e){ if(b) b.disabled=false; alert('No pude activar los avisos. Inténtalo otra vez.'); }
+}
+// La carta se repinta sola cada minuto: el botón se engancha por delegación
+document.addEventListener('click',e=>{ const t=e.target.closest&&e.target.closest('#btn-avisos'); if(t&&!t.disabled) activarAvisos(); });
 
 // TIEMPO REAL: al volver a la carta (o cada 60 s si está abierta), recarga los datos
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') cargarCarta(); });

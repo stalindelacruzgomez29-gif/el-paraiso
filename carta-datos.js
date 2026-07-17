@@ -5,6 +5,7 @@ window.CARTA_DEFECTO = {
   desde: "1968",
   lema: "Fusión Caribeña & Mediterránea",
   contacto: { tel: "689 980 202", horario: "08:00 – 23:00", web: "elparaiso.wegic.net" },
+  promos: [],   // las promociones se crean desde el editor y se guardan en la nube
   secciones: [
     { titulo: "Selección Premium", en: "Chef's Premium Selection", estilo: "premium", nota: "✦ Recomendación del Chef ✦", platos: [
       { nom: "Chuletón Angus Reserva a la Parrilla", en: "Grilled Angus reserve T-bone", desc: "Corte seleccionado de ternera Angus, jugoso y lleno de sabor, sellado a la parrilla.", precio: "31,90 €" },
