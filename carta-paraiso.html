@@ -95,7 +95,7 @@
 </style>
 </head>
 <body>
-<div class="barra-print no-print">📄 Tu carta · <button onclick="window.print()">🖨 Imprimir / PDF</button> <button onclick="location.href='editar-carta.html'" style="background:#1d5a41;color:#fff">✏️ Editar la carta</button></div>
+<div class="barra-print no-print" id="barra-gestion" style="display:none">📄 Modo gestión (solo tú lo ves) · <button onclick="window.print()">🖨 Imprimir / PDF</button> <button onclick="location.href='editar-carta.html'" style="background:#1d5a41;color:#fff">✏️ Editar la carta</button> <button onclick="location.href='cartel-carta-qr.html'" style="background:#1d5a41;color:#fff">🖼 Cartel del QR</button></div>
 
 <div class="lienzo" id="lienzo">
   <div style="text-align:center;padding:60px;color:#8b8b7a">Cargando la carta…</div>
@@ -112,6 +112,13 @@
 <script>
 const ID_CARTA = "4495a9d146be62a0d3e18df04b424802dd4f6e8a686403b8e5439844826205f9";
 const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// Los botones de gestión (imprimir/editar) SOLO para Stalin: aparecen con ?gestion en la URL.
+// El cliente que escanea el QR abre la URL limpia y ve solo la carta.
+const ES_GESTION = /[?&]gestion/i.test(location.search);
+if(ES_GESTION){ localStorage.setItem('carta_gestion','1'); }
+if(ES_GESTION || localStorage.getItem('carta_gestion')==='1'){
+  const b=document.getElementById('barra-gestion'); if(b) b.style.display='block';
+}
 
 function emblemaSVG(){
   return `<svg class="emblema" viewBox="0 0 120 120" aria-hidden="true">
