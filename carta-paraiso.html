@@ -156,6 +156,14 @@
   <button class="tab" onclick="location.href='reservas.html?volver=carta'">📅 Reservar</button>
 </nav>
 
+<!-- Pop-up automático: pregunta si quiere los avisos de promociones -->
+<div class="instalar no-print" id="popup-avisos">
+  <div style="font-size:30px">🔔</div>
+  <div class="txt"><b>¿Te avisamos de las promociones?</b><br>Solo cuando haya una oferta nueva.</div>
+  <button id="btn-avisos-si">Sí, avisadme</button>
+  <button class="cerrar" id="btn-avisos-no" style="font-size:13px;white-space:nowrap">Ahora no</button>
+</div>
+
 <div class="instalar no-print" id="instalar">
   <img src="/carta-icono-192.png" alt="">
   <div class="txt">Guarda la <b>Carta El Paraíso</b> en tu móvil</div>
@@ -353,12 +361,51 @@ async function activarAvisos(){
 }
 // La carta se repinta sola cada minuto: los botones se enganchan por delegación
 document.addEventListener('click',e=>{ const t=e.target.closest&&e.target.closest('.avisos-btn'); if(t&&!t.disabled) activarAvisos(); });
+
+// ── POP-UP AUTOMÁTICO: preguntar si quiere los avisos (sin que tenga que buscarlo) ──
+function puedePreguntarAvisos(){
+  if(localStorage.getItem('carta_avisos')==='1') return false;                    // ya los tiene
+  if(!('Notification' in window)||!('serviceWorker' in navigator)||!('PushManager' in window)) return false; // iPhone sin instalar: primero sale el aviso de instalar
+  if(Notification.permission==='denied') return false;                            // los rechazó en el navegador
+  const no=+localStorage.getItem('carta_avisos_no')||0;                           // dijo "ahora no" hace poco
+  if(no && (Date.now()-no) < 7*24*3600*1000) return false;                        // se le vuelve a preguntar a los 7 días
+  return true;
+}
+setTimeout(()=>{
+  if(!puedePreguntarAvisos()) return;
+  const inst=document.getElementById('instalar');
+  if(inst && inst.style.display==='flex') return;                                 // no encimar dos avisos
+  document.getElementById('popup-avisos').style.display='flex';
+}, 5000);
+document.getElementById('btn-avisos-si').onclick=async()=>{
+  document.getElementById('popup-avisos').style.display='none';
+  await activarAvisos();
+};
+document.getElementById('btn-avisos-no').onclick=()=>{
+  document.getElementById('popup-avisos').style.display='none';
+  localStorage.setItem('carta_avisos_no', String(Date.now()));
+};
 // Enlace directo a la pestaña de promos: carta-paraiso.html#promos
 if(location.hash==='#promos') verPestana('promos');
 
 // TIEMPO REAL: al volver a la carta (o cada 60 s si está abierta), recarga los datos
-document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') cargarCarta(); });
-setInterval(()=>{ if(document.visibilityState==='visible') cargarCarta(); }, 60000);
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'){ cargarCarta(); comprobarVersion(); } });
+setInterval(()=>{ if(document.visibilityState==='visible'){ cargarCarta(); comprobarVersion(); } }, 60000);
+
+// ACTUALIZACIÓN AUTOMÁTICA DE LA APP: si se publica una carta nueva (pestañas,
+// mejoras…), la página se recarga sola — el cliente siempre ve la última versión
+// sin tener que cerrar la app ni borrar nada.
+let HUELLA_CARTA=null;
+async function comprobarVersion(){
+  try{
+    const r=await fetch('/carta-paraiso.html',{method:'HEAD',cache:'no-store'});
+    const h=r.headers.get('etag')||r.headers.get('last-modified');
+    if(!h) return;
+    if(HUELLA_CARTA===null){ HUELLA_CARTA=h; return; }
+    if(h!==HUELLA_CARTA) location.reload();
+  }catch(e){}
+}
+comprobarVersion();
 
 // INSTALABLE como app: registrar el service worker
 if('serviceWorker' in navigator){ navigator.serviceWorker.register('/carta-sw.js').catch(()=>{}); }
