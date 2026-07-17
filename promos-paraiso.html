@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Promos · El Paraíso</title>
+<link rel="manifest" href="/promos-paraiso.webmanifest">
+<meta name="theme-color" content="#123f2e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Promos Paraíso">
+<link rel="apple-touch-icon" href="/promos-icono-180.png">
+<link rel="icon" href="/promos-icono-192.png">
+<style>
+  :root{--verde:#123f2e;--verde-hoja:#1d5a41;--oro:#b4884a;--oro-claro:#cba15f;--papel:#f6efe0;--tinta:#2a2a24;--mut:#6b6656;--linea:#d8ccb0}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--papel);color:var(--tinta);font-family:-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.5}
+  .top{position:sticky;top:0;z-index:30;background:var(--verde);color:#fff;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .top h1{font-size:17px;font-weight:700}
+  .top .estado{font-size:12.5px;color:#cba15f}
+  .btn{border:0;border-radius:9px;padding:10px 16px;font-size:14px;font-weight:700;cursor:pointer}
+  .btn-g{background:#cba15f;color:#2a1c08}
+  .btn-b{background:transparent;border:1px solid #cba15f;color:#cba15f}
+  .btn-peq{padding:6px 11px;font-size:13px;border-radius:8px}
+  main{max-width:760px;margin:0 auto;padding:18px 14px 90px}
+  .caja{background:#fff;border:1px solid var(--linea);border-radius:14px;padding:14px;margin-bottom:16px}
+  .caja.oro{border-color:var(--oro);background:#fbf6ea}
+  .caja h2{font-size:16px;color:var(--verde);margin-bottom:4px}
+  label{display:block;font-size:12px;color:var(--mut);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin:6px 0 3px}
+  input,textarea,select{font-family:inherit;font-size:14.5px;border:1px solid var(--linea);border-radius:8px;padding:9px 11px;background:#fff;width:100%}
+  input:focus,textarea:focus{outline:none;border-color:var(--oro)}
+  .mini{font-size:12px;color:var(--mut)}
+  .promo{border:1px solid #eadfc6;border-radius:11px;padding:11px;margin-bottom:9px;background:#fff}
+  .promo.nueva{border-color:var(--oro);box-shadow:0 0 0 3px rgba(203,161,95,.25)}
+  .promo .campos>*{margin-bottom:6px}
+  .fila-ico{display:grid;grid-template-columns:64px 1fr 120px;gap:8px}
+  .fila2{display:grid;grid-template-columns:1fr 130px;gap:8px}
+  .acciones{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px;align-items:center}
+  .quitar{background:#fde8e8;color:#9b1c1c}
+  .add{background:#eaf3ec;color:var(--verde);border:1px dashed var(--verde)}
+  /* catálogo de un toque */
+  .cat-tit{font-size:13.5px;font-weight:700;color:var(--verde);margin:12px 0 7px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{border:1px solid var(--oro);background:#fff;color:var(--tinta);border-radius:999px;padding:8px 14px;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+  .chip:active{background:#fbf6ea}
+  .chip .p{color:var(--verde);font-weight:700;font-size:12.5px}
+  details{border:1px solid var(--linea);border-radius:10px;padding:8px 12px;margin-bottom:8px;background:#fff}
+  details summary{cursor:pointer;font-weight:700;color:var(--verde);font-size:14px}
+  details .chips{margin-top:8px}
+  /* login */
+  .lock{position:fixed;inset:0;background:var(--papel);z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px}
+  .lock img{width:96px;height:96px;border-radius:22px;box-shadow:0 8px 24px rgba(18,63,46,.35)}
+  .lock h1{color:var(--verde);font-size:22px}
+  .lock input{max-width:300px;text-align:center}
+  .lock p{color:var(--mut);max-width:340px}
+  .aviso{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--verde);color:#fff;padding:12px 20px;border-radius:10px;font-size:14px;display:none;z-index:40;box-shadow:0 6px 20px rgba(0,0,0,.2);max-width:92vw;text-align:center}
+</style>
+</head>
+<body>
+
+<div class="lock" id="lock">
+  <img src="/promos-icono-192.png" alt="">
+  <h1>🎉 Promos de El Paraíso</h1>
+  <p>Escribe tu código secreto (el mismo del editor de la carta). Con él creas promociones y avisas a los móviles de los clientes.</p>
+  <input id="cod" type="password" placeholder="Código secreto" autocomplete="off">
+  <button class="btn btn-g" onclick="entrar()">Entrar</button>
+  <p id="lock-err" style="color:#9b1c1c;display:none">Código incorrecto. Vuelve a intentarlo.</p>
+  <button class="btn btn-b" id="btn-instalar" style="display:none;margin-top:8px" onclick="instalarApp()">📌 Anclar esta app (móvil / ordenador)</button>
+</div>
+
+<div class="top" id="top" style="display:none">
+  <div><h1>🎉 Promos</h1><div class="estado" id="estado">Listo</div></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <a class="btn btn-b btn-peq" href="carta-paraiso.html?gestion" target="_blank">👁 Carta</a>
+    <button class="btn btn-b btn-peq" id="btn-anclar-top" style="display:none" onclick="instalarApp()">📌</button>
+    <button class="btn btn-b btn-peq" onclick="olvidarCodigo()" title="Quitar el acceso guardado">🔒</button>
+    <button class="btn btn-g" onclick="guardar()">💾 Guardar</button>
+  </div>
+</div>
+
+<main id="main" style="display:none">
+
+  <div class="caja oro">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <h2>🎉 Tus promociones</h2>
+      <span class="mini" id="n-avisos"></span>
+    </div>
+    <p class="mini" style="margin:2px 0 10px">Salen arriba del todo en la carta del cliente. Con <b>📣 Avisar</b> les llega la notificación al móvil.</p>
+    <div id="promos"></div>
+    <button class="btn add btn-peq" onclick="addPromo()">➕ Promoción en blanco</button>
+  </div>
+
+  <div class="caja">
+    <h2>⚡ Poner en promoción con un toque</h2>
+    <p class="mini">Toca un producto y se crea la promo ya rellenada: solo ajustas el precio y guardas.</p>
+    <div id="catalogo"></div>
+    <div class="cat-tit">🍽 Toda la carta (plato a plato)</div>
+    <div id="de-la-carta" class="mini">Cargando la carta…</div>
+  </div>
+
+</main>
+
+<div class="aviso" id="aviso"></div>
+
+<script src="carta-datos.js"></script>
+<script>
+const ID_CARTA = "4244bca40f5248ee217447ae96196df2b63dd8d0c83bad2e01995251a87329ba";
+let CARTA=null, codigo="", promoNueva=-1;
+const $ = s => document.querySelector(s);
+const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function aviso(t){const a=$('#aviso');a.textContent=t;a.style.display='block';clearTimeout(a._t);a._t=setTimeout(()=>a.style.display='none',3000);}
+
+async function sha256(txt){
+  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
+  return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+async function entrar(auto){
+  codigo = auto || $('#cod').value.trim();
+  if(!codigo) return;
+  const id = await sha256('cartaweb:'+codigo);
+  if(id !== ID_CARTA){ if(!auto){$('#lock-err').style.display='block';} localStorage.removeItem('carta_codigo_editor'); return; }
+  localStorage.setItem('carta_codigo_editor', codigo);   // el mismo recuerdo que el editor
+  CARTA = JSON.parse(JSON.stringify(window.CARTA_DEFECTO));
+  try{
+    const r = await fetch('/api/datos?cartaweb='+ID_CARTA+'&t='+Date.now());
+    const j = await r.json();
+    if(j.existe && j.carta && Array.isArray(j.carta.secciones)) CARTA = j.carta;
+  }catch(e){}
+  CARTA.promos = CARTA.promos||[];
+  $('#lock').style.display='none'; $('#top').style.display='flex'; $('#main').style.display='block';
+  pintarPromos(); pintarCatalogo(); pintarDeLaCarta(); cargarNAvisos();
+}
+
+// ── LISTA DE PROMOS ──
+function pintarPromos(){
+  CARTA.promos=CARTA.promos||[];
+  $('#promos').innerHTML = CARTA.promos.map((p,i)=>`
+    <div class="promo${i===promoNueva?' nueva':''}" id="promo-${i}">
+      <div class="campos">
+        <div class="fila-ico">
+          <input title="Icono (emoji)" value="${esc(p.icono||'')}" placeholder="🍺" style="text-align:center;font-size:20px" onchange="CARTA.promos[${i}].icono=this.value.trim()">
+          <input placeholder="Título de la promo (ej. 2x1 en mojitos)" value="${esc(p.titulo||'')}" onchange="CARTA.promos[${i}].titulo=this.value">
+          <input placeholder="Precio" value="${esc(p.precio||'')}" onchange="CARTA.promos[${i}].precio=this.value">
+        </div>
+        <input placeholder="Título en inglés (opcional)" value="${esc(p.en||'')}" onchange="CARTA.promos[${i}].en=this.value">
+        <textarea placeholder="Descripción (opcional)" rows="2" onchange="CARTA.promos[${i}].desc=this.value">${esc(p.desc||'')}</textarea>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--mut)">
+          ⏰ Horario diario (opcional):
+          <input type="time" value="${esc(p.desde||'')}" style="width:auto" onchange="CARTA.promos[${i}].desde=this.value">
+          a
+          <input type="time" value="${esc(p.hasta||'')}" style="width:auto" onchange="CARTA.promos[${i}].hasta=this.value">
+          <button class="btn btn-b btn-peq" onclick="CARTA.promos[${i}].desde='';CARTA.promos[${i}].hasta='';promoNueva=-1;pintarPromos()" title="Quitar horario: la promo se ve todo el día">Todo el día</button>
+        </div>
+        <div class="acciones">
+          <label style="display:inline-flex;align-items:center;gap:6px;margin:0;text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--tinta)">
+            <input type="checkbox" style="width:auto" ${p.activa!==false?'checked':''} onchange="CARTA.promos[${i}].activa=this.checked"> Visible
+          </label>
+          <button class="btn btn-b btn-peq" onclick="moverPromo(${i},-1)" title="Subir">⬆️</button>
+          <button class="btn btn-b btn-peq" onclick="moverPromo(${i},1)" title="Bajar">⬇️</button>
+          <button class="btn btn-g btn-peq" onclick="avisarPromo(${i})">📣 Avisar</button>
+          <button class="btn quitar btn-peq" onclick="borrarPromo(${i})">🗑</button>
+        </div>
+      </div>
+    </div>`).join('') || '<p class="mini" style="margin-bottom:8px">Todavía no hay promociones. Crea una con un toque aquí abajo. 👇</p>';
+}
+window.addPromo=()=>{CARTA.promos.unshift({icono:'🎉',titulo:'',en:'',desc:'',precio:'',activa:true});promoNueva=0;pintarPromos();};
+window.borrarPromo=i=>{if(confirm('¿Quitar la promoción "'+(CARTA.promos[i].titulo||'sin título')+'"?')){CARTA.promos.splice(i,1);promoNueva=-1;pintarPromos();}};
+window.moverPromo=(i,d)=>{const j=i+d;if(j<0||j>=CARTA.promos.length)return;const t=CARTA.promos[i];CARTA.promos[i]=CARTA.promos[j];CARTA.promos[j]=t;promoNueva=-1;pintarPromos();};
+
+// ── CATÁLOGO DE UN TOQUE (bar) ──
+const CATALOGO=[
+  {titulo:'🍺 Cervezas', items:[
+    {icono:'🍺',nom:'Caña'},{icono:'🍺',nom:'Doble'},{icono:'🍻',nom:'Jarra de cerveza'},
+    {icono:'🧊',nom:'Cubo de cervezas (5)'},{icono:'🍺',nom:'Botellín'},{icono:'🍺',nom:'Pinta'}
+  ]},
+  {titulo:'🍷 Sangría y vino', items:[
+    {icono:'🍷',nom:'Jarra de sangría'},{icono:'🥂',nom:'Sangría de cava'},
+    {icono:'🍷',nom:'Tinto de verano'},{icono:'🍷',nom:'Copa de vino'}
+  ]},
+  {titulo:'🍹 Cócteles y copas', items:[
+    {icono:'🍹',nom:'Mojito'},{icono:'🥥',nom:'Piña colada'},{icono:'🍸',nom:'Caipirinha'},
+    {icono:'🍸',nom:'Margarita'},{icono:'🥃',nom:'Copa / combinado'},{icono:'🍾',nom:'Botella + refrescos'}
+  ]},
+  {titulo:'💨 Cachimba', items:[
+    {icono:'💨',nom:'Cachimba'},{icono:'💨',nom:'Cachimba premium'}
+  ]},
+  {titulo:'☕ Café y refrescos', items:[
+    {icono:'☕',nom:'Café'},{icono:'🥤',nom:'Refresco'},{icono:'🍊',nom:'Zumo natural'},{icono:'🧉',nom:'Batido'}
+  ]}
+];
+function pintarCatalogo(){
+  $('#catalogo').innerHTML = CATALOGO.map((c,ci)=>`
+    <div class="cat-tit">${esc(c.titulo)}</div>
+    <div class="chips">${c.items.map((it,ii)=>`
+      <button class="chip" onclick="crearDesdeCat(${ci},${ii})">${esc(it.icono)} ${esc(it.nom)}</button>`).join('')}
+    </div>`).join('');
+}
+// ── TODA LA CARTA, PLATO A PLATO ──
+function pintarDeLaCarta(){
+  const secs=(CARTA.secciones||[]);
+  if(!secs.length){$('#de-la-carta').textContent='No hay platos en la carta.';return;}
+  $('#de-la-carta').innerHTML = secs.map((s,si)=>`
+    <details>
+      <summary>${esc(s.titulo)} <span class="mini">(${(s.platos||[]).length})</span></summary>
+      <div class="chips">${(s.platos||[]).map((p,pi)=>`
+        <button class="chip" onclick="crearDesdePlato(${si},${pi})">🍽 ${esc(p.nom)} ${p.precio?'<span class="p">'+esc(p.precio)+'</span>':''}</button>`).join('')}
+      </div>
+    </details>`).join('');
+}
+function nuevaPromo(icono,nom,precio,desc){
+  CARTA.promos=CARTA.promos||[];
+  CARTA.promos.unshift({icono:icono||'🎉',titulo:'Promoción: '+nom,en:'',desc:desc||'',precio:precio||'',activa:true});
+  promoNueva=0;
+  pintarPromos();
+  window.scrollTo({top:0,behavior:'smooth'});
+  aviso('✨ Promo creada arriba: ajusta el precio y pulsa 💾 Guardar (o 📣 Avisar)');
+}
+window.crearDesdeCat=(ci,ii)=>{ const it=CATALOGO[ci].items[ii]; nuevaPromo(it.icono,it.nom,'',''); };
+window.crearDesdePlato=(si,pi)=>{ const p=CARTA.secciones[si].platos[pi]; nuevaPromo('🍽',p.nom,p.precio||'',p.desc||''); };
+
+// ── GUARDAR Y AVISAR (igual que el editor) ──
+async function guardar(){
+  $('#estado').textContent='Guardando…';
+  try{
+    const r=await fetch('/api/datos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({codigo,cartaweb:CARTA})});
+    const j=await r.json();
+    if(!r.ok||!j.publicada) throw new Error(j.error||'Error');
+    const act=(CARTA.promos||[]).filter(p=>p.activa!==false).length;
+    $('#estado').textContent='Guardado ✓ '+act+' promo'+(act===1?'':'s')+' visible'+(act===1?'':'s');
+    promoNueva=-1; pintarPromos();
+    aviso('✅ Guardado. La carta ya enseña tus promociones.');
+    return true;
+  }catch(e){ $('#estado').textContent='Error al guardar'; aviso('⚠️ '+e.message); return false; }
+}
+window.avisarPromo=async i=>{
+  const p=CARTA.promos[i];
+  if(!p.titulo){aviso('Ponle un título a la promo antes de avisar');return;}
+  if(!confirm('Se guardará y se enviará este aviso al móvil de todos los clientes con avisos activados:\n\n'+(p.icono||'🌴')+' '+p.titulo+'\n'+(p.desc||'')+(p.precio?' · '+p.precio:'')+'\n\n¿Enviar ahora?'))return;
+  p.activa=true;
+  const ok=await guardar();
+  if(!ok) return;
+  try{
+    $('#estado').textContent='Enviando avisos…';
+    const r=await fetch('/api/avisos',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({accion:'enviar',codigo,titulo:(p.icono||'🌴')+' '+p.titulo,
+        cuerpo:(p.desc||'')+(p.precio?((p.desc?' · ':'')+p.precio):''),url:'/carta-paraiso.html'})});
+    const j=await r.json();
+    if(!r.ok||!j.ok) throw new Error(j.error||'Error del servidor');
+    $('#estado').textContent='Aviso enviado ✓';
+    aviso(j.enviadas?('📣 Aviso enviado a '+j.enviadas+' móvil'+(j.enviadas===1?'':'es')):'Guardado, pero todavía nadie tiene los avisos activados');
+    cargarNAvisos();
+  }catch(e){ $('#estado').textContent='Error al avisar'; aviso('⚠️ No pude enviar el aviso: '+e.message); }
+};
+async function cargarNAvisos(){
+  try{
+    const r=await fetch('/api/avisos?cuantos='+ID_CARTA);
+    const j=await r.json();
+    const n=j.cuantos||0;
+    $('#n-avisos').textContent='🔔 '+n+' móvil'+(n===1?'':'es')+' con avisos';
+  }catch(e){}
+}
+
+$('#cod').addEventListener('keydown',e=>{if(e.key==='Enter')entrar();});
+// Si ya recordó el código (aquí o en el editor), entra directo
+(async()=>{ const g=localStorage.getItem('carta_codigo_editor'); if(g) await entrar(g); })();
+window.olvidarCodigo=()=>{ localStorage.removeItem('carta_codigo_editor'); location.reload(); };
+
+// Anclar como app (móvil y ordenador)
+if('serviceWorker' in navigator){ navigator.serviceWorker.register('/carta-sw.js').catch(()=>{}); }
+let promptApp=null;
+window.addEventListener('beforeinstallprompt', e=>{ e.preventDefault(); promptApp=e;
+  const b=$('#btn-instalar'); if(b) b.style.display='inline-block';
+  const t=$('#btn-anclar-top'); if(t) t.style.display='inline-block'; });
+window.instalarApp=async()=>{
+  if(promptApp){ promptApp.prompt(); await promptApp.userChoice; promptApp=null;
+    $('#btn-instalar').style.display='none'; $('#btn-anclar-top').style.display='none'; }
+  else{ alert('Para anclarla:\n\niPhone: botón Compartir ↑ → "Añadir a pantalla de inicio".\nAndroid: menú ⋮ → "Instalar aplicación".\nOrdenador (Chrome): icono de instalar ⊕ en la barra de direcciones.'); }
+};
+const esiOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+const yaApp=window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+if(esiOS && !yaApp){ const b=$('#btn-instalar'); if(b) b.style.display='inline-block'; const t=$('#btn-anclar-top'); if(t) t.style.display='inline-block'; }
+</script>
+</body>
+</html>

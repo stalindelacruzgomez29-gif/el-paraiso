@@ -190,16 +190,28 @@ function pintar(c){
       <div class="grx">El Paraíso · Desde ${esc(c.desde||'1968')}</div>
     </footer>`;
 }
+// Promo con horario diario (ej. 17:00–19:00): solo se enseña dentro de su hora.
+// La carta se refresca sola cada minuto, así que se enciende y se apaga en tiempo real.
+function promoEnHora(p){
+  if(!p.desde||!p.hasta) return true;
+  const [h1,m1]=String(p.desde).split(':').map(Number), [h2,m2]=String(p.hasta).split(':').map(Number);
+  const a=h1*60+(m1||0), b=h2*60+(m2||0);
+  if(isNaN(a)||isNaN(b)) return true;
+  const ah=new Date(), m=ah.getHours()*60+ah.getMinutes();
+  return a<=b ? (m>=a&&m<=b) : (m>=a||m<=b);   // también vale de noche (22:00–02:00)
+}
 function promosHTML(promos){
-  const act=(promos||[]).filter(p=>p&&p.titulo&&p.activa!==false);
+  const act=(promos||[]).filter(p=>p&&p.titulo&&p.activa!==false&&promoEnHora(p));
   if(!act.length) return '';
   return `<section class="promos-zona no-print">
     <div class="promos-tit">✦ Promociones · Offers ✦</div>
     <div class="promos-lista">${act.map(p=>`<div class="promo-card${act.length===1?' sola':''}">
+      ${p.icono?'<div style="font-size:26px;line-height:1;margin-bottom:7px">'+esc(p.icono)+'</div>':''}
       <div class="promo-nom">${esc(p.titulo)}</div>
       ${p.en?'<div class="promo-en">'+esc(p.en)+'</div>':''}
       ${p.desc?'<div class="promo-desc">'+esc(p.desc)+'</div>':''}
       ${p.precio?'<div class="promo-precio">'+esc(p.precio)+'</div>':''}
+      ${p.desde&&p.hasta?'<div style="margin-top:8px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#cdbf9f;font-family:Georgia,serif">🕗 Hoy '+esc(p.desde)+' – '+esc(p.hasta)+'</div>':''}
     </div>`).join('')}</div>
   </section>`;
 }
