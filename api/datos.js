@@ -19,6 +19,11 @@ function rutaDe(codigo) {
 function idCartaDe(codigo) {
   return crypto.createHash('sha256').update('carta:' + codigo).digest('hex');
 }
+// La carta-web del restaurante (estructura rica: secciones bilingües). El id público
+// deriva del código secreto, así se puede leer sin exponer la clave de edición.
+function idCartaWebDe(codigo) {
+  return crypto.createHash('sha256').update('cartaweb:' + codigo).digest('hex');
+}
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -36,6 +41,22 @@ module.exports = async (req, res) => {
     if (!/^[a-f0-9]{64}$/.test(id)) return res.status(400).json({ error: 'Enlace de carta no válido.' });
     try {
       const ruta = `carta/${id}.json`;
+      const { blobs } = await list({ prefix: ruta });
+      const blob = blobs.find(b => b.pathname === ruta);
+      if (!blob) return res.status(200).json({ existe: false });
+      const r = await fetch(blob.url + '?t=' + Date.now());
+      const carta = await r.json();
+      res.setHeader('Cache-Control', 'public, max-age=60');
+      return res.status(200).json({ existe: true, carta });
+    } catch (e) { return res.status(500).json({ error: 'No pude leer la carta.' }); }
+  }
+
+  // ── La carta-web del restaurante (pública: la lee cualquiera con el id) ──
+  if (req.method === 'GET' && req.query && req.query.cartaweb) {
+    const id = String(req.query.cartaweb);
+    if (!/^[a-f0-9]{64}$/.test(id)) return res.status(400).json({ error: 'Enlace no válido.' });
+    try {
+      const ruta = `cartaweb/${id}.json`;
       const { blobs } = await list({ prefix: ruta });
       const blob = blobs.find(b => b.pathname === ruta);
       if (!blob) return res.status(200).json({ existe: false });
@@ -86,6 +107,20 @@ module.exports = async (req, res) => {
         access: 'public', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json'
       });
       return res.status(200).json({ publicada: true, id, platos: carta.platos.length });
+    }
+
+    // Publicar la CARTA-WEB del restaurante (estructura rica con secciones y fotos)
+    if (req.method === 'POST' && req.body && req.body.cartaweb) {
+      const c = req.body.cartaweb;
+      if (!c || !Array.isArray(c.secciones)) return res.status(400).json({ error: 'La carta no tiene secciones.' });
+      const cadena = JSON.stringify(c);
+      if (cadena.length > 8 * 1024 * 1024) return res.status(400).json({ error: 'La carta con fotos es demasiado grande. Usa fotos más ligeras.' });
+      const id = idCartaWebDe(String(codigo));
+      await put(`cartaweb/${id}.json`, cadena, {
+        access: 'public', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json'
+      });
+      const platos = c.secciones.reduce((n, s) => n + ((s.platos && s.platos.length) || 0), 0);
+      return res.status(200).json({ publicada: true, id, platos });
     }
 
     if (req.method === 'POST') {

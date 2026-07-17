@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editar la carta · El Paraíso</title>
+<style>
+  :root{--verde:#123f2e;--verde-hoja:#1d5a41;--oro:#b4884a;--papel:#f6efe0;--tinta:#2a2a24;--mut:#6b6656;--linea:#d8ccb0}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--papel);color:var(--tinta);font-family:-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.5}
+  .top{position:sticky;top:0;z-index:30;background:var(--verde);color:#fff;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .top h1{font-size:17px;font-weight:700}
+  .top .estado{font-size:12.5px;color:#cba15f}
+  .btn{border:0;border-radius:9px;padding:10px 16px;font-size:14px;font-weight:700;cursor:pointer}
+  .btn-g{background:#cba15f;color:#2a1c08}
+  .btn-b{background:transparent;border:1px solid #cba15f;color:#cba15f}
+  .btn-peq{padding:6px 11px;font-size:13px;border-radius:8px}
+  main{max-width:760px;margin:0 auto;padding:18px 14px 80px}
+  .cabecera-form{background:#fff;border:1px solid var(--linea);border-radius:14px;padding:16px;margin-bottom:16px}
+  .cabecera-form input{width:100%;margin-bottom:8px}
+  label{display:block;font-size:12px;color:var(--mut);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin:6px 0 3px}
+  input,textarea,select{font-family:inherit;font-size:14.5px;border:1px solid var(--linea);border-radius:8px;padding:9px 11px;background:#fff;width:100%}
+  input:focus,textarea:focus{outline:none;border-color:var(--oro)}
+  .seccion{background:#fff;border:1px solid var(--linea);border-radius:14px;padding:14px;margin-bottom:14px}
+  .seccion-cab{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+  .seccion-cab input.tit{flex:1;min-width:150px;font-weight:700;color:var(--verde);font-size:16px}
+  .plato{border:1px solid #eadfc6;border-radius:11px;padding:11px;margin-bottom:9px;display:grid;grid-template-columns:auto 1fr;gap:11px;align-items:start}
+  .plato .foto-box{width:70px;text-align:center}
+  .plato .foto{width:70px;height:70px;border-radius:10px;object-fit:cover;border:1px solid var(--linea);background:#f3ecda;display:block}
+  .plato .sinfoto{width:70px;height:70px;border-radius:10px;border:1px dashed var(--oro);display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--oro);background:#fbf6ea}
+  .plato .campos>*{margin-bottom:6px}
+  .fila2{display:grid;grid-template-columns:1fr 130px;gap:8px}
+  .acciones-plato{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+  .quitar{background:#fde8e8;color:#9b1c1c}
+  .mini{font-size:12px;color:var(--mut)}
+  .add{background:#eaf3ec;color:var(--verde);border:1px dashed var(--verde)}
+  /* login */
+  .lock{position:fixed;inset:0;background:var(--papel);z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px}
+  .lock h1{color:var(--verde);font-size:22px}
+  .lock input{max-width:300px;text-align:center}
+  .lock p{color:var(--mut);max-width:340px}
+  .aviso{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--verde);color:#fff;padding:12px 20px;border-radius:10px;font-size:14px;display:none;z-index:40;box-shadow:0 6px 20px rgba(0,0,0,.2)}
+</style>
+</head>
+<body>
+
+<div class="lock" id="lock">
+  <h1>✏️ Editar la carta de El Paraíso</h1>
+  <p>Escribe tu código secreto de la carta (te lo dio Claude). Con él editas los platos, precios y fotos.</p>
+  <input id="cod" type="password" placeholder="Código secreto" autocomplete="off">
+  <button class="btn btn-g" onclick="entrar()">Entrar a editar</button>
+  <p id="lock-err" style="color:#9b1c1c;display:none">Código incorrecto. Vuelve a intentarlo.</p>
+</div>
+
+<div class="top" id="top" style="display:none">
+  <div><h1>✏️ Editar la carta</h1><div class="estado" id="estado">Listo</div></div>
+  <div style="display:flex;gap:8px">
+    <a class="btn btn-b" href="carta-paraiso.html">👁 Ver carta</a>
+    <button class="btn btn-g" onclick="guardar()">💾 Guardar cambios</button>
+  </div>
+</div>
+
+<main id="main" style="display:none">
+  <div class="cabecera-form">
+    <label>Nombre del restaurante</label><input id="c-nombre">
+    <div class="fila2"><div><label>Desde (año)</label><input id="c-desde"></div><div><label>Teléfono</label><input id="c-tel"></div></div>
+    <label>Lema (frase de la portada)</label><input id="c-lema">
+    <div class="fila2"><div><label>Horario</label><input id="c-horario"></div><div><label>Web</label><input id="c-web"></div></div>
+  </div>
+  <div id="secciones"></div>
+  <button class="btn add" onclick="addSeccion()" style="width:100%;padding:12px">➕ Añadir una sección nueva</button>
+</main>
+
+<input type="file" id="fileFoto" accept="image/*" style="display:none">
+<div class="aviso" id="aviso"></div>
+
+<script src="carta-datos.js"></script>
+<script>
+const ID_CARTA = "4495a9d146be62a0d3e18df04b424802dd4f6e8a686403b8e5439844826205f9";
+let CARTA = null, codigo = "";
+const $ = s => document.querySelector(s);
+const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function aviso(t){const a=$('#aviso');a.textContent=t;a.style.display='block';clearTimeout(a._t);a._t=setTimeout(()=>a.style.display='none',2600);}
+
+async function sha256(txt){
+  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
+  return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+async function entrar(){
+  codigo = $('#cod').value.trim();
+  if(!codigo) return;
+  const id = await sha256('cartaweb:'+codigo);
+  if(id !== ID_CARTA){ $('#lock-err').style.display='block'; return; }
+  // código correcto: bajar de la nube o usar el de por defecto
+  CARTA = JSON.parse(JSON.stringify(window.CARTA_DEFECTO));
+  try{
+    const r = await fetch('/api/datos?cartaweb='+ID_CARTA+'&t='+Date.now());
+    const j = await r.json();
+    if(j.existe && j.carta && Array.isArray(j.carta.secciones)) CARTA = j.carta;
+  }catch(e){}
+  $('#lock').style.display='none'; $('#top').style.display='flex'; $('#main').style.display='block';
+  cargarCabecera(); pintar();
+}
+function cargarCabecera(){
+  $('#c-nombre').value=CARTA.nombre||''; $('#c-desde').value=CARTA.desde||'';
+  $('#c-lema').value=CARTA.lema||''; CARTA.contacto=CARTA.contacto||{};
+  $('#c-tel').value=CARTA.contacto.tel||''; $('#c-horario').value=CARTA.contacto.horario||''; $('#c-web').value=CARTA.contacto.web||'';
+}
+function leerCabecera(){
+  CARTA.nombre=$('#c-nombre').value; CARTA.desde=$('#c-desde').value; CARTA.lema=$('#c-lema').value;
+  CARTA.contacto={tel:$('#c-tel').value,horario:$('#c-horario').value,web:$('#c-web').value};
+}
+function pintar(){
+  $('#secciones').innerHTML = CARTA.secciones.map((s,si)=>`
+    <div class="seccion">
+      <div class="seccion-cab">
+        <input class="tit" value="${esc(s.titulo)}" onchange="CARTA.secciones[${si}].titulo=this.value">
+        <select onchange="CARTA.secciones[${si}].estilo=this.value||undefined" title="Estilo">
+          <option value="">Normal</option>
+          <option value="premium"${s.estilo==='premium'?' selected':''}>⭐ Destacada</option>
+          <option value="kids"${s.estilo==='kids'?' selected':''}>👶 Menú niños</option>
+        </select>
+        <button class="btn quitar btn-peq" onclick="borrarSeccion(${si})">🗑 Sección</button>
+      </div>
+      <input placeholder="Nombre en inglés (opcional)" value="${esc(s.en||'')}" onchange="CARTA.secciones[${si}].en=this.value" style="margin-bottom:8px">
+      ${(s.platos||[]).map((p,pi)=>platoForm(si,pi,p)).join('')}
+      <button class="btn add btn-peq" onclick="addPlato(${si})">➕ Añadir plato</button>
+    </div>`).join('');
+}
+function platoForm(si,pi,p){
+  return `<div class="plato">
+    <div class="foto-box">
+      ${p.foto?`<img class="foto" src="${p.foto}" alt="">`:`<div class="sinfoto">🍽</div>`}
+      <button class="btn btn-b btn-peq" style="margin-top:5px;padding:4px 8px" onclick="ponerFoto(${si},${pi})">${p.foto?'Cambiar':'📷 Foto'}</button>
+      ${p.foto?`<button class="btn quitar btn-peq" style="margin-top:3px;padding:4px 8px" onclick="quitarFoto(${si},${pi})">Quitar</button>`:''}
+    </div>
+    <div class="campos">
+      <input placeholder="Nombre del plato" value="${esc(p.nom)}" onchange="CARTA.secciones[${si}].platos[${pi}].nom=this.value">
+      <input placeholder="Nombre en inglés (opcional)" value="${esc(p.en||'')}" onchange="CARTA.secciones[${si}].platos[${pi}].en=this.value">
+      <textarea placeholder="Descripción (opcional)" rows="2" onchange="CARTA.secciones[${si}].platos[${pi}].desc=this.value">${esc(p.desc||'')}</textarea>
+      <div class="fila2">
+        <input placeholder="Precio (ej. 12,90 €)" value="${esc(p.precio)}" onchange="CARTA.secciones[${si}].platos[${pi}].precio=this.value">
+        <button class="btn quitar btn-peq" onclick="borrarPlato(${si},${pi})">🗑 Quitar</button>
+      </div>
+    </div>
+  </div>`;
+}
+window.addSeccion=()=>{CARTA.secciones.push({titulo:'Nueva sección',en:'',platos:[{nom:'Nuevo plato',en:'',desc:'',precio:'0,00 €'}]});pintar();};
+window.borrarSeccion=si=>{if(confirm('¿Borrar toda la sección "'+CARTA.secciones[si].titulo+'"?')){CARTA.secciones.splice(si,1);pintar();}};
+window.addPlato=si=>{CARTA.secciones[si].platos.push({nom:'Nuevo plato',en:'',desc:'',precio:'0,00 €'});pintar();};
+window.borrarPlato=(si,pi)=>{CARTA.secciones[si].platos.splice(pi,1);pintar();};
+window.quitarFoto=(si,pi)=>{delete CARTA.secciones[si].platos[pi].foto;pintar();};
+
+let fotoDestino=null;
+window.ponerFoto=(si,pi)=>{fotoDestino={si,pi};$('#fileFoto').click();};
+$('#fileFoto').onchange=async function(){
+  const f=this.files&&this.files[0]; this.value='';
+  if(!f||!fotoDestino) return;
+  try{
+    aviso('📷 Preparando la foto…');
+    const b64=await fotoAB64(f);
+    CARTA.secciones[fotoDestino.si].platos[fotoDestino.pi].foto=b64;
+    pintar(); aviso('✅ Foto añadida (recuerda Guardar)');
+  }catch(e){ aviso('No pude leer esa foto'); }
+};
+// Foto → recorte cuadrado 500px, JPEG (sin FileReader, ligero)
+async function fotoAB64(archivo){
+  let bmp; try{bmp=await createImageBitmap(archivo);}catch(e){bmp=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=URL.createObjectURL(archivo);});}
+  const w=bmp.width||bmp.naturalWidth, h=bmp.height||bmp.naturalHeight, lado=Math.min(w,h), S=500;
+  const c=document.createElement('canvas'); c.width=S; c.height=S;
+  c.getContext('2d').drawImage(bmp,(w-lado)/2,(h-lado)/2,lado,lado,0,0,S,S);
+  return c.toDataURL('image/jpeg',0.72);
+}
+async function guardar(){
+  leerCabecera();
+  $('#estado').textContent='Guardando…';
+  try{
+    const r=await fetch('/api/datos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({codigo,cartaweb:CARTA})});
+    const j=await r.json();
+    if(!r.ok||!j.publicada) throw new Error(j.error||'Error');
+    $('#estado').textContent='Guardado ✓ '+j.platos+' platos';
+    aviso('✅ Carta guardada. Ya se ve actualizada en la web.');
+  }catch(e){ $('#estado').textContent='Error al guardar'; aviso('⚠️ '+e.message); }
+}
+$('#cod').addEventListener('keydown',e=>{if(e.key==='Enter')entrar();});
+</script>
+</body>
+</html>

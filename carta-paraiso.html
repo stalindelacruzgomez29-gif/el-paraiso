@@ -6,308 +6,137 @@
 <title>Carta · El Paraíso Bar Restaurante</title>
 <style>
   :root{
-    --verde:#123f2e;        /* verde botella profundo */
-    --verde-hoja:#1d5a41;
-    --oro:#b4884a;          /* latón / dorado cálido */
-    --oro-claro:#cba15f;
-    --papel:#f6efe0;        /* hueso cálido */
-    --papel-2:#efe6d2;
-    --tinta:#2a2a24;        /* casi negro cálido */
-    --tinta-suave:#6b6656;
-    --linea:#d8ccb0;
+    --verde:#123f2e; --verde-hoja:#1d5a41; --oro:#b4884a; --oro-claro:#cba15f;
+    --papel:#f6efe0; --papel-2:#efe6d2; --tinta:#2a2a24; --tinta-suave:#6b6656; --linea:#d8ccb0;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{-webkit-text-size-adjust:100%}
-  body{
-    background:var(--papel);
-    color:var(--tinta);
-    font-family:"Palatino Linotype","Book Antiqua",Palatino,Georgia,serif;
-    line-height:1.5;
-  }
-  .lienzo{max-width:820px;margin:0 auto;background:var(--papel);}
+  body{background:var(--papel);color:var(--tinta);font-family:"Palatino Linotype","Book Antiqua",Palatino,Georgia,serif;line-height:1.45}
+  .lienzo{max-width:860px;margin:0 auto}
 
-  /* ---------- PORTADA ---------- */
-  .portada{
-    background:
-      radial-gradient(120% 80% at 50% -10%, #1a5540 0%, var(--verde) 55%, #0d3123 100%);
-    color:var(--papel);
-    text-align:center;
-    padding:70px 30px 60px;
-    position:relative;
-    border-bottom:6px double var(--oro);
-  }
-  .emblema{width:118px;height:118px;margin:0 auto 22px;display:block}
-  .marca{
-    font-size:14px;letter-spacing:.42em;text-transform:uppercase;
-    color:var(--oro-claro);margin-bottom:14px;font-family:Georgia,serif;
-  }
-  .titulo{
-    font-size:clamp(40px,10vw,66px);line-height:.98;font-weight:400;
-    letter-spacing:.02em;text-wrap:balance;
-  }
+  .barra-print{text-align:center;padding:12px;background:var(--verde-hoja);color:#fff;font-family:Georgia,serif;font-size:14px}
+  .barra-print button{background:var(--oro);color:#2a1c08;border:0;padding:9px 18px;border-radius:8px;font-weight:700;cursor:pointer;margin-left:8px}
+
+  /* PORTADA */
+  .portada{background:radial-gradient(120% 80% at 50% -10%, #1a5540 0%, var(--verde) 55%, #0d3123 100%);
+    color:var(--papel);text-align:center;padding:56px 30px 46px;border-bottom:6px double var(--oro)}
+  .emblema{width:104px;height:104px;margin:0 auto 18px;display:block}
+  .marca{font-size:13px;letter-spacing:.42em;text-transform:uppercase;color:var(--oro-claro);margin-bottom:12px;font-family:Georgia,serif}
+  .titulo{font-size:clamp(38px,10vw,60px);line-height:.98;font-weight:400;letter-spacing:.02em}
   .titulo .the{display:block;font-size:.34em;letter-spacing:.55em;color:var(--oro-claro);margin-bottom:.35em;text-transform:uppercase}
-  .desde{
-    display:inline-block;margin-top:20px;padding:7px 22px;
-    border:1px solid var(--oro);border-radius:40px;
-    font-size:13px;letter-spacing:.28em;text-transform:uppercase;color:var(--oro-claro);
-    font-family:Georgia,serif;
-  }
-  .lema{margin-top:22px;font-style:italic;font-size:18px;color:#e9dfc6;opacity:.95}
+  .desde{display:inline-block;margin-top:16px;padding:6px 20px;border:1px solid var(--oro);border-radius:40px;font-size:12px;letter-spacing:.26em;text-transform:uppercase;color:var(--oro-claro);font-family:Georgia,serif}
+  .lema{margin-top:16px;font-style:italic;font-size:17px;color:#e9dfc6}
 
-  /* ---------- SECCIONES ---------- */
-  main{padding:44px 34px 20px}
-  .seccion{margin-bottom:40px;break-inside:avoid}
-  .cab{text-align:center;margin-bottom:22px}
-  .cab h2{
-    font-size:26px;font-weight:400;color:var(--verde);letter-spacing:.04em;
-    display:inline-flex;align-items:center;gap:16px;text-wrap:balance;
-  }
-  .cab h2::before,.cab h2::after{
-    content:"";width:38px;height:1px;background:var(--oro);opacity:.7;
-  }
-  .cab .en{
-    display:block;margin-top:5px;font-family:Georgia,serif;font-style:italic;
-    font-size:13.5px;color:var(--tinta-suave);letter-spacing:.06em;
-  }
+  main{padding:34px 30px 16px}
+  /* doble columna para aprovechar el papel */
+  .cols{column-count:2;column-gap:34px}
+  @media(max-width:640px){.cols{column-count:1}}
 
-  .plato{
-    display:grid;grid-template-columns:1fr auto;gap:6px 16px;
-    padding:11px 0;border-bottom:1px dotted var(--linea);align-items:baseline;
-  }
+  .seccion{break-inside:avoid;margin-bottom:26px;display:inline-block;width:100%}
+  .cab{text-align:center;margin-bottom:12px}
+  .cab h2{font-size:21px;font-weight:400;color:var(--verde);letter-spacing:.03em;display:inline-flex;align-items:center;gap:12px}
+  .cab h2::before,.cab h2::after{content:"";width:24px;height:1px;background:var(--oro);opacity:.7}
+  .cab .en{display:block;margin-top:3px;font-family:Georgia,serif;font-style:italic;font-size:12px;color:var(--tinta-suave)}
+
+  .plato{padding:8px 0;border-bottom:1px dotted var(--linea);break-inside:avoid}
   .plato:last-child{border-bottom:none}
-  .pl-nom{font-size:18px;color:var(--tinta);font-weight:400}
-  .pl-en{font-family:Georgia,serif;font-style:italic;font-size:13px;color:var(--tinta-suave);letter-spacing:.02em}
-  .pl-desc{grid-column:1/2;font-family:Georgia,serif;font-size:13px;color:var(--tinta-suave);line-height:1.45;margin-top:2px}
-  .pl-precio{
-    font-size:17px;color:var(--verde);font-weight:700;white-space:nowrap;
-    font-variant-numeric:tabular-nums;text-align:right;
-  }
-  .pl-precio .multi{font-size:13px;color:var(--oro);font-weight:400}
+  .fila{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:baseline}
+  .pl-nom{font-size:15.5px;color:var(--tinta)}
+  .pl-en{font-family:Georgia,serif;font-style:italic;font-size:11.5px;color:var(--tinta-suave)}
+  .pl-desc{font-family:Georgia,serif;font-size:11.5px;color:var(--tinta-suave);line-height:1.4;margin-top:1px}
+  .pl-precio{font-size:14.5px;color:var(--verde);font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right}
+  .pl-precio .multi{font-size:11px;color:var(--oro);font-weight:400}
+  /* plato con foto */
+  .con-foto{display:grid;grid-template-columns:64px 1fr;gap:12px;align-items:center}
+  .con-foto .foto{width:64px;height:64px;border-radius:12px;object-fit:cover;border:1px solid var(--linea)}
 
-  /* Selección premium: marco destacado */
-  .premium{
-    background:linear-gradient(160deg,#fbf6ea,#f1e7cf);
-    border:1px solid var(--oro);border-radius:16px;padding:26px 26px 14px;
-    box-shadow:0 2px 0 rgba(180,136,74,.18);
-  }
-  .premium .cab h2{color:var(--verde)}
-  .premium .plato{border-bottom-color:#e4d3ab}
+  .premium{background:linear-gradient(160deg,#fbf6ea,#f1e7cf);border:1px solid var(--oro);border-radius:14px;padding:18px 18px 8px}
   .premium .pl-nom{font-weight:700}
-  .estrella{color:var(--oro);font-size:12px;letter-spacing:.3em;text-transform:uppercase;display:block;text-align:center;margin-bottom:8px}
+  .estrella{color:var(--oro);font-size:11px;letter-spacing:.3em;text-transform:uppercase;display:block;text-align:center;margin-bottom:6px}
+  .kids{background:var(--papel-2);border-radius:12px;padding:16px 18px}
 
-  .kids{background:var(--papel-2);border-radius:14px;padding:22px 24px}
-  .kids .lista{font-family:Georgia,serif;font-size:14px;color:var(--tinta-suave);margin:4px 0 10px;line-height:1.7}
-  .kids .precio-kids{text-align:center;font-size:20px;color:var(--verde);font-weight:700;border-top:1px dotted var(--linea);padding-top:12px}
-
-  /* ---------- PIE ---------- */
-  .pie{
-    background:var(--verde);color:var(--papel);text-align:center;
-    padding:34px 30px 40px;margin-top:20px;border-top:6px double var(--oro);
-  }
-  .pie .datos{display:flex;justify-content:center;gap:14px 30px;flex-wrap:wrap;font-size:15px;letter-spacing:.02em}
+  .pie{background:var(--verde);color:var(--papel);text-align:center;padding:28px 30px 34px;margin-top:14px;border-top:6px double var(--oro)}
+  .pie .datos{display:flex;justify-content:center;gap:12px 26px;flex-wrap:wrap;font-size:14px}
   .pie .datos b{color:var(--oro-claro);font-weight:400}
-  .pie .alerg{margin-top:20px;font-family:Georgia,serif;font-style:italic;font-size:12.5px;color:#cdbf9f;max-width:520px;margin-left:auto;margin-right:auto;line-height:1.6}
-  .pie .grx{margin-top:16px;font-size:12px;letter-spacing:.35em;text-transform:uppercase;color:var(--oro-claro)}
+  .pie .alerg{margin-top:14px;font-family:Georgia,serif;font-style:italic;font-size:11.5px;color:#cdbf9f;max-width:520px;margin:14px auto 0;line-height:1.5}
+  .pie .grx{margin-top:12px;font-size:11px;letter-spacing:.35em;text-transform:uppercase;color:var(--oro-claro)}
 
-  /* ---------- IMPRESIÓN A4 ---------- */
   @media print{
-    @page{size:A4;margin:12mm}
+    @page{size:A4;margin:9mm}
     body{background:#fff}
     .lienzo{max-width:none}
-    .portada{padding:40px 20px 34px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .pie,.premium,.kids{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .seccion{break-inside:avoid}
-    .no-print{display:none}
-  }
-  @media(max-width:480px){
-    main{padding:32px 20px}
-    .pl-precio{font-size:16px}
-    .plato{gap:4px 10px}
-  }
-  .aviso-print{
-    text-align:center;padding:14px;background:var(--verde-hoja);color:#fff;
-    font-family:Georgia,serif;font-size:14px;
-  }
-  .aviso-print button{
-    background:var(--oro);color:#3a2a12;border:0;padding:9px 20px;border-radius:8px;
-    font-weight:700;cursor:pointer;font-size:14px;margin-left:10px
+    .no-print{display:none!important}
+    .portada,.pie,.premium,.kids,.con-foto .foto{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    main{padding:16px 6px 6px}
+    .cols{column-gap:22px}
+    .seccion{margin-bottom:16px}
+    .portada{padding:26px 20px 22px}
+    .emblema{width:74px;height:74px}
   }
 </style>
 </head>
 <body>
-<div class="aviso-print no-print">📄 Esta es tu carta. Para guardarla en PDF o imprimirla, pulsa
-  <button onclick="window.print()">🖨 Imprimir / Guardar PDF</button>
+<div class="barra-print no-print">📄 Tu carta · <button onclick="window.print()">🖨 Imprimir / PDF</button> <button onclick="location.href='editar-carta.html'" style="background:#1d5a41;color:#fff">✏️ Editar la carta</button></div>
+
+<div class="lienzo" id="lienzo">
+  <div style="text-align:center;padding:60px;color:#8b8b7a">Cargando la carta…</div>
 </div>
 
-<div class="lienzo">
+<script src="carta-datos.js"></script>
+<script>
+const ID_CARTA = "4495a9d146be62a0d3e18df04b424802dd4f6e8a686403b8e5439844826205f9";
+const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-  <!-- ======= PORTADA ======= -->
-  <header class="portada">
-    <svg class="emblema" viewBox="0 0 120 120" aria-hidden="true">
-      <circle cx="60" cy="60" r="57" fill="none" stroke="#b4884a" stroke-width="1.5"/>
-      <circle cx="60" cy="60" r="50" fill="none" stroke="#b4884a" stroke-width=".6" opacity=".6"/>
-      <!-- palmera -->
-      <g fill="#cba15f">
-        <path d="M60 92c-2-14-3-26-2-40l4 0c1 14 0 26-2 40z"/>
-        <path d="M60 50c-10-9-22-11-32-6 9-1 19 2 27 9-11-4-22-2-30 5 10-4 20-3 29 3-9 1-17 6-21 14 8-8 18-11 27-9-4-6-3-13 0-20z" opacity=".95"/>
-        <path d="M60 50c10-9 22-11 32-6-9-1-19 2-27 9 11-4 22-2 30 5-10-4-20-3-29 3 9 1 17 6 21 14-8-8-18-11-27-9 4-6 3-13 0-20z" opacity=".8"/>
-        <circle cx="60" cy="47" r="4"/>
-      </g>
-      <path d="M40 96q20 8 40 0" fill="none" stroke="#b4884a" stroke-width="1.4" opacity=".7"/>
-    </svg>
-    <div class="marca">Bar · Restaurante</div>
-    <h1 class="titulo"><span class="the">El</span>PARAÍSO</h1>
-    <div class="desde">Desde 1968</div>
-    <p class="lema">Fusión Caribeña &amp; Mediterránea</p>
-  </header>
-
-  <main>
-
-    <!-- ======= SELECCIÓN PREMIUM ======= -->
-    <section class="seccion premium">
-      <span class="estrella">✦ Recomendación del Chef ✦</span>
-      <div class="cab"><h2>Selección Premium<span class="en">Chef's Premium Selection</span></h2></div>
-
-      <div class="plato">
-        <div class="pl-nom">Chuletón Angus Reserva a la Parrilla <span class="pl-en">· Grilled Angus reserve T-bone</span></div>
-        <div class="pl-precio">31,90&nbsp;€</div>
-        <div class="pl-desc">Corte seleccionado de ternera Angus, jugoso y lleno de sabor, sellado a la parrilla.</div>
-      </div>
-      <div class="plato">
-        <div class="pl-nom">Pulpo a la Brasa Estilo Tradicional <span class="pl-en">· Traditional char-grilled octopus</span></div>
-        <div class="pl-precio">23,90&nbsp;€</div>
-        <div class="pl-desc">Pulpo tierno terminado a la brasa con aceite de oliva virgen y un toque de pimentón ahumado.</div>
-      </div>
-      <div class="plato">
-        <div class="pl-nom">Paella Real de Bogavante Fresco <span class="pl-en">· Fresh lobster paella</span></div>
-        <div class="pl-precio"><span class="multi">2p</span> 64,90 · <span class="multi">3p</span> 88,90 · <span class="multi">4p</span> 109,90&nbsp;€</div>
-        <div class="pl-desc">Arroz seleccionado cocinado lentamente con bogavante fresco y marisco premium.</div>
-      </div>
-      <div class="plato">
-        <div class="pl-nom">Dorada Rellena de Gambas <span class="pl-en">· Sea bream stuffed with prawns</span></div>
-        <div class="pl-precio">28,90&nbsp;€</div>
-        <div class="pl-desc">Sabor auténtico del Mediterráneo, a la plancha o frita. Elige tu estilo favorito.</div>
-      </div>
-    </section>
-
-    <!-- ======= DESAYUNOS ======= -->
-    <section class="seccion">
-      <div class="cab"><h2>Desayunos<span class="en">Breakfast · served with coffee &amp; fresh juice</span></h2></div>
-      <div class="plato"><div class="pl-nom">Yonge de Tortilla</div><div class="pl-precio">5,50&nbsp;€</div><div class="pl-desc">Pan yonge artesanal con tortilla española. Incluye café y zumo natural.</div></div>
-      <div class="plato"><div class="pl-nom">Yonge de Jamón Serrano y Queso</div><div class="pl-precio">6,50&nbsp;€</div><div class="pl-desc">Jamón serrano y queso fundido. Incluye café y zumo natural.</div></div>
-      <div class="plato"><div class="pl-nom">Tostadas de Jamón Serrano con Tomate</div><div class="pl-precio">5,90&nbsp;€</div><div class="pl-desc">Tomate natural rallado y jamón serrano, con aceitunas verdes.</div></div>
-      <div class="plato"><div class="pl-nom">Tostadas de Aguacate</div><div class="pl-precio">6,20&nbsp;€</div><div class="pl-desc">Aguacate fresco, tomate cherry, rúcula y AOVE. Incluye café y zumo.</div></div>
-      <div class="plato"><div class="pl-nom">Tostada de Aguacate con Queso</div><div class="pl-precio">6,80&nbsp;€</div><div class="pl-desc">Aguacate, queso fresco, tomate y un toque de limón. Incluye café y zumo.</div></div>
-      <div class="plato"><div class="pl-nom">Oferta Desayuno Completo</div><div class="pl-precio">8,90&nbsp;€</div><div class="pl-desc">Tostadas, tortilla, café, zumo natural y aceitunas.</div></div>
-    </section>
-
-    <!-- ======= ENTRANTES ======= -->
-    <section class="seccion">
-      <div class="cab"><h2>Entrantes<span class="en">Starters</span></h2></div>
-      <div class="plato"><div class="pl-nom">Croquetas Caseras <span class="pl-en">· Homemade croquettes (6)</span></div><div class="pl-precio">8,50&nbsp;€</div><div class="pl-desc">Cremosas croquetas de jamón ibérico.</div></div>
-      <div class="plato"><div class="pl-nom">Nachos Paraíso <span class="pl-en">· Nachos with cheese &amp; guacamole</span></div><div class="pl-precio">9,90&nbsp;€</div><div class="pl-desc">Queso fundido, guacamole, pico de gallo y crema agria.</div></div>
-      <div class="plato"><div class="pl-nom">Alitas Picantes <span class="pl-en">· Spicy chicken wings</span></div><div class="pl-precio">9,00&nbsp;€</div><div class="pl-desc">Con salsa picante y dip de queso azul.</div></div>
-      <div class="plato"><div class="pl-nom">Alitas BBQ <span class="pl-en">· BBQ chicken wings</span></div><div class="pl-precio">9,00&nbsp;€</div><div class="pl-desc">Salsa barbacoa casera y sésamo.</div></div>
-      <div class="plato"><div class="pl-nom">Patatas Bravas <span class="pl-en">· Potatoes with spicy sauce</span></div><div class="pl-precio">8,00&nbsp;€</div><div class="pl-desc">Patatas crujientes con salsa brava y alioli.</div></div>
-      <div class="plato"><div class="pl-nom">Patatas Fritas <span class="pl-en">· French fries</span></div><div class="pl-precio">4,80&nbsp;€</div></div>
-      <div class="plato"><div class="pl-nom">Tostones Crujientes <span class="pl-en">· Crispy fried plantains</span></div><div class="pl-precio">4,80&nbsp;€</div></div>
-      <div class="plato"><div class="pl-nom">Arroz Blanco <span class="pl-en">· White rice</span></div><div class="pl-precio">4,39&nbsp;€</div></div>
-    </section>
-
-    <!-- ======= ENSALADAS ======= -->
-    <section class="seccion">
-      <div class="cab"><h2>Ensaladas<span class="en">Salads</span></h2></div>
-      <div class="plato"><div class="pl-nom">Ensalada Paraíso <span class="pl-en">· Paraíso salad</span></div><div class="pl-precio">13,90&nbsp;€</div><div class="pl-desc">Lechugas, tomate, aguacate, gambas, queso y vinagreta balsámica.</div></div>
-      <div class="plato"><div class="pl-nom">Ensalada César <span class="pl-en">· Caesar salad</span></div><div class="pl-precio">13,90&nbsp;€</div><div class="pl-desc">Romana, pollo a la parrilla, parmesano, crutones y salsa César.</div></div>
-      <div class="plato"><div class="pl-nom">Ensalada de Atún <span class="pl-en">· Tuna salad</span></div><div class="pl-precio">8,90&nbsp;€</div></div>
-    </section>
-
-    <!-- ======= PAELLAS Y ARROCES ======= -->
-    <section class="seccion">
-      <div class="cab"><h2>Paellas y Arroces<span class="en">Paellas &amp; Rice · minimum 2 people</span></h2></div>
-      <div class="plato"><div class="pl-nom">Paella Imperial de Mariscos <span class="pl-en">· Seafood paella</span></div><div class="pl-precio"><span class="multi">2p</span> 48,90 · <span class="multi">3p</span> 68,90 · <span class="multi">4p</span> 78,90&nbsp;€</div><div class="pl-desc">Gambas, mejillones, calamares y alioli.</div></div>
-      <div class="plato"><div class="pl-nom">Arroz Negro Selección del Chef <span class="pl-en">· Squid ink rice</span></div><div class="pl-precio"><span class="multi">2p</span> 47,90 · <span class="multi">3p</span> 68,90 · <span class="multi">4p</span> 83,90&nbsp;€</div><div class="pl-desc">Tinta de calamar, marisco fresco y alioli.</div></div>
-      <div class="plato"><div class="pl-nom">Paella Mixta <span class="pl-en">· Mixed paella</span></div><div class="pl-precio"><span class="multi">2p</span> 46 · <span class="multi">3p</span> 64 · <span class="multi">4p</span> 74&nbsp;€</div><div class="pl-desc">Carne y marisco sobre arroz de la casa.</div></div>
-      <div class="plato"><div class="pl-nom">Paella Real de Bogavante Fresco <span class="pl-en">· ver Selección Premium</span></div><div class="pl-precio"><span class="multi">2p</span> 64,90 · <span class="multi">3p</span> 88,90 · <span class="multi">4p</span> 109,90&nbsp;€</div></div>
-    </section>
-
-    <!-- ======= CARNES ======= -->
-    <section class="seccion">
-      <div class="cab"><h2>Carnes a la Parrilla<span class="en">Grilled Meats</span></h2></div>
-      <div class="plato"><div class="pl-nom">Chuletón Angus Reserva <span class="pl-en">· Angus reserve T-bone</span></div><div class="pl-precio">31,90&nbsp;€</div><div class="pl-desc">Recomendación del Chef, sellado a la parrilla.</div></div>
-      <div class="plato"><div class="pl-nom">Entrecot de Angus a la Parrilla <span class="pl-en">· Angus ribeye</span></div><div class="pl-precio">25,90&nbsp;€</div><div class="pl-desc">Con tostones, ensalada y aguacate.</div></div>
-      <div class="plato"><div class="pl-nom">Chuletas de Cordero a la Parrilla <span class="pl-en">· Grilled lamb chops</span></div><div class="pl-precio">17,90&nbsp;€</div><div class="pl-desc">Con romero, ajo y patatas asadas.</div></div>
-      <div class="plato"><div class="pl-nom">Churrasco a la Parrilla <span class="pl-en">· Grilled churrasco</span></div><div class="pl-precio">14,90&nbsp;€</div><div class="pl-desc">Con tostones, ensalada y aguacate.</div></div>
-      <div class="plato"><div class="pl-nom">Chuletas de Aguja de Cerdo <span class="pl-en">· Pork shoulder chops</span></div><div class="pl-precio">13,90&nbsp;€</div></div>
-      <div class="plato"><div class="pl-nom">Pechuga Empanada <span class="pl-en">· Breaded chicken breast</span></div><div class="pl-precio">13,90&nbsp;€</div></div>
-      <div class="plato"><div class="pl-nom">Pechuga a la Plancha <span class="pl-en">· Grilled chicken breast</span></div><div class="pl-precio">13,90&nbsp;€</div><div class="pl-desc">Con arroz blanco y ensalada tropical.</div></div>
-      <div class="plato"><div class="pl-nom">Pollo al Curry <span class="pl-en">· Chicken curry</span></div><div class="pl-precio">14,90&nbsp;€</div><div class="pl-desc">Curry con leche de coco, arroz basmati, ensalada y aguacate.</div></div>
-    </section>
-
-    <!-- ======= PESCADOS ======= -->
-    <section class="seccion">
-      <div class="cab"><h2>Pescados y Mariscos<span class="en">Fish &amp; Seafood</span></h2></div>
-      <div class="plato"><div class="pl-nom">Pulpo a la Parrilla <span class="pl-en">· Grilled octopus</span></div><div class="pl-precio">22,00&nbsp;€</div><div class="pl-desc">Con pimentón, aceite de oliva y patatas.</div></div>
-      <div class="plato"><div class="pl-nom">Dorada a la Plancha <span class="pl-en">· Grilled sea bream</span></div><div class="pl-precio">19,00&nbsp;€</div><div class="pl-desc">Con limón y aceite de oliva virgen.</div></div>
-      <div class="plato"><div class="pl-nom">Salmón a la Plancha <span class="pl-en">· Grilled salmon</span></div><div class="pl-precio">17,90&nbsp;€</div><div class="pl-desc">Con salsa de eneldo, ensalada y aguacate.</div></div>
-      <div class="plato"><div class="pl-nom">Pescado Relleno de Gambas <span class="pl-en">· Fish stuffed with prawns</span></div><div class="pl-precio">27,00&nbsp;€</div><div class="pl-desc">Pescado del día al horno con verduras mediterráneas.</div></div>
-      <div class="plato"><div class="pl-nom">Mejillones al Vapor <span class="pl-en">· Steamed mussels</span></div><div class="pl-precio">14,90&nbsp;€</div></div>
-    </section>
-
-    <!-- ======= ESPECIALIDADES CARIBEÑAS ======= -->
-    <section class="seccion premium">
-      <span class="estrella">✦ Sabor del Caribe ✦</span>
-      <div class="cab"><h2>Especialidades Caribeñas<span class="en">Caribbean Specialties</span></h2></div>
-      <div class="plato"><div class="pl-nom">Picalonga Caribeña <span class="pl-en">· Mixed Caribbean platter</span></div><div class="pl-precio"><span class="multi">2p</span> 25 · <span class="multi">4p</span> 50&nbsp;€</div><div class="pl-desc">Picada mixta con costillas, chuletas, chorizo, morcilla, tostones y yuca.</div></div>
-      <div class="plato"><div class="pl-nom">Picapollo Caribeño <span class="pl-en">· Caribbean fried chicken</span></div><div class="pl-precio"><span class="multi">2p</span> 20 · <span class="multi">4p</span> 30 · <span class="multi">6p</span> 60&nbsp;€</div><div class="pl-desc">Pollo frito caribeño con tostones, yuca y ensalada tropical.</div></div>
-      <div class="plato"><div class="pl-nom">Mofongo Tradicional <span class="pl-en">· Traditional mofongo</span></div><div class="pl-precio">18,00&nbsp;€</div><div class="pl-desc">Plátano verde majado con chicharrón, ajo y caldo, servido con carne.</div></div>
-      <div class="plato"><div class="pl-nom">Wok de Gambas con Arroz <span class="pl-en">· Prawn wok with rice</span></div><div class="pl-precio">16,00&nbsp;€</div><div class="pl-desc">Gambas salteadas al wok con verduras frescas y arroz blanco.</div></div>
-    </section>
-
-    <!-- ======= HAMBURGUESAS ======= -->
-    <section class="seccion">
-      <div class="cab"><h2>Hamburguesas<span class="en">Burgers</span></h2></div>
-      <div class="plato"><div class="pl-nom">Hamburguesa Sencilla <span class="pl-en">· Classic burger</span></div><div class="pl-precio">10,50&nbsp;€</div></div>
-      <div class="plato"><div class="pl-nom">Hamburguesa Triple Queso <span class="pl-en">· Triple cheese burger</span></div><div class="pl-precio">12,90&nbsp;€</div></div>
-      <div class="plato"><div class="pl-nom">Hamburguesa Paraíso XL <span class="pl-en">· Paraíso XL burger</span></div><div class="pl-precio">14,90&nbsp;€</div></div>
-    </section>
-
-    <!-- ======= PIZZAS ======= -->
-    <section class="seccion">
-      <div class="cab"><h2>Pizzas<span class="en">Pizzas</span></h2></div>
-      <div class="plato"><div class="pl-nom">Pizza Margarita <span class="pl-en">· Margherita</span></div><div class="pl-precio">11,90&nbsp;€</div></div>
-      <div class="plato"><div class="pl-nom">Pizza Paraíso <span class="pl-en">· Paraíso pizza</span></div><div class="pl-precio">13,90&nbsp;€</div></div>
-    </section>
-
-    <!-- ======= MENÚ INFANTIL ======= -->
-    <section class="seccion kids">
-      <div class="cab"><h2>Menú Mini Paraíso<span class="en">Kids Menu</span></h2></div>
-      <div class="lista">Espaguetis boloñesa · Espaguetis carbonara · Hamburguesa sencilla · Nuggets de pollo<br>
-        <span style="font-style:italic">A elegir uno · Incluye patatas fritas y zumo</span></div>
-      <div class="precio-kids">8,90&nbsp;€</div>
-    </section>
-
-    <!-- ======= POSTRES ======= -->
-    <section class="seccion">
-      <div class="cab"><h2>Postres<span class="en">Desserts</span></h2></div>
-      <div class="plato"><div class="pl-nom">Tarta de Zanahoria <span class="pl-en">· Carrot cake</span></div><div class="pl-precio">2,70&nbsp;€</div></div>
-      <div class="plato"><div class="pl-nom">Tarta de Chocolate <span class="pl-en">· Chocolate cake</span></div><div class="pl-precio">3,00&nbsp;€</div></div>
-      <div class="plato"><div class="pl-nom">Tarta de Coco <span class="pl-en">· Coconut cake</span></div><div class="pl-precio">3,00&nbsp;€</div></div>
-    </section>
-
-  </main>
-
-  <!-- ======= PIE ======= -->
-  <footer class="pie">
-    <div class="datos">
-      <span>📞 <b>689 980 202</b></span>
-      <span>🕗 <b>08:00 – 23:00</b></span>
-      <span>🌐 <b>elparaiso.wegic.net</b></span>
-    </div>
-    <p class="alerg">Si tienes alguna alergia o intolerancia alimentaria, pregunta a nuestro personal. · Please inform our staff of any food allergy or intolerance. IVA incluido.</p>
-    <div class="grx">El Paraíso · Desde 1968</div>
-  </footer>
-
-</div>
+function emblemaSVG(){
+  return `<svg class="emblema" viewBox="0 0 120 120" aria-hidden="true">
+    <circle cx="60" cy="60" r="57" fill="none" stroke="#b4884a" stroke-width="1.5"/>
+    <circle cx="60" cy="60" r="50" fill="none" stroke="#b4884a" stroke-width=".6" opacity=".6"/>
+    <g fill="#cba15f"><path d="M60 92c-2-14-3-26-2-40l4 0c1 14 0 26-2 40z"/>
+    <path d="M60 50c-10-9-22-11-32-6 9-1 19 2 27 9-11-4-22-2-30 5 10-4 20-3 29 3-9 1-17 6-21 14 8-8 18-11 27-9-4-6-3-13 0-20z"/>
+    <path d="M60 50c10-9 22-11 32-6-9-1-19 2-27 9 11-4 22-2 30 5-10-4-20-3-29 3 9 1 17 6 21 14-8-8-18-11-27-9 4-6 3-13 0-20z" opacity=".8"/>
+    <circle cx="60" cy="47" r="4"/></g></svg>`;
+}
+function platoHTML(p){
+  const filaTxt = `<div class="fila"><div><div class="pl-nom">${esc(p.nom)}${p.en?' <span class="pl-en">· '+esc(p.en)+'</span>':''}</div>${p.desc?'<div class="pl-desc">'+esc(p.desc)+'</div>':''}</div>
+    <div class="pl-precio">${esc(p.precio)}</div></div>`;
+  if(p.foto) return `<div class="plato"><div class="con-foto"><img class="foto" src="${p.foto}" alt="${esc(p.nom)}">${filaTxt}</div></div>`;
+  return `<div class="plato">${filaTxt}</div>`;
+}
+function seccionHTML(s){
+  const clase = s.estilo==='premium'?'seccion premium':(s.estilo==='kids'?'seccion kids':'seccion');
+  return `<section class="${clase}">
+    ${s.nota?'<span class="estrella">'+esc(s.nota)+'</span>':''}
+    <div class="cab"><h2>${esc(s.titulo)}${s.en?'<span class="en">'+esc(s.en)+'</span>':''}</h2></div>
+    ${(s.platos||[]).map(platoHTML).join('')}
+  </section>`;
+}
+function pintar(c){
+  document.title = 'Carta · '+(c.nombre||'El Paraíso');
+  document.getElementById('lienzo').innerHTML = `
+    <header class="portada">${emblemaSVG()}
+      <div class="marca">Bar · Restaurante</div>
+      <h1 class="titulo"><span class="the">El</span>${esc((c.nombre||'El Paraíso').replace(/^El\s+/i,'').toUpperCase())}</h1>
+      <div class="desde">Desde ${esc(c.desde||'1968')}</div>
+      <p class="lema">${esc(c.lema||'')}</p>
+    </header>
+    <main><div class="cols">${(c.secciones||[]).map(seccionHTML).join('')}</div></main>
+    <footer class="pie">
+      <div class="datos">${c.contacto&&c.contacto.tel?'<span>📞 <b>'+esc(c.contacto.tel)+'</b></span>':''}
+        ${c.contacto&&c.contacto.horario?'<span>🕗 <b>'+esc(c.contacto.horario)+'</b></span>':''}
+        ${c.contacto&&c.contacto.web?'<span>🌐 <b>'+esc(c.contacto.web)+'</b></span>':''}</div>
+      <p class="alerg">Si tienes alguna alergia o intolerancia alimentaria, pregunta a nuestro personal. · Please inform our staff of any food allergy or intolerance. IVA incluido.</p>
+      <div class="grx">El Paraíso · Desde ${esc(c.desde||'1968')}</div>
+    </footer>`;
+}
+(async()=>{
+  let carta = window.CARTA_DEFECTO;
+  try{
+    const r = await fetch('/api/datos?cartaweb='+ID_CARTA+'&t='+Date.now());
+    const j = await r.json();
+    if(j.existe && j.carta && Array.isArray(j.carta.secciones)) carta = j.carta;
+  }catch(e){}
+  pintar(carta);
+})();
+</script>
 </body>
 </html>

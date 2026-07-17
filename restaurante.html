@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>El Paraíso Bar Restaurante · Palma · Desde 1968</title>
+<meta name="description" content="El Paraíso Bar Restaurante en Palma de Mallorca. Cocina mediterránea y caribeña desde 1968. Paellas, carnes a la parrilla, pescados y especialidades caribeñas. Reserva tu mesa online.">
+<meta property="og:title" content="El Paraíso Bar Restaurante · Palma">
+<meta property="og:description" content="Cocina mediterránea y caribeña desde 1968. Reserva tu mesa online.">
+<meta property="og:type" content="restaurant">
+<style>
+  :root{
+    --verde:#123f2e; --verde-hoja:#1d5a41; --oro:#b4884a; --oro-claro:#cba15f;
+    --papel:#f6efe0; --papel-2:#efe6d2; --tinta:#2a2a24; --tinta-suave:#6b6656; --linea:#d8ccb0;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+  body{background:var(--papel);color:var(--tinta);font-family:"Palatino Linotype","Book Antiqua",Palatino,Georgia,serif;line-height:1.6}
+  a{color:inherit}
+  .sans{font-family:-apple-system,"Segoe UI",Roboto,sans-serif}
+
+  /* barra fija */
+  .nav{position:sticky;top:0;z-index:50;background:rgba(18,63,46,.96);backdrop-filter:blur(6px);
+    display:flex;align-items:center;justify-content:space-between;padding:12px 22px;border-bottom:1px solid rgba(180,136,74,.4)}
+  .nav .logo{color:var(--papel);font-size:19px;letter-spacing:.12em}
+  .nav .logo b{color:var(--oro-claro);font-weight:400}
+  .nav .links{display:flex;gap:20px;align-items:center;font-family:-apple-system,sans-serif;font-size:14px}
+  .nav .links a{color:#e9dfc6;text-decoration:none;letter-spacing:.03em}
+  .nav .links a:hover{color:#fff}
+  .nav .cta{background:var(--oro);color:#2a1c08;padding:8px 16px;border-radius:30px;font-weight:700;text-decoration:none}
+  @media(max-width:640px){.nav .links a.ocultable{display:none}}
+
+  /* hero */
+  .hero{
+    min-height:82vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+    color:var(--papel);padding:60px 24px;position:relative;
+    background:radial-gradient(130% 90% at 50% -20%, #1a5540 0%, var(--verde) 55%, #0c2c20 100%);
+    border-bottom:6px double var(--oro);
+  }
+  .emblema{width:100px;height:100px;margin-bottom:20px}
+  .hero .marca{font-family:Georgia,serif;font-size:13px;letter-spacing:.45em;text-transform:uppercase;color:var(--oro-claro);margin-bottom:14px}
+  .hero h1{font-size:clamp(46px,13vw,88px);font-weight:400;line-height:.95;letter-spacing:.02em;text-wrap:balance}
+  .hero h1 .the{display:block;font-size:.3em;letter-spacing:.5em;color:var(--oro-claro);text-transform:uppercase;margin-bottom:.3em}
+  .hero .desde{display:inline-block;margin-top:22px;padding:7px 22px;border:1px solid var(--oro);border-radius:40px;
+    font-family:Georgia,serif;font-size:13px;letter-spacing:.26em;text-transform:uppercase;color:var(--oro-claro)}
+  .hero .lema{margin-top:22px;font-style:italic;font-size:clamp(17px,4vw,22px);color:#e9dfc6;max-width:520px}
+  .hero .acciones{margin-top:34px;display:flex;gap:14px;flex-wrap:wrap;justify-content:center;font-family:-apple-system,sans-serif}
+  .btn{padding:14px 30px;border-radius:40px;font-weight:700;font-size:16px;text-decoration:none;letter-spacing:.02em;display:inline-block;transition:.18s}
+  .btn-oro{background:var(--oro);color:#2a1c08}
+  .btn-oro:hover{background:var(--oro-claro)}
+  .btn-linea{border:1.5px solid var(--oro-claro);color:var(--oro-claro)}
+  .btn-linea:hover{background:rgba(203,161,95,.14)}
+
+  /* secciones */
+  section{padding:64px 24px}
+  .contenido{max-width:960px;margin:0 auto}
+  .titulo-sec{text-align:center;margin-bottom:40px}
+  .titulo-sec h2{font-size:34px;font-weight:400;color:var(--verde);letter-spacing:.03em;display:inline-flex;align-items:center;gap:18px}
+  .titulo-sec h2::before,.titulo-sec h2::after{content:"";width:44px;height:1px;background:var(--oro);opacity:.7}
+  .titulo-sec p{margin-top:10px;color:var(--tinta-suave);font-style:italic;font-size:17px}
+
+  /* sobre nosotros */
+  .sobre{text-align:center;font-size:19px;color:#3a382e;max-width:680px;margin:0 auto;line-height:1.75}
+  .sobre .destacar{color:var(--verde);font-style:italic}
+
+  /* especialidades (tarjetas) */
+  .platos-destacados{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;margin-top:10px}
+  .tarjeta-plato{background:#fff;border:1px solid var(--linea);border-radius:16px;padding:24px 22px;text-align:center;transition:.18s}
+  .tarjeta-plato:hover{transform:translateY(-4px);box-shadow:0 12px 30px rgba(18,63,46,.1);border-color:var(--oro)}
+  .tarjeta-plato .ico{font-size:34px}
+  .tarjeta-plato h3{font-size:20px;color:var(--verde);margin:12px 0 6px;font-weight:400}
+  .tarjeta-plato p{font-family:Georgia,serif;font-size:14px;color:var(--tinta-suave);line-height:1.5}
+  .tarjeta-plato .precio{margin-top:12px;color:var(--oro);font-weight:700;font-size:17px}
+  .ver-carta{text-align:center;margin-top:38px}
+
+  /* franja verde reservas */
+  .franja{background:radial-gradient(120% 100% at 50% 0%, #1a5540, var(--verde));color:var(--papel);text-align:center;border-top:6px double var(--oro);border-bottom:6px double var(--oro)}
+  .franja h2{font-size:34px;font-weight:400;color:#fff;margin-bottom:12px}
+  .franja p{color:#e9dfc6;font-size:18px;max-width:520px;margin:0 auto 28px;font-style:italic}
+
+  /* info: horario, dirección, contacto */
+  .info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:24px}
+  .info-card{background:#fff;border:1px solid var(--linea);border-radius:16px;padding:26px;text-align:center}
+  .info-card .ico{font-size:30px;color:var(--oro)}
+  .info-card h3{color:var(--verde);font-size:19px;margin:12px 0 8px;font-weight:400}
+  .info-card p{font-family:-apple-system,sans-serif;font-size:15px;color:var(--tinta-suave);line-height:1.7}
+  .info-card a{color:var(--verde);font-weight:700;text-decoration:none}
+  .mapa{margin-top:36px;border-radius:16px;overflow:hidden;border:1px solid var(--linea);height:320px}
+  .mapa iframe{width:100%;height:100%;border:0;filter:saturate(.9)}
+
+  footer{background:var(--verde);color:var(--papel);text-align:center;padding:40px 24px;border-top:6px double var(--oro)}
+  footer .redes{display:flex;gap:18px;justify-content:center;margin:16px 0;font-family:-apple-system,sans-serif}
+  footer .redes a{color:var(--oro-claro);text-decoration:none;font-size:15px}
+  footer .fina{font-size:12px;letter-spacing:.3em;text-transform:uppercase;color:var(--oro-claro);margin-top:14px}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="#inicio" class="logo" style="text-decoration:none">EL <b>PARAÍSO</b></a>
+  <div class="links">
+    <a href="carta-paraiso.html" class="ocultable">Carta</a>
+    <a href="#visitanos" class="ocultable">Dónde estamos</a>
+    <a href="reservas.html" class="cta">Reservar mesa</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<header class="hero" id="inicio">
+  <svg class="emblema" viewBox="0 0 120 120" aria-hidden="true">
+    <circle cx="60" cy="60" r="57" fill="none" stroke="#cba15f" stroke-width="1.5"/>
+    <circle cx="60" cy="60" r="50" fill="none" stroke="#cba15f" stroke-width=".6" opacity=".6"/>
+    <g fill="#cba15f">
+      <path d="M60 92c-2-14-3-26-2-40l4 0c1 14 0 26-2 40z"/>
+      <path d="M60 50c-10-9-22-11-32-6 9-1 19 2 27 9-11-4-22-2-30 5 10-4 20-3 29 3-9 1-17 6-21 14 8-8 18-11 27-9-4-6-3-13 0-20z"/>
+      <path d="M60 50c10-9 22-11 32-6-9-1-19 2-27 9 11-4 22-2 30 5-10-4-20-3-29 3 9 1 17 6 21 14-8-8-18-11-27-9 4-6 3-13 0-20z" opacity=".8"/>
+      <circle cx="60" cy="47" r="4"/>
+    </g>
+  </svg>
+  <div class="marca">Bar · Restaurante · Palma</div>
+  <h1><span class="the">El</span>PARAÍSO</h1>
+  <div class="desde">Desde 1968</div>
+  <p class="lema">Cocina mediterránea y caribeña, en el corazón de Palma.</p>
+  <div class="acciones">
+    <a href="reservas.html" class="btn btn-oro">📅 Reservar mesa</a>
+    <a href="carta-paraiso.html" class="btn btn-linea">Ver la carta</a>
+  </div>
+</header>
+
+<!-- SOBRE NOSOTROS -->
+<section id="nosotros">
+  <div class="contenido">
+    <div class="titulo-sec"><h2>Nuestra casa</h2></div>
+    <p class="sobre">Desde <span class="destacar">1968</span>, El Paraíso reúne lo mejor de dos mundos: el sabor del <span class="destacar">Mediterráneo</span> y la alegría del <span class="destacar">Caribe</span>. Paellas cocinadas con calma, carnes Angus a la parrilla, pescado fresco y especialidades caribeñas que saben a fiesta. Ven a comer, a celebrar, o simplemente a estar bien.</p>
+  </div>
+</section>
+
+<!-- ESPECIALIDADES -->
+<section style="background:var(--papel-2)">
+  <div class="contenido">
+    <div class="titulo-sec"><h2>Nuestras especialidades</h2><p>Lo que más piden nuestros clientes</p></div>
+    <div class="platos-destacados">
+      <div class="tarjeta-plato"><div class="ico">🥘</div><h3>Paella Real de Bogavante</h3><p>Arroz cocinado lentamente con bogavante fresco y marisco premium.</p><div class="precio">desde 64,90 €</div></div>
+      <div class="tarjeta-plato"><div class="ico">🥩</div><h3>Chuletón Angus Reserva</h3><p>Corte seleccionado de ternera Angus, sellado a la parrilla.</p><div class="precio">31,90 €</div></div>
+      <div class="tarjeta-plato"><div class="ico">🐙</div><h3>Pulpo a la Brasa</h3><p>Tierno, con aceite de oliva virgen y pimentón ahumado.</p><div class="precio">23,90 €</div></div>
+      <div class="tarjeta-plato"><div class="ico">🌴</div><h3>Especialidades Caribeñas</h3><p>Mofongo, picapollo, picalonga... el sabor del Caribe.</p><div class="precio">desde 16 €</div></div>
+    </div>
+    <div class="ver-carta"><a href="carta-paraiso.html" class="btn btn-oro">📖 Ver la carta completa</a></div>
+  </div>
+</section>
+
+<!-- RESERVAS -->
+<section class="franja" id="reservar">
+  <div class="contenido">
+    <h2>Reserva tu mesa</h2>
+    <p>En unos segundos, desde el móvil. Te confirmamos enseguida.</p>
+    <a href="reservas.html" class="btn btn-oro">📅 Reservar ahora</a>
+  </div>
+</section>
+
+<!-- VISÍTANOS -->
+<section id="visitanos">
+  <div class="contenido">
+    <div class="titulo-sec"><h2>Visítanos</h2></div>
+    <div class="info-grid">
+      <div class="info-card"><div class="ico">🕗</div><h3>Horario</h3><p>Todos los días<br><b>08:00 – 23:00</b></p></div>
+      <div class="info-card"><div class="ico">📍</div><h3>Dónde estamos</h3><p>C/ General Riera 114<br>07010 Palma de Mallorca<br><a href="https://www.google.com/maps/search/?api=1&query=El+Para%C3%ADso+Bar+Restaurante+General+Riera+114+Palma" target="_blank" rel="noopener">Abrir en Google Maps</a></p></div>
+      <div class="info-card"><div class="ico">📞</div><h3>Reservas y pedidos</h3><p><a href="tel:+34689980202">689 980 202</a><br><a href="reservas.html">Reservar online</a></p></div>
+    </div>
+    <div class="mapa">
+      <iframe loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Mapa El Paraíso"
+        src="https://www.google.com/maps?q=General+Riera+114,+07010+Palma&output=embed"></iframe>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div style="font-size:22px;letter-spacing:.12em">EL <span style="color:var(--oro-claro)">PARAÍSO</span></div>
+  <div class="redes">
+    <a href="reservas.html">📅 Reservar</a>
+    <a href="carta-paraiso.html">📖 Carta</a>
+    <a href="tel:+34689980202">📞 689 980 202</a>
+  </div>
+  <div class="fina">Bar Restaurante · Desde 1968 · Palma de Mallorca</div>
+</footer>
+
+</body>
+</html>
