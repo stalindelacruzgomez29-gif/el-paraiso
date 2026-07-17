@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Editar la carta · El Paraíso</title>
+<link rel="manifest" href="/editar-carta.webmanifest">
+<meta name="theme-color" content="#123f2e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Editar Carta">
+<link rel="apple-touch-icon" href="/editar-icono-180.png">
+<link rel="icon" href="/editar-icono-192.png">
 <style>
   :root{--verde:#123f2e;--verde-hoja:#1d5a41;--oro:#b4884a;--papel:#f6efe0;--tinta:#2a2a24;--mut:#6b6656;--linea:#d8ccb0}
   *{box-sizing:border-box;margin:0;padding:0}
@@ -50,6 +56,7 @@
   <input id="cod" type="password" placeholder="Código secreto" autocomplete="off">
   <button class="btn btn-g" onclick="entrar()">Entrar a editar</button>
   <p id="lock-err" style="color:#9b1c1c;display:none">Código incorrecto. Vuelve a intentarlo.</p>
+  <button class="btn btn-b" id="btn-instalar" style="display:none;margin-top:8px" onclick="instalarEditor()">📌 Anclar este editor (móvil / ordenador)</button>
 </div>
 
 <div class="top" id="top" style="display:none">
@@ -199,6 +206,18 @@ $('#cod').addEventListener('keydown',e=>{if(e.key==='Enter')entrar();});
 (async()=>{ const g=localStorage.getItem('carta_codigo_editor'); if(g) await entrar(g); })();
 // Botón para "cerrar sesión" del editor en este ordenador
 window.olvidarCodigo=()=>{ localStorage.removeItem('carta_codigo_editor'); location.reload(); };
+
+// Anclar el editor como app (móvil y ordenador)
+if('serviceWorker' in navigator){ navigator.serviceWorker.register('/carta-sw.js').catch(()=>{}); }
+let promptEditor=null;
+window.addEventListener('beforeinstallprompt', e=>{ e.preventDefault(); promptEditor=e; const b=document.getElementById('btn-instalar'); if(b) b.style.display='inline-block'; });
+window.instalarEditor=async()=>{
+  if(promptEditor){ promptEditor.prompt(); await promptEditor.userChoice; promptEditor=null; document.getElementById('btn-instalar').style.display='none'; }
+  else{ alert('Para anclarlo:\n\niPhone: botón Compartir ↑ → "Añadir a pantalla de inicio".\nAndroid: menú ⋮ → "Instalar aplicación".\nOrdenador (Chrome): icono de instalar ⊕ en la barra de direcciones.'); }
+};
+const esiOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+const yaApp=window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+if(esiOS && !yaApp){ const b=document.getElementById('btn-instalar'); if(b) b.style.display='inline-block'; }
 </script>
 </body>
 </html>
