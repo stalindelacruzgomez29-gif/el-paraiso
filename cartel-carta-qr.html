@@ -53,8 +53,13 @@
 
 <div class="barra no-print">
   <button class="oro" onclick="window.print()">🖨 Imprimir el cartel</button>
-  <button onclick="cambiarTam()">🔍 Cambiar tamaño del QR</button>
-  <span style="font-family:-apple-system,sans-serif;font-size:13px;color:#5a5647;align-self:center">↓ Así se verá el cartel en las mesas y en la tablet</span>
+  <button onclick="descargarQR()">⬇️ Descargar solo el QR</button>
+  <button onclick="compartir()">📤 Enviar enlace</button>
+  <button onclick="copiarEnlace()">🔗 Copiar enlace</button>
+  <button onclick="cambiarTam()">🔍 Tamaño del QR</button>
+</div>
+<div class="barra no-print" style="margin-top:-8px">
+  <span style="font-family:-apple-system,sans-serif;font-size:13px;color:#5a5647;align-self:center">↓ Así se verá el cartel en las mesas y en la tablet · Enlace de la carta: <b id="urlmuestra">…</b></span>
 </div>
 
 <div class="cartel">
@@ -84,8 +89,32 @@
 </div>
 
 <script>
+const URL_CARTA = "https://el-paraiso-eight.vercel.app/carta-paraiso.html";
+document.getElementById('urlmuestra').textContent = URL_CARTA.replace('https://','');
+
 let grande=true;
 function cambiarTam(){grande=!grande;document.getElementById('qr').classList.toggle('peque',!grande);}
+
+// Descargar SOLO el QR (imagen PNG grande, para imprimir en pegatinas, folletos, redes…)
+async function descargarQR(){
+  const url='https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&margin=20&data='+encodeURIComponent(URL_CARTA);
+  try{
+    const r=await fetch(url); const blob=await r.blob();
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='QR-Carta-El-Paraiso.png'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  }catch(e){ window.open(url,'_blank'); }
+}
+// Enviar el enlace de la carta (WhatsApp, redes, correo… usa el menú del móvil si existe)
+async function compartir(){
+  const datos={title:'Carta · El Paraíso Bar Restaurante',text:'Mira nuestra carta 🌴',url:URL_CARTA};
+  if(navigator.share){ try{ await navigator.share(datos); return; }catch(e){} }
+  window.open('https://wa.me/?text='+encodeURIComponent('Mira la carta de El Paraíso 🌴 '+URL_CARTA),'_blank');
+}
+async function copiarEnlace(){
+  try{ await navigator.clipboard.writeText(URL_CARTA); alert('🔗 Enlace copiado:\n'+URL_CARTA+'\n\nPégalo en Google, Instagram, WhatsApp…'); }
+  catch(e){ prompt('Copia este enlace de tu carta:', URL_CARTA); }
+}
 </script>
 </body>
 </html>
