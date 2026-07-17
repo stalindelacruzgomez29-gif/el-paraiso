@@ -27,6 +27,7 @@
 </head>
 <body>
 <div class="caja">
+  <a id="volver" href="carta-paraiso.html" style="display:none;color:var(--verde);text-decoration:none;font-weight:700;font-size:14px;margin-bottom:10px">← Volver a la carta</a>
   <img class="logo" id="logo" alt="">
   <h1 id="nombre-negocio">El Paraíso Bar Restaurante</h1>
   <p class="sub">Reserva tu mesa y te la confirmamos enseguida</p>
@@ -52,6 +53,8 @@
 const $ = s => document.querySelector(s);
 const params = new URLSearchParams(location.search);
 const local = ['paraiso', 'sazon'].includes(params.get('l')) ? params.get('l') : 'paraiso';
+// Si vienen desde la carta (pestaña 📅 Reservar), enseñamos el botón de volver
+if (params.get('volver') === 'carta') $('#volver').style.display = 'inline-block';
 
 // Nombre y logo del local (si el negocio subió su propio logo, se usa ese)
 const NOMBRES = { paraiso: 'El Paraíso Bar Restaurante', sazon: 'El Sazón de Quisqueya' };

@@ -98,11 +98,13 @@
   .redes a:hover{background:rgba(203,161,95,.26)}
   /* PESTAÑAS de la app: 🌴 Carta · 🎉 Promos (solo pantalla) */
   body{padding-bottom:78px}
-  .tabs{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:55;display:flex;gap:6px;
-    background:var(--verde);border:1px solid var(--oro);border-radius:999px;padding:6px;box-shadow:0 10px 26px rgba(0,0,0,.30)}
-  .tab{border:0;background:transparent;color:#e9dfc6;font-family:Georgia,serif;font-size:14.5px;padding:9px 20px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+  html,body{overflow-x:hidden}
+  .tabs{position:fixed;left:8px;right:8px;bottom:14px;z-index:55;display:flex;gap:4px;
+    max-width:430px;margin:0 auto;justify-content:space-between;
+    background:var(--verde);border:1px solid var(--oro);border-radius:999px;padding:5px;box-shadow:0 10px 26px rgba(0,0,0,.30)}
+  .tab{flex:1;border:0;background:transparent;color:#e9dfc6;font-family:Georgia,serif;font-size:13.5px;padding:9px 4px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;min-width:0}
   .tab.act{background:var(--oro);color:#2a1c08;font-weight:700}
-  .tab .num{background:#9b2c2c;color:#fff;font-size:11px;border-radius:999px;padding:1px 7px;font-family:-apple-system,sans-serif;font-weight:700}
+  .tab .num{background:#9b2c2c;color:#fff;font-size:10.5px;border-radius:999px;padding:1px 6px;font-family:-apple-system,sans-serif;font-weight:700}
   /* vista de la pestaña Promos */
   .vista-promos{display:none;max-width:860px;margin:0 auto;padding:30px 22px 26px;position:relative;z-index:1}
   .vista-promos.act{display:block}
@@ -151,6 +153,7 @@
 <nav class="tabs no-print" id="tabs">
   <button class="tab act" id="tab-carta" onclick="verPestana('carta')">🌴 Carta</button>
   <button class="tab" id="tab-promos" onclick="verPestana('promos')">🎉 Promos <span class="num" id="tab-num" style="display:none">0</span></button>
+  <button class="tab" onclick="location.href='reservas.html?volver=carta'">📅 Reservar</button>
 </nav>
 
 <div class="instalar no-print" id="instalar">
@@ -280,7 +283,7 @@ function promosHTML(promos){
   const act=(promos||[]).filter(p=>p&&p.titulo&&p.activa!==false&&promoEnHora(p));
   if(!act.length) return '';
   return `<section class="promos-zona no-print">
-    <div class="cab"><h2>Promociones<span class="en">Offers · Promo del día</span></h2></div>
+    <div class="cab" onclick="verPestana('promos')" style="cursor:pointer" title="Ver todas las promociones"><h2>Promociones<span class="en">Offers · Ver todas ›</span></h2></div>
     <div class="promos-lista">${act.map(p=>`<div class="promo-card${act.length===1?' sola':''}">
       ${p.icono?'<div style="font-size:26px;line-height:1;margin-bottom:7px">'+esc(p.icono)+'</div>':''}
       <div class="promo-nom">${esc(p.titulo)}</div>
