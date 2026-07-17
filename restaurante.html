@@ -189,7 +189,7 @@
 // Trae las redes sociales de la carta (mismas que pone Stalin en el editor)
 (async()=>{
   try{
-    const ID="4495a9d146be62a0d3e18df04b424802dd4f6e8a686403b8e5439844826205f9";
+    const ID="4244bca40f5248ee217447ae96196df2b63dd8d0c83bad2e01995251a87329ba";
     const j=await (await fetch('/api/datos?cartaweb='+ID+'&t='+Date.now())).json();
     const r=j.existe&&j.carta&&j.carta.contacto&&j.carta.contacto.redes;
     if(!r) return;
