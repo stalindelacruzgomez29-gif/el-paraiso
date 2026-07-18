@@ -1963,7 +1963,7 @@ function pintarReservas() {
     <strong style="color:var(--verde)">📅 Reservas${deHoy ? ` · hoy ${deHoy}` : ''}</strong>
     ${rs.slice(0, 25).map(r => `<div class="aus" style="margin-top:8px">
       <span><strong>${esc(r.nombre)}</strong> · ${r.personas} pers.<br>
-        <span style="color:#666">${fBonita(r.fecha)} a las ${esc(r.hora)} · <a href="tel:${esc(r.telefono)}" style="color:var(--verde)">📞 ${esc(r.telefono)}</a>${r.nota ? '<br>📝 ' + esc(r.nota) : ''}</span></span>
+        <span style="color:#666">${fBonita(r.fecha)} a las ${esc(r.hora)} · <a href="tel:${esc(r.telefono)}" style="color:var(--verde)">📞 ${esc(r.telefono)}</a>${r.nota ? '<br>📝 ' + esc(r.nota) : ''}${(r.platos && r.platos.length) ? '<br>🍽 <b>Ya piden:</b> ' + esc(r.platos.map(x => x.cant + '× ' + x.nom).join(' · ')) : ''}</span></span>
       <span><span class="est ${ESTADO_RESERVA[r.estado] || ''}">${r.estado}</span>
         ${r.estado === 'pendiente' ? `<button class="btn btn-primario btn-peq" onclick="resolverReserva('${r.id}','confirmada')">✅</button>` : ''}
         ${r.estado !== 'anulada' ? `<button class="btn btn-borde btn-peq" onclick="resolverReserva('${r.id}','anulada')">❌</button>` : ''}

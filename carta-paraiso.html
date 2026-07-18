@@ -112,6 +112,9 @@
   .vp-estado{display:inline-block;margin-top:9px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-family:Georgia,serif;
     border:1px solid var(--oro);border-radius:999px;padding:3px 11px;color:var(--oro-claro)}
   .vp-estado.ahora{background:var(--oro);color:#2a1c08;font-weight:700}
+  .promo-acciones{display:flex;gap:7px;justify-content:center;margin-top:12px;flex-wrap:wrap}
+  .promo-acciones button,.promo-acciones a{border:1px solid rgba(203,161,95,.55);background:rgba(0,0,0,.16);color:#e7dcc2;border-radius:999px;padding:7px 12px;font-size:12.5px;cursor:pointer;text-decoration:none;font-family:-apple-system,"Segoe UI",sans-serif;line-height:1}
+  .promo-acciones .on{background:var(--oro);border-color:var(--oro);color:#2a1c08;font-weight:700}
   .vp-vacio{text-align:center;color:var(--tinta-suave);font-family:Georgia,serif;font-style:italic;padding:26px 10px;line-height:1.6}
 
   /* aviso instalar app */
@@ -252,6 +255,7 @@ function pintarVistaPromos(){
         ${p.desc?'<div class="promo-desc">'+esc(p.desc)+'</div>':''}
         ${p.precio?'<div class="promo-precio">'+esc(conEuro(p.precio))+'</div>':''}
         ${estadoPromoVista(p)}
+        ${botonesPromo(p)}
       </div>`).join('')
     : `<div class="vp-vacio">Ahora mismo no hay promociones…<br>¡pero pronto llegará la próxima! 🌴</div>`}
     <div style="text-align:center;margin-top:8px">
@@ -294,6 +298,39 @@ function diasTexto(dias){
   return 'Los '+dias.slice().sort().map(d=>DIAS_NOM[d]+'s').join(' y ');
 }
 function fechaBonita(f){ try{ return new Date(f+'T00:00:00').toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'}); }catch(e){ return f; } }
+// ── ME GUSTA / ME INTERESA / RESERVAR en cada promo ──
+// Cada móvil puede votar 1 vez por promo (se recuerda en el propio móvil y en el servidor).
+const DEV_ID=(()=>{ let d=localStorage.getItem('carta_dev'); if(!d){ d=Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2); localStorage.setItem('carta_dev',d); } return d; })();
+function clavePromo(p){ return String(p.titulo||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40)||'promo'; }
+let VOTOS={};
+async function cargarVotos(){
+  try{ const r=await fetch('/api/avisos?votos='+ID_CARTA); const j=await r.json(); VOTOS=j.votos||{}; pintarContadores(); }catch(e){}
+}
+function yaVoto(cl,t){ return localStorage.getItem('voto_'+cl+'_'+t)==='1'; }
+function botonesPromo(p){
+  const cl=clavePromo(p), v=VOTOS[cl]||{};
+  return `<div class="promo-acciones" data-promo="${cl}">
+    <button class="${yaVoto(cl,'gusta')?'on':''}" onclick="votarPromo('${cl}','gusta',this)">❤️ Me gusta <span class="n-gusta">${v.gusta||''}</span></button>
+    <button class="${yaVoto(cl,'interesa')?'on':''}" onclick="votarPromo('${cl}','interesa',this)">🙋 Me interesa <span class="n-interesa">${v.interesa||''}</span></button>
+    <a href="reservas.html?volver=carta&promo=${encodeURIComponent(p.titulo||'')}">📅 Reservar</a>
+  </div>`;
+}
+window.votarPromo=async(cl,tipo,btn)=>{
+  if(yaVoto(cl,tipo)) return;                    // ya votó desde este móvil
+  localStorage.setItem('voto_'+cl+'_'+tipo,'1');
+  btn.classList.add('on');
+  const sp=btn.querySelector('.n-'+tipo); if(sp) sp.textContent=(parseInt(sp.textContent||'0',10)||0)+1;
+  try{ await fetch('/api/avisos',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({accion:'promo-voto',carta:ID_CARTA,promo:cl,tipo,dev:DEV_ID})}); }catch(e){}
+};
+function pintarContadores(){
+  document.querySelectorAll('.promo-acciones').forEach(d=>{
+    const v=VOTOS[d.dataset.promo]||{};
+    const g=d.querySelector('.n-gusta'), i=d.querySelector('.n-interesa');
+    if(g&&v.gusta) g.textContent=v.gusta;
+    if(i&&v.interesa) i.textContent=v.interesa;
+  });
+}
 // Etiqueta de estado de una promo en la pestaña 🎉 Promos
 function estadoPromoVista(p){
   const horas=p.desde&&p.hasta?' · '+esc(p.desde)+'–'+esc(p.hasta):'';
@@ -327,6 +364,7 @@ function promosHTML(promos){
       ${p.desc?'<div class="promo-desc">'+esc(p.desc)+'</div>':''}
       ${p.precio?'<div class="promo-precio">'+esc(conEuro(p.precio))+'</div>':''}
       ${p.desde&&p.hasta?'<div style="margin-top:8px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#cdbf9f;font-family:Georgia,serif">🕗 Hoy '+esc(p.desde)+' – '+esc(p.hasta)+'</div>':(p.fecha?'<div style="margin-top:8px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#cdbf9f;font-family:Georgia,serif">📅 Solo hoy</div>':'')}
+      ${botonesPromo(p)}
     </div>`).join('')}</div>
   </section>`;
 }
@@ -348,6 +386,7 @@ async function cargarCarta(){
   }catch(e){}
   pintar(carta);
   estadoAvisos();
+  cargarVotos();
 }
 cargarCarta();
 

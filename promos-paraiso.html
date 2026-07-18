@@ -144,7 +144,7 @@ async function entrar(auto){
   }catch(e){}
   CARTA.promos = CARTA.promos||[];
   $('#lock').style.display='none'; $('#top').style.display='flex'; $('#main').style.display='block';
-  pintarPromos(); pintarCatalogo(); pintarDeLaCarta(); cargarNAvisos(); cargarReservas();
+  pintarPromos(); pintarCatalogo(); pintarDeLaCarta(); cargarNAvisos(); cargarReservas(); cargarVotos();
 }
 
 // ── RESERVAS DE MESA (las ve el admin aquí mismo) ──
@@ -164,6 +164,7 @@ async function cargarReservas(){
         <b>${esc(rv.nombre)}</b> · ${esc(rv.personas)} pers. — <b>${esc(fFecha(rv.fecha))}</b> a las <b>${esc(rv.hora)}</b>
         <span style="float:right;font-size:11.5px;font-weight:700;border-radius:999px;padding:2px 9px;${rv.estado==='confirmada'?'background:#def7ec;color:#03543f':'background:#fdf0d5;color:#8a5a00'}">${rv.estado==='confirmada'?'✓ confirmada':'⏳ pendiente'}</span>
         <br>📞 ${esc(rv.telefono)}${rv.nota?' · 📝 '+esc(rv.nota):''}
+        ${(rv.platos&&rv.platos.length)?'<br>🍽 <b>Ya piden:</b> '+esc(rv.platos.map(x=>x.cant+'× '+x.nom).join(' · ')):''}
       </div>`).join('');
   }catch(e){ $('#lista-reservas').textContent='No pude cargar las reservas ('+e.message+').'; }
 }
@@ -220,7 +221,7 @@ function pintarPromos(){
           <input type="date" value="${esc(p.fecha||'')}" style="width:auto" onchange="ponFecha(${i},this.value)" title="La promo saldrá solo ese día">
           <button class="btn btn-b btn-peq" onclick="CARTA.promos[${i}].dias=[];CARTA.promos[${i}].fecha='';promoNueva=-1;pintarPromos()" title="Quitar días y fecha: la promo sale siempre">Siempre</button>
         </div>
-        <p class="mini">${esc(cuandoTexto(p)||'Sale todos los días')} — marca días (D = domingos) o pon una fecha y se enciende y apaga sola.</p>
+        <p class="mini">${esc(cuandoTexto(p)||'Sale todos los días')} — marca días (D = domingos) o pon una fecha y se enciende y apaga sola.${votosTexto(p)}</p>
         <div class="acciones">
           <label style="display:inline-flex;align-items:center;gap:6px;margin:0;text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--tinta)">
             <input type="checkbox" style="width:auto" ${p.activa!==false?'checked':''} onchange="CARTA.promos[${i}].activa=this.checked"> Visible
@@ -235,6 +236,18 @@ function pintarPromos(){
     </div>`).join('') || '<p class="mini" style="margin-bottom:8px">Todavía no hay promociones. Crea una con un toque aquí abajo. 👇</p>';
 }
 window.addPromo=()=>{CARTA.promos.unshift({icono:'🎉',titulo:'',en:'',desc:'',precio:'',activa:true});promoNueva=0;pintarPromos();};
+
+// ── ME GUSTA / ME INTERESA que los clientes tocan en la carta ──
+let VOTOS={};
+function clavePromo(p){ return String(p.titulo||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40)||'promo'; }
+function votosTexto(p){
+  const v=VOTOS[clavePromo(p)];
+  if(!v||(!v.gusta&&!v.interesa)) return '';
+  return ' <b style="color:var(--verde)">'+(v.gusta?'❤️ '+v.gusta+' me gusta':'')+(v.gusta&&v.interesa?' · ':'')+(v.interesa?'🙋 '+v.interesa+' interesados':'')+'</b>';
+}
+async function cargarVotos(){
+  try{ const r=await fetch('/api/avisos?votos='+ID_CARTA); const j=await r.json(); VOTOS=j.votos||{}; pintarPromos(); }catch(e){}
+}
 
 // ── DÍAS Y FECHA DE CADA PROMO ──
 // p.dias = días de la semana (0=domingo…6=sábado) · p.fecha = un día concreto. Sin nada → sale siempre.

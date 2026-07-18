@@ -53,6 +53,24 @@ module.exports = async (req, res) => {
       return res.status(200).json({ cuantos: blobs.length });
     }
 
+    // ── Contadores de "me gusta" y "me interesa" de las promos (público, los ve la carta) ──
+    if (req.method === 'GET' && req.query && req.query.votos) {
+      const id = String(req.query.votos);
+      if (!ID_OK.test(id)) return res.status(400).json({ error: 'Id no válido.' });
+      const { blobs } = await list({ prefix: `votos/${id}/`, limit: 1000 });
+      const votos = {};
+      for (const bl of blobs) {
+        // ruta: votos/<id>/<clave-promo>/<gusta|interesa>-<dispositivo>.json
+        const partes = bl.pathname.split('/');
+        const clave = partes[2] || '', tipo = (partes[3] || '').split('-')[0];
+        if (!clave || (tipo !== 'gusta' && tipo !== 'interesa')) continue;
+        votos[clave] = votos[clave] || { gusta: 0, interesa: 0 };
+        votos[clave][tipo]++;
+      }
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(200).json({ votos });
+    }
+
     if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
     const b = req.body || {};
 
@@ -69,6 +87,22 @@ module.exports = async (req, res) => {
         alta: new Date().toISOString()
       }), { access: 'public', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json' });
       return res.status(200).json({ guardada: true });
+    }
+
+    // ── Un cliente toca "me gusta" o "me interesa" en una promo (1 voto por móvil y promo) ──
+    if (b.accion === 'promo-voto') {
+      const id = String(b.carta || '');
+      if (!ID_OK.test(id)) return res.status(400).json({ error: 'Carta no válida.' });
+      const clave = String(b.promo || '');
+      if (!/^[a-z0-9-]{1,40}$/.test(clave)) return res.status(400).json({ error: 'Promo no válida.' });
+      const tipo = b.tipo === 'interesa' ? 'interesa' : 'gusta';
+      const dev = String(b.dev || '');
+      if (dev.length < 8 || dev.length > 64) return res.status(400).json({ error: 'Falta el identificador.' });
+      // mismo móvil + misma promo + mismo tipo = mismo archivo → no se puede votar dos veces
+      await put(`votos/${id}/${clave}/${tipo}-${sha(dev).slice(0, 24)}.json`,
+        JSON.stringify({ t: new Date().toISOString() }),
+        { access: 'public', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json' });
+      return res.status(200).json({ ok: true });
     }
 
     // ── Stalin envía un aviso a todos (requiere el código del editor) ──
@@ -138,7 +172,7 @@ module.exports = async (req, res) => {
         .filter(rv => rv.fecha >= ayer && rv.estado !== 'anulada')
         .sort((a, c) => (a.fecha + a.hora).localeCompare(c.fecha + c.hora))
         .slice(0, 60)
-        .map(rv => ({ nombre: rv.nombre, telefono: rv.telefono, personas: rv.personas, fecha: rv.fecha, hora: rv.hora, nota: rv.nota || '', estado: rv.estado }));
+        .map(rv => ({ nombre: rv.nombre, telefono: rv.telefono, personas: rv.personas, fecha: rv.fecha, hora: rv.hora, nota: rv.nota || '', platos: rv.platos || [], estado: rv.estado }));
       const { blobs } = await list({ prefix: `pushadmin/${id}/` });
       res.setHeader('Cache-Control', 'no-store');
       return res.status(200).json({ reservas, avisosAdmin: blobs.length });

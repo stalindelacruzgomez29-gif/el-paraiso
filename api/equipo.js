@@ -617,6 +617,14 @@ module.exports = async (req, res) => {
       const personas = Math.round(Number(p.personas));
       const fecha = limpio(p.fecha), hora = limpio(p.hora);
       const nota = limpio(p.nota).slice(0, 200);
+      // Platos que el cliente ya sabe que va a querer (opcional): así cocina se organiza
+      const platos = (Array.isArray(p.platos) ? p.platos : []).slice(0, 25)
+        .map(pl => ({
+          nom: limpio(pl && pl.nom).slice(0, 60),
+          precio: limpio(pl && pl.precio).slice(0, 15),
+          cant: Math.min(40, Math.max(1, Math.round(Number(pl && pl.cant)) || 1))
+        }))
+        .filter(pl => pl.nom);
       if (limpio(p.web)) return res.status(400).json({ error: 'No se pudo enviar.' });   // trampa anti-robots
       if (!nombre || telefono.replace(/\D/g, '').length < 9) return res.status(400).json({ error: 'Hace falta tu nombre y un teléfono válido (para confirmarte la mesa).' });
       if (!(personas >= 1 && personas <= 40)) return res.status(400).json({ error: '¿Para cuántas personas es la mesa? (1 a 40)' });
@@ -633,13 +641,14 @@ module.exports = async (req, res) => {
         return res.status(503).json({ error: 'Ahora mismo no podemos aceptar más reservas por aquí. Llámanos por teléfono.' });
       }
       const autoConfirmar = !!(datos.config && datos.config.reservasAuto);
-      datos.reservas.push({ id: id(), nombre, telefono, personas, fecha, hora, nota, estado: autoConfirmar ? 'confirmada' : 'pendiente', creada: ahora(), resueltaPor: null });
+      datos.reservas.push({ id: id(), nombre, telefono, personas, fecha, hora, nota, platos, estado: autoConfirmar ? 'confirmada' : 'pendiente', creada: ahora(), resueltaPor: null });
       if (datos.reservas.length > 800) datos.reservas = datos.reservas.slice(-600);
       if (!await guardarDatos(archivoLocal, datos, sha)) continue;
-      await avisarWhatsApp(`📅 *${LOCALES[localClave].nombre.toUpperCase()} · Reserva ${autoConfirmar ? 'CONFIRMADA sola' : 'nueva'}*\n${nombre} · ${personas} pers.\n${fecha} a las ${hora}\n📞 ${telefono}${nota ? '\n📝 ' + nota : ''}${autoConfirmar ? '' : '\n(confírmala en el portal)'}`);
+      const txtPlatos = platos.length ? '\n🍽 Ya piden: ' + platos.map(pl => pl.cant + '× ' + pl.nom).join(', ').slice(0, 400) : '';
+      await avisarWhatsApp(`📅 *${LOCALES[localClave].nombre.toUpperCase()} · Reserva ${autoConfirmar ? 'CONFIRMADA sola' : 'nueva'}*\n${nombre} · ${personas} pers.\n${fecha} a las ${hora}\n📞 ${telefono}${nota ? '\n📝 ' + nota : ''}${txtPlatos}${autoConfirmar ? '' : '\n(confírmala en el portal)'}`);
       await avisarAdminPush(
         `📅 Reserva ${autoConfirmar ? 'confirmada' : 'nueva'} · ${LOCALES[localClave].nombre}`,
-        `${nombre} · ${personas} pers. · ${fecha} a las ${hora} · 📞 ${telefono}${autoConfirmar ? '' : ' · Confírmala en el portal'}`
+        `${nombre} · ${personas} pers. · ${fecha} a las ${hora} · 📞 ${telefono}${platos.length ? ' · 🍽 ' + platos.length + ' plato' + (platos.length === 1 ? '' : 's') + ' elegidos' : ''}${autoConfirmar ? '' : ' · Confírmala en el portal'}`
       );
       return res.status(200).json({ ok: true, mensaje: autoConfirmar ? '¡Reserva CONFIRMADA! Te esperamos. Si hay cualquier cambio, te llamamos.' : '¡Reserva apuntada! Te llamaremos o escribiremos para confirmarla.' });
     }
