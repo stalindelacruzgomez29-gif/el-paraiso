@@ -105,6 +105,23 @@ module.exports = async (req, res) => {
       return res.status(200).json({ ok: true });
     }
 
+    // ── El admin sube un documento y recibe un enlace para compartirlo (WhatsApp/correo) ──
+    if (b.accion === 'subir-doc') {
+      const id = await verificarCodigo(b.codigo);
+      if (!id) return res.status(403).json({ error: 'Código incorrecto.' });
+      const nombre = (String(b.nombre || 'documento.pdf').replace(/[^\w. ()-]/g, '').slice(0, 80)) || 'documento.pdf';
+      const datos = Buffer.from(String(b.base64 || ''), 'base64');
+      if (!datos.length || datos.length > 4 * 1024 * 1024) {
+        return res.status(400).json({ error: 'Archivo vacío o demasiado grande (máximo 4 MB).' });
+      }
+      // addRandomSuffix: el enlace lleva un código aleatorio → solo lo abre quien lo reciba
+      const subido = await put(`docs/${id}/${nombre}`, datos, {
+        access: 'public', addRandomSuffix: true,
+        contentType: String(b.tipo || 'application/pdf').slice(0, 60)
+      });
+      return res.status(200).json({ ok: true, url: subido.url });
+    }
+
     // ── Stalin envía un aviso a todos (requiere el código del editor) ──
     if (b.accion === 'enviar') {
       if (!process.env.VAPID_PRIVATE_KEY || !process.env.VAPID_PUBLIC_KEY) {
