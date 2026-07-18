@@ -115,6 +115,8 @@
   .promo-acciones{display:flex;gap:7px;justify-content:center;margin-top:12px;flex-wrap:wrap}
   .promo-acciones button,.promo-acciones a{border:1px solid rgba(203,161,95,.55);background:rgba(0,0,0,.16);color:#e7dcc2;border-radius:999px;padding:7px 12px;font-size:12.5px;cursor:pointer;text-decoration:none;font-family:-apple-system,"Segoe UI",sans-serif;line-height:1}
   .promo-acciones .on{background:var(--oro);border-color:var(--oro);color:#2a1c08;font-weight:700}
+  .club-in{display:block;width:100%;margin-bottom:8px;padding:11px 12px;border:1px solid var(--linea);border-radius:9px;font-size:15px;font-family:-apple-system,"Segoe UI",sans-serif;background:#fff}
+  .club-in:focus{outline:none;border-color:var(--oro)}
   .vp-vacio{text-align:center;color:var(--tinta-suave);font-family:Georgia,serif;font-style:italic;padding:26px 10px;line-height:1.6}
 
   /* aviso instalar app */
@@ -152,6 +154,22 @@
 </div>
 
 <div class="vista-promos" id="vista-promos"></div>
+
+<!-- 🎁 CLUB DE PROMOS: ventana fija (no se borra con el refresco de la carta) -->
+<div id="club-fondo" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:70" onclick="cerrarClub()"></div>
+<div id="club-modal" style="display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:71;background:var(--papel);border:1px solid var(--oro);border-radius:16px;padding:20px;width:min(92vw,380px);box-shadow:0 20px 60px rgba(0,0,0,.4)">
+  <h3 style="color:var(--verde);font-size:18px;margin-bottom:4px;font-weight:400">🎁 Club de promos de El Paraíso</h3>
+  <p style="font-family:Georgia,serif;font-size:13px;color:var(--tinta-suave);margin-bottom:12px">Déjanos tu WhatsApp y sé el primero en enterarte de las promociones y sorpresas.</p>
+  <input class="club-in" id="club-nombre" placeholder="Tu nombre" autocomplete="name">
+  <input class="club-in" id="club-tel" type="tel" placeholder="Tu móvil (WhatsApp)" autocomplete="tel">
+  <input class="club-in" id="club-email" type="email" placeholder="Tu correo (opcional)" autocomplete="email">
+  <label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--tinta-suave);font-family:-apple-system,sans-serif;margin:10px 0;line-height:1.4;cursor:pointer">
+    <input type="checkbox" id="club-acepto" style="width:16px;height:16px;margin-top:1px;flex:0 0 16px"> Acepto que El Paraíso me envíe promociones. Me puedo dar de baja cuando quiera avisando en el local.
+  </label>
+  <input id="club-web" style="position:absolute;left:-5000px" tabindex="-1" autocomplete="off">
+  <button id="club-btn" onclick="enviarClub()" style="width:100%;background:var(--oro);border:0;color:#2a1c08;font-weight:700;padding:12px;border-radius:10px;font-size:15px;cursor:pointer;font-family:-apple-system,sans-serif">Apuntarme 🌴</button>
+  <div id="club-msj" style="display:none;margin-top:10px;font-size:13px;text-align:center;font-family:-apple-system,sans-serif"></div>
+</div>
 
 <nav class="tabs no-print" id="tabs">
   <button class="tab act" id="tab-carta" onclick="verPestana('carta')">🌴 Carta</button>
@@ -260,6 +278,11 @@ function pintarVistaPromos(){
     : `<div class="vp-vacio">Ahora mismo no hay promociones…<br>¡pero pronto llegará la próxima! 🌴</div>`}
     <div style="text-align:center;margin-top:8px">
       <button class="avisos-btn">🔔 Avísame de las promociones</button>
+    </div>
+    <div style="text-align:center;margin-top:6px">
+      ${localStorage.getItem('club_apuntado')==='1'
+        ? '<button class="avisos-btn" disabled>🎁 Ya estás en el club ✓</button>'
+        : '<button class="avisos-btn" onclick="abrirClub()">🎁 Apúntate al club: promos por WhatsApp</button>'}
     </div>`;
   estadoAvisos();
 }
@@ -322,6 +345,29 @@ window.votarPromo=async(cl,tipo,btn)=>{
   const sp=btn.querySelector('.n-'+tipo); if(sp) sp.textContent=(parseInt(sp.textContent||'0',10)||0)+1;
   try{ await fetch('/api/avisos',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({accion:'promo-voto',carta:ID_CARTA,promo:cl,tipo,dev:DEV_ID})}); }catch(e){}
+};
+// ── 🎁 CLUB DE PROMOS: el cliente deja sus datos para recibir promociones ──
+window.abrirClub=()=>{ document.getElementById('club-fondo').style.display='block'; document.getElementById('club-modal').style.display='block'; };
+window.cerrarClub=()=>{ document.getElementById('club-fondo').style.display='none'; document.getElementById('club-modal').style.display='none'; };
+window.enviarClub=async()=>{
+  const btn=document.getElementById('club-btn'), msj=document.getElementById('club-msj');
+  const pinta=(t,mal)=>{ msj.style.display='block'; msj.style.color=mal?'#9b1c1c':'#03543f'; msj.textContent=t; };
+  if(!document.getElementById('club-acepto').checked){ pinta('Marca la casilla de aceptar recibir promociones.',true); return; }
+  btn.disabled=true; btn.textContent='Enviando…';
+  try{
+    const r=await fetch('/api/equipo',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({accion:'unirseClub',local:'paraiso',
+        nombre:document.getElementById('club-nombre').value,
+        telefono:document.getElementById('club-tel').value,
+        email:document.getElementById('club-email').value,
+        acepto:true, web:document.getElementById('club-web').value})});
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||'No se pudo enviar. Prueba otra vez.');
+    localStorage.setItem('club_apuntado','1');
+    pinta('🎉 '+j.mensaje,false);
+    setTimeout(()=>{ cerrarClub(); pintarVistaPromos(); },1800);
+  }catch(e){ pinta(e.message,true); }
+  btn.disabled=false; btn.textContent='Apuntarme 🌴';
 };
 function pintarContadores(){
   document.querySelectorAll('.promo-acciones').forEach(d=>{

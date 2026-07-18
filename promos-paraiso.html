@@ -105,6 +105,22 @@
   </div>
 
   <div class="caja">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <h2>🎁 Club de clientes</h2>
+      <span class="mini" id="n-club"></span>
+    </div>
+    <p class="mini" style="margin:2px 0 10px">Se apuntan desde la carta (pestaña 🎉 Promos → "Apúntate al club") y aceptan recibir promociones. Escribe el mensaje y mándaselo con un toque.</p>
+    <label>Mensaje para el club</label>
+    <textarea id="club-texto" rows="3" placeholder="Ej. 🍺 Hoy Domingo de Caña a 1,60 € · El Paraíso 🌴"></textarea>
+    <div class="acciones" style="margin:8px 0 10px">
+      <button class="btn btn-b btn-peq" onclick="textoClubDePromo()" title="Rellena el mensaje con tu primera promo visible">✨ Usar mi promo</button>
+      <button class="btn btn-b btn-peq" onclick="copiarNumerosClub()">📋 Copiar números</button>
+      <button class="btn btn-b btn-peq" onclick="correoClub()">✉️ Correo a todos</button>
+    </div>
+    <div id="lista-club" class="mini">Cargando el club…</div>
+  </div>
+
+  <div class="caja">
     <h2>⚡ Poner en promoción con un toque</h2>
     <p class="mini">Toca un producto y se crea la promo ya rellenada: solo ajustas el precio y guardas.</p>
     <div id="catalogo"></div>
@@ -154,6 +170,7 @@ async function cargarReservas(){
     const r=await fetch('/api/avisos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'reservas',codigo})});
     const j=await r.json();
     if(!r.ok) throw new Error(j.error||'Error');
+    CLUB=j.club||[]; pintarClub();
     const na=j.avisosAdmin||0;
     $('#n-admin').textContent=' · 🔔 '+na+' móvil'+(na===1?'':'es')+' recibe el aviso';
     if(localStorage.getItem('promos_avisos_admin')==='1'){ const b=$('#btn-avisos-admin'); b.textContent='🔔 Este móvil recibe las reservas ✓'; b.disabled=true; }
@@ -236,6 +253,52 @@ function pintarPromos(){
     </div>`).join('') || '<p class="mini" style="margin-bottom:8px">Todavía no hay promociones. Crea una con un toque aquí abajo. 👇</p>';
 }
 window.addPromo=()=>{CARTA.promos.unshift({icono:'🎉',titulo:'',en:'',desc:'',precio:'',activa:true});promoNueva=0;pintarPromos();};
+
+// ── 🎁 CLUB DE CLIENTES: se apuntan desde la carta, aceptan recibir promos ──
+let CLUB=[];
+// Móvil español de 9 cifras → le ponemos el +34 para WhatsApp
+function telWa(t){ const d=String(t||'').replace(/\D/g,''); return d.length===9?'34'+d:d; }
+function pintarClub(){
+  $('#n-club').textContent='👥 '+CLUB.length+' apuntado'+(CLUB.length===1?'':'s');
+  const el=$('#lista-club');
+  if(!CLUB.length){ el.textContent='Todavía no hay nadie. Enseña la carta a tus clientes: pestaña 🎉 Promos → "🎁 Apúntate al club".'; return; }
+  el.innerHTML=CLUB.slice().reverse().map(c=>`
+    <div style="border:1px solid #eadfc6;border-radius:10px;padding:9px 12px;margin-bottom:7px;background:#fff;font-size:13.5px;color:var(--tinta);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span style="flex:1;min-width:150px"><b>${esc(c.nombre)}</b><br><span class="mini">📞 ${esc(c.telefono)}${c.email?' · ✉️ '+esc(c.email):''}</span></span>
+      <button class="btn btn-g btn-peq" onclick="waClub('${telWa(c.telefono)}')">💬 WhatsApp</button>
+      ${c.email?`<button class="btn btn-b btn-peq" onclick="correoUno('${esc(c.email)}')">✉️</button>`:''}
+      <button class="btn quitar btn-peq" onclick="bajaClub('${esc(c.id)}','${esc(c.nombre)}')" title="Darle de baja del club">🗑</button>
+    </div>`).join('');
+}
+// Abre WhatsApp (o el correo) de ese cliente con el mensaje ya escrito
+window.waClub=tel=>{ window.open('https://wa.me/'+tel+'?text='+encodeURIComponent($('#club-texto').value||'🌴 El Paraíso'),'_blank'); };
+window.correoUno=em=>{ location.href='mailto:'+em+'?subject='+encodeURIComponent('🎉 Promoción · El Paraíso')+'&body='+encodeURIComponent($('#club-texto').value||''); };
+window.textoClubDePromo=()=>{
+  const p=(CARTA.promos||[]).find(x=>x.titulo&&x.activa!==false);
+  if(!p){ aviso('No tienes ninguna promo visible: crea una primero'); return; }
+  $('#club-texto').value=(p.icono||'🎉')+' '+p.titulo.trim()+(p.precio?' · '+conEuro(p.precio):'')+(p.desc?'\n'+p.desc:'')+(cuandoTexto(p)?'\n'+cuandoTexto(p):'')+'\n🌴 El Paraíso · Carta: el-paraiso-eight.vercel.app/carta-paraiso.html';
+  aviso('✨ Mensaje listo: ahora toca 💬 en cada cliente');
+};
+window.copiarNumerosClub=async()=>{
+  if(!CLUB.length){ aviso('El club está vacío todavía'); return; }
+  try{ await navigator.clipboard.writeText(CLUB.map(c=>c.telefono).join(', ')); aviso('📋 '+CLUB.length+' números copiados'); }
+  catch(e){ aviso('⚠️ No pude copiar. Mantén pulsado un número para copiarlo.'); }
+};
+window.correoClub=()=>{
+  const correos=CLUB.filter(c=>c.email).map(c=>c.email);
+  if(!correos.length){ aviso('Nadie del club ha dejado correo todavía'); return; }
+  location.href='mailto:?bcc='+correos.join(',')+'&subject='+encodeURIComponent('🎉 Promoción · El Paraíso')+'&body='+encodeURIComponent($('#club-texto').value||'');
+};
+window.bajaClub=async(idc,nombre)=>{
+  if(!confirm('¿Dar de baja a "'+nombre+'" del club? Dejará de recibir tus promociones.')) return;
+  try{
+    const r=await fetch('/api/equipo',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({accion:'bajaClub',local:'paraiso',codigo,id:idc})});
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||'Error');
+    aviso('🗑 Dado de baja'); cargarReservas();
+  }catch(e){ aviso('⚠️ '+e.message); }
+};
 
 // ── ME GUSTA / ME INTERESA que los clientes tocan en la carta ──
 let VOTOS={};

@@ -333,6 +333,16 @@ async function guardarDatos(archivo, datos, sha) {
   return true;
 }
 
+// El código del editor de la carta es válido si SU carta existe en el repo
+// (el nombre del archivo deriva del código: sin el código correcto no hay archivo)
+async function codigoCartaOK(codigo) {
+  codigo = String(codigo || '');
+  if (codigo.length < 4) return false;
+  const idc = crypto.createHash('sha256').update('cartaweb:' + codigo).digest('hex');
+  const r = await gh('GET', `/repos/${REPO_DATOS}/contents/cartaweb/${idc}.json?ref=main&t=${Date.now()}`);
+  return r.ok;
+}
+
 // --- Contraseñas: guardamos solo el picadillo (scrypt), nunca la clave ---
 function hashClave(clave, sal) {
   return crypto.scryptSync(String(clave), sal, 64).toString('hex');
@@ -651,6 +661,38 @@ module.exports = async (req, res) => {
         `${nombre} · ${personas} pers. · ${fecha} a las ${hora} · 📞 ${telefono}${platos.length ? ' · 🍽 ' + platos.length + ' plato' + (platos.length === 1 ? '' : 's') + ' elegidos' : ''}${autoConfirmar ? '' : ' · Confírmala en el portal'}`
       );
       return res.status(200).json({ ok: true, mensaje: autoConfirmar ? '¡Reserva CONFIRMADA! Te esperamos. Si hay cualquier cambio, te llamamos.' : '¡Reserva apuntada! Te llamaremos o escribiremos para confirmarla.' });
+    }
+
+    if (accion === 'unirseClub') {
+      // 🎁 Club de clientes: se apuntan desde la carta para recibir promos (dan su permiso)
+      const nombre = limpio(p.nombre).slice(0, 60);
+      const telefono = limpio(p.telefono).replace(/[^\d+ ]/g, '').slice(0, 20);
+      const email = correoNormal(p.email || '').slice(0, 80);
+      if (limpio(p.web)) return res.status(400).json({ error: 'No se pudo enviar.' });   // trampa anti-robots
+      if (!p.acepto) return res.status(400).json({ error: 'Marca la casilla de aceptar recibir promociones.' });
+      if (!nombre || telefono.replace(/\D/g, '').length < 9) return res.status(400).json({ error: 'Hace falta tu nombre y un móvil válido.' });
+      if (email && !email.includes('@')) return res.status(400).json({ error: 'Ese correo no parece válido.' });
+      datos.club = datos.club || [];
+      const telNorm = telefono.replace(/\D/g, '');
+      const ya = datos.club.find(c => String(c.telefono || '').replace(/\D/g, '') === telNorm);
+      if (ya) { ya.nombre = nombre; if (email) ya.email = email; }
+      else {
+        if (datos.club.length >= 3000) return res.status(503).json({ error: 'Ahora mismo no podemos apuntar a más gente por aquí.' });
+        datos.club.push({ id: id(), nombre, telefono, email, alta: ahora() });
+      }
+      if (!await guardarDatos(archivoLocal, datos, sha)) continue;
+      if (!ya) await avisarWhatsApp(`🎁 *${LOCALES[localClave].nombre} · Club de promos*\n${nombre} se ha apuntado (📞 ${telefono}${email ? ' · ✉️ ' + email : ''}).\nYa sois ${datos.club.length} en el club.`);
+      return res.status(200).json({ ok: true, mensaje: ya ? '¡Ya estabas en el club! Hemos puesto tus datos al día. 🌴' : '¡Dentro! Te llegarán nuestras promociones. 🌴' });
+    }
+
+    if (accion === 'bajaClub') {
+      // Quitar a alguien del club (desde la app de promos, con el código del editor de la carta)
+      if (!await codigoCartaOK(p.codigo)) return res.status(403).json({ error: 'Código incorrecto.' });
+      const antes = (datos.club || []).length;
+      datos.club = (datos.club || []).filter(c => c.id !== String(p.id || ''));
+      if (datos.club.length === antes) return res.status(404).json({ error: 'Ese cliente ya no está en el club.' });
+      if (!await guardarDatos(archivoLocal, datos, sha)) continue;
+      return res.status(200).json({ ok: true });
     }
 
     if (accion === 'verFidelidad') {

@@ -173,9 +173,13 @@ module.exports = async (req, res) => {
         .sort((a, c) => (a.fecha + a.hora).localeCompare(c.fecha + c.hora))
         .slice(0, 60)
         .map(rv => ({ nombre: rv.nombre, telefono: rv.telefono, personas: rv.personas, fecha: rv.fecha, hora: rv.hora, nota: rv.nota || '', platos: rv.platos || [], estado: rv.estado }));
+      // El club de clientes (se apuntan desde la carta y aceptan recibir promociones)
+      const club = (datos.club || []).slice(-500).map(c => ({
+        id: c.id, nombre: c.nombre, telefono: c.telefono, email: c.email || '', alta: c.alta
+      }));
       const { blobs } = await list({ prefix: `pushadmin/${id}/` });
       res.setHeader('Cache-Control', 'no-store');
-      return res.status(200).json({ reservas, avisosAdmin: blobs.length });
+      return res.status(200).json({ reservas, club, avisosAdmin: blobs.length });
     }
 
     return res.status(400).json({ error: 'Acción desconocida.' });
