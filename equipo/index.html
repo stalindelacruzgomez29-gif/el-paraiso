@@ -1950,7 +1950,7 @@ window.borrarDoc = async id => {
 };
 
 /* ---------- Reservas de mesa (las piden los clientes desde la página pública) ---------- */
-const ESTADO_RESERVA = { pendiente: 'est-pendiente', confirmada: 'est-aprobada', anulada: 'est-rechazada' };
+const ESTADO_RESERVA = { pendiente: 'est-pendiente', confirmada: 'est-aprobada', anulada: 'est-rechazada', noVino: 'est-rechazada' };
 function pintarReservas() {
   const z = $('#zona-reservas'); if (!z || !vista) return;
   const hoy = new Date().toLocaleDateString('sv-SE');
@@ -1963,10 +1963,11 @@ function pintarReservas() {
     <strong style="color:var(--verde)">📅 Reservas${deHoy ? ` · hoy ${deHoy}` : ''}</strong>
     ${rs.slice(0, 25).map(r => `<div class="aus" style="margin-top:8px">
       <span><strong>${esc(r.nombre)}</strong> · ${r.personas} pers.<br>
-        <span style="color:#666">${fBonita(r.fecha)} a las ${esc(r.hora)} · <a href="tel:${esc(r.telefono)}" style="color:var(--verde)">📞 ${esc(r.telefono)}</a>${r.nota ? '<br>📝 ' + esc(r.nota) : ''}${(r.platos && r.platos.length) ? '<br>🍽 <b>Ya piden:</b> ' + esc(r.platos.map(x => x.cant + '× ' + x.nom).join(' · ')) : ''}</span></span>
-      <span><span class="est ${ESTADO_RESERVA[r.estado] || ''}">${r.estado}</span>
+        <span style="color:#666">${fBonita(r.fecha)} a las ${esc(r.hora)} · <a href="tel:${esc(r.telefono)}" style="color:var(--verde)">📞 ${esc(r.telefono)}</a>${r.nota ? '<br>📝 ' + esc(r.nota) : ''}${(r.platos && r.platos.length) ? '<br>🍽 <b>Ya piden:</b> ' + esc(r.platos.map(x => x.cant + '× ' + x.nom).join(' · ')) : ''}${r.alerta ? '<br><b style="color:#b91c1c">' + esc(r.alerta) + '</b>' : ''}</span></span>
+      <span><span class="est ${ESTADO_RESERVA[r.estado] || ''}">${r.estado === 'noVino' ? 'no vino' : r.estado}</span>
         ${r.estado === 'pendiente' ? `<button class="btn btn-primario btn-peq" onclick="resolverReserva('${r.id}','confirmada')">✅</button>` : ''}
-        ${r.estado !== 'anulada' ? `<button class="btn btn-borde btn-peq" onclick="resolverReserva('${r.id}','anulada')">❌</button>` : ''}
+        ${r.estado !== 'anulada' && r.estado !== 'noVino' ? `<button class="btn btn-borde btn-peq" onclick="resolverReserva('${r.id}','anulada')">❌</button>` : ''}
+        ${(r.estado === 'confirmada' || r.estado === 'pendiente') && new Date(r.fecha + 'T' + (r.hora || '23:59')) <= new Date() ? `<button class="btn btn-borde btn-peq" onclick="resolverReserva('${r.id}','noVino')" title="El cliente no se presentó">😞</button>` : ''}
         ${esJefe ? `<button class="btn btn-borde btn-peq" onclick="borrarReserva('${r.id}')">🗑</button>` : ''}</span>
     </div>`).join('')}
     ${vista.yo.rol === 'jefe' ? `<label style="font-size:13px;display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer">
@@ -1981,7 +1982,8 @@ function pintarReservas() {
   };
 }
 window.resolverReserva = async (id, estado) => {
-  try { await refrescar('resolverReserva', { id, estado }); aviso(estado === 'confirmada' ? '✅ Reserva confirmada: avisa al cliente' : '❌ Reserva anulada'); }
+  if (estado === 'noVino' && !confirm('¿Marcar que este cliente NO VINO?\n\nSe le apunta el plantón: si vuelve a reservar, saldrá un aviso ⚠️ y su reserva no se confirmará sola.')) return;
+  try { await refrescar('resolverReserva', { id, estado }); aviso(estado === 'confirmada' ? '✅ Reserva confirmada: avisa al cliente' : estado === 'noVino' ? '😞 Plantón apuntado: si vuelve a reservar, avisará' : '❌ Reserva anulada'); }
   catch (e) { aviso(e.message, true); }
 };
 window.borrarReserva = async id => {

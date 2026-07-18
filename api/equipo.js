@@ -333,6 +333,19 @@ async function guardarDatos(archivo, datos, sha) {
   return true;
 }
 
+// Historial por teléfono: cuántas veces un cliente no vino ("plantón") o anuló.
+// Sirve para avisar al equipo cuando ese mismo cliente vuelva a reservar.
+function apuntarHistorialReserva(datos, rv, nuevoEstado) {
+  const tel = String(rv.telefono || '').replace(/\D/g, '');
+  if (tel.length < 9 || rv.estado === nuevoEstado) return;
+  datos.clientesReservas = datos.clientesReservas || {};
+  const h = datos.clientesReservas[tel] = datos.clientesReservas[tel] || { noVino: 0, anuladas: 0 };
+  if (rv.estado === 'noVino') h.noVino = Math.max(0, h.noVino - 1);      // se desmarca: no contar doble
+  if (rv.estado === 'anulada') h.anuladas = Math.max(0, h.anuladas - 1);
+  if (nuevoEstado === 'noVino') { h.noVino++; h.ultimo = rv.fecha; }
+  if (nuevoEstado === 'anulada') { h.anuladas++; h.ultimo = rv.fecha; }
+}
+
 // El código del editor de la carta es válido si SU carta existe en el repo
 // (el nombre del archivo deriva del código: sin el código correcto no hay archivo)
 async function codigoCartaOK(codigo) {
@@ -650,17 +663,27 @@ module.exports = async (req, res) => {
       if (datos.reservas.filter(r => r.estado === 'pendiente' && r.fecha >= hoy).length >= 300) {
         return res.status(503).json({ error: 'Ahora mismo no podemos aceptar más reservas por aquí. Llámanos por teléfono.' });
       }
+      // ⚠️ Aviso interno si este teléfono ya dejó plantada una mesa o anula mucho
+      const hist = (datos.clientesReservas || {})[telNorm];
+      const alerta = hist && (hist.noVino >= 1 || hist.anuladas >= 3)
+        ? '⚠️ Ojo con este cliente: ' + [
+            hist.noVino ? 'no vino ' + hist.noVino + (hist.noVino === 1 ? ' vez' : ' veces') : '',
+            hist.anuladas >= 3 ? 'anuló ' + hist.anuladas + ' veces' : ''
+          ].filter(Boolean).join(' y ') + ' antes'
+        : '';
       const autoConfirmar = !!(datos.config && datos.config.reservasAuto);
-      datos.reservas.push({ id: id(), nombre, telefono, personas, fecha, hora, nota, platos, estado: autoConfirmar ? 'confirmada' : 'pendiente', creada: ahora(), resueltaPor: null });
+      // Si el cliente tiene avisos, NUNCA se confirma sola: la decides tú
+      const confirmada = autoConfirmar && !alerta;
+      datos.reservas.push({ id: id(), nombre, telefono, personas, fecha, hora, nota, platos, alerta, estado: confirmada ? 'confirmada' : 'pendiente', creada: ahora(), resueltaPor: null });
       if (datos.reservas.length > 800) datos.reservas = datos.reservas.slice(-600);
       if (!await guardarDatos(archivoLocal, datos, sha)) continue;
       const txtPlatos = platos.length ? '\n🍽 Ya piden: ' + platos.map(pl => pl.cant + '× ' + pl.nom).join(', ').slice(0, 400) : '';
-      await avisarWhatsApp(`📅 *${LOCALES[localClave].nombre.toUpperCase()} · Reserva ${autoConfirmar ? 'CONFIRMADA sola' : 'nueva'}*\n${nombre} · ${personas} pers.\n${fecha} a las ${hora}\n📞 ${telefono}${nota ? '\n📝 ' + nota : ''}${txtPlatos}${autoConfirmar ? '' : '\n(confírmala en el portal)'}`);
+      await avisarWhatsApp(`📅 *${LOCALES[localClave].nombre.toUpperCase()} · Reserva ${confirmada ? 'CONFIRMADA sola' : 'nueva'}*\n${nombre} · ${personas} pers.\n${fecha} a las ${hora}\n📞 ${telefono}${nota ? '\n📝 ' + nota : ''}${txtPlatos}${alerta ? '\n' + alerta : ''}${confirmada ? '' : (alerta && autoConfirmar ? '\n(la dejo PENDIENTE por el aviso: decide tú)' : '\n(confírmala en el portal)')}`);
       await avisarAdminPush(
-        `📅 Reserva ${autoConfirmar ? 'confirmada' : 'nueva'} · ${LOCALES[localClave].nombre}`,
-        `${nombre} · ${personas} pers. · ${fecha} a las ${hora} · 📞 ${telefono}${platos.length ? ' · 🍽 ' + platos.length + ' plato' + (platos.length === 1 ? '' : 's') + ' elegidos' : ''}${autoConfirmar ? '' : ' · Confírmala en el portal'}`
+        `📅 Reserva ${confirmada ? 'confirmada' : 'nueva'} · ${LOCALES[localClave].nombre}`,
+        `${nombre} · ${personas} pers. · ${fecha} a las ${hora} · 📞 ${telefono}${platos.length ? ' · 🍽 ' + platos.length + ' plato' + (platos.length === 1 ? '' : 's') + ' elegidos' : ''}${alerta ? ' · ' + alerta : ''}${confirmada ? '' : ' · Decídela en el portal o en Promos'}`
       );
-      return res.status(200).json({ ok: true, mensaje: autoConfirmar ? '¡Reserva CONFIRMADA! Te esperamos. Si hay cualquier cambio, te llamamos.' : '¡Reserva apuntada! Te llamaremos o escribiremos para confirmarla.' });
+      return res.status(200).json({ ok: true, mensaje: confirmada ? '¡Reserva CONFIRMADA! Te esperamos. Si hay cualquier cambio, te llamamos.' : '¡Reserva apuntada! Te llamaremos o escribiremos para confirmarla.' });
     }
 
     if (accion === 'unirseClub') {
@@ -691,6 +714,18 @@ module.exports = async (req, res) => {
       const antes = (datos.club || []).length;
       datos.club = (datos.club || []).filter(c => c.id !== String(p.id || ''));
       if (datos.club.length === antes) return res.status(404).json({ error: 'Ese cliente ya no está en el club.' });
+      if (!await guardarDatos(archivoLocal, datos, sha)) continue;
+      return res.status(200).json({ ok: true });
+    }
+
+    if (accion === 'resolverReservaCarta') {
+      // Confirmar / anular / marcar "no vino" desde la app de promos (con el código del editor de la carta)
+      if (!await codigoCartaOK(p.codigo)) return res.status(403).json({ error: 'Código incorrecto.' });
+      const rv = (datos.reservas || []).find(x => x.id === String(p.id || ''));
+      if (!rv) return res.status(404).json({ error: 'No encuentro esa reserva.' });
+      if (!['confirmada', 'anulada', 'noVino'].includes(p.estado)) return res.status(400).json({ error: 'Estado no válido.' });
+      apuntarHistorialReserva(datos, rv, p.estado);
+      rv.estado = p.estado; rv.resueltaPor = 'admin-promos';
       if (!await guardarDatos(archivoLocal, datos, sha)) continue;
       return res.status(200).json({ ok: true });
     }
@@ -1267,7 +1302,8 @@ module.exports = async (req, res) => {
       case 'resolverReserva': {
         const rv = (datos.reservas || []).find(x => x.id === p.id);
         if (!rv) { const e = new Error('No encuentro esa reserva.'); e.codigo = 404; throw e; }
-        if (!['confirmada', 'anulada', 'pendiente'].includes(p.estado)) { const e = new Error('Estado no válido.'); e.codigo = 400; throw e; }
+        if (!['confirmada', 'anulada', 'pendiente', 'noVino'].includes(p.estado)) { const e = new Error('Estado no válido.'); e.codigo = 400; throw e; }
+        apuntarHistorialReserva(datos, rv, p.estado);   // cuenta plantones y anulaciones por teléfono
         rv.estado = p.estado; rv.resueltaPor = yo.id;
         break;
       }
