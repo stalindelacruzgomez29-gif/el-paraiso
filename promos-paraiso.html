@@ -295,8 +295,14 @@ function pintarClub(){
       <button class="btn quitar btn-peq" onclick="bajaClub('${esc(c.id)}','${esc(c.nombre)}')" title="Darle de baja del club">🗑</button>
     </div>`).join('');
 }
-// Abre WhatsApp (o el correo) de ese cliente con el mensaje ya escrito
-window.waClub=tel=>{ window.open('https://wa.me/'+tel+'?text='+encodeURIComponent($('#club-texto').value||'🌴 El Paraíso'),'_blank'); };
+// Abre WhatsApp (o el correo) de ese cliente con el mensaje ya escrito.
+// El enlace de la carta va SIEMPRE: por wa.me no se pueden adjuntar imágenes
+// (límite de WhatsApp), pero el enlace enseña la tarjetita con vista previa.
+window.waClub=tel=>{
+  let t=$('#club-texto').value.trim()||'🌴 El Paraíso';
+  if(!/el-paraiso-eight\.vercel\.app/.test(t)) t+='\n👉 Carta y promos: el-paraiso-eight.vercel.app/carta-paraiso.html';
+  window.open('https://wa.me/'+tel+'?text='+encodeURIComponent(t),'_blank');
+};
 window.correoUno=em=>{ location.href='mailto:'+em+'?subject='+encodeURIComponent('🎉 Promoción · El Paraíso')+'&body='+encodeURIComponent($('#club-texto').value||''); };
 window.textoClubDePromo=()=>{
   const p=(CARTA.promos||[]).find(x=>x.titulo&&x.activa!==false);
@@ -403,13 +409,32 @@ window.compartirPromo=async i=>{
   const blob=await new Promise(r=>c.toBlob(r,'image/png'));
   if(!blob){ aviso('⚠️ No pude crear la imagen'); return; }
   const file=new File([blob],'promo-el-paraiso.png',{type:'image/png'});
-  const texto=(p.icono||'🎉')+' '+p.titulo+(p.precio?' · '+conEuro(p.precio):'')+(p.desc?'\n'+p.desc:'')+(cuando?'\n'+cuando:'')+'\n🌴 El Paraíso';
-  if(navigator.canShare&&navigator.canShare({files:[file]})){
-    try{ await navigator.share({files:[file],text:texto}); }catch(e){} // si cancela, no pasa nada
-  }else{
-    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='promo-el-paraiso.png'; a.click();
-    aviso('💾 Imagen descargada: súbela a tus redes desde la galería.');
+  const texto=(p.icono||'🎉')+' '+p.titulo+(p.precio?' · '+conEuro(p.precio):'')+(p.desc?'\n'+p.desc:'')+(cuando?'\n'+cuando:'')+'\n🌴 El Paraíso · Carta: el-paraiso-eight.vercel.app/carta-paraiso.html';
+  // Dejamos el texto copiado para pegarlo como pie de foto en WhatsApp/Instagram
+  try{ await navigator.clipboard.writeText(texto); }catch(e){}
+  // La imagen se comparte SOLA (sin texto): el iPhone a veces suelta el archivo si van juntos
+  if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
+    try{
+      await navigator.share({files:[file]});
+      aviso('📤 ¡Enviada! El texto está copiado: en el chat, mantén pulsado y "Pegar".');
+      return;
+    }catch(e){ if(e&&e.name==='AbortError') return; }   // canceló: no pasa nada
   }
+  // Plan B (ordenador o iPhone antiguo): imagen en grande para guardarla con el dedo
+  verImagenPromo(c.toDataURL('image/png'));
+};
+// Enseña la imagen a pantalla completa: mantener pulsado → Guardar/Compartir
+window.verImagenPromo=src=>{
+  let v=document.getElementById('ver-imagen');
+  if(!v){
+    v=document.createElement('div'); v.id='ver-imagen';
+    v.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:80;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:18px';
+    v.innerHTML='<img style="max-width:88vw;max-height:74vh;border-radius:12px" alt="Promoción">'+
+      '<p style="color:#f6efe0;font-size:14px;text-align:center;max-width:320px">Mantén la imagen <b>pulsada</b> y elige <b>Guardar</b> o <b>Compartir</b>. El texto ya está copiado para pegarlo.</p>'+
+      '<button class="btn btn-g" onclick="document.getElementById(\'ver-imagen\').style.display=\'none\'">Cerrar</button>';
+    document.body.appendChild(v);
+  }
+  v.querySelector('img').src=src; v.style.display='flex';
 };
 window.borrarPromo=i=>{if(confirm('¿Quitar la promoción "'+(CARTA.promos[i].titulo||'sin título')+'"?')){CARTA.promos.splice(i,1);promoNueva=-1;pintarPromos();}};
 window.moverPromo=(i,d)=>{const j=i+d;if(j<0||j>=CARTA.promos.length)return;const t=CARTA.promos[i];CARTA.promos[i]=CARTA.promos[j];CARTA.promos[j]=t;promoNueva=-1;pintarPromos();};
