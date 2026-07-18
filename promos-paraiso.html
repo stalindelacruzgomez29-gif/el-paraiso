@@ -117,6 +117,16 @@
       <button class="btn btn-b btn-peq" onclick="copiarNumerosClub()">📋 Copiar números</button>
       <button class="btn btn-b btn-peq" onclick="correoClub()">✉️ Correo a todos</button>
     </div>
+    <div style="border-top:1px solid var(--linea);margin-top:12px;padding-top:10px">
+      <h2 style="font-size:15px">🎲 Sorteo del descuento</h2>
+      <p class="mini" style="margin:2px 0 8px">Cada ❤️ me gusta de la carta invita al cliente a apuntarse al club. Aquí eliges un ganador al azar y le avisas con su premio por WhatsApp.</p>
+      <label>Premio del sorteo</label>
+      <input id="premio-sorteo" value="10% de descuento en tu próxima visita">
+      <div class="acciones" style="margin:8px 0">
+        <button class="btn btn-g btn-peq" onclick="sortearGanador()">🎲 Elegir ganador al azar</button>
+      </div>
+      <div id="ganador-sorteo"></div>
+    </div>
     <div id="lista-club" class="mini">Cargando el club…</div>
   </div>
 
@@ -295,6 +305,25 @@ function pintarClub(){
       <button class="btn quitar btn-peq" onclick="bajaClub('${esc(c.id)}','${esc(c.nombre)}')" title="Darle de baja del club">🗑</button>
     </div>`).join('');
 }
+// ── 🎲 SORTEO: un ganador al azar entre los apuntados al club ──
+window.sortearGanador=()=>{
+  if(!CLUB.length){ aviso('El club está vacío: todavía no hay participantes'); return; }
+  window._ganador=CLUB[Math.floor(Math.random()*CLUB.length)];
+  const g=window._ganador;
+  $('#ganador-sorteo').innerHTML=`
+    <div style="border:2px solid var(--oro);background:#fbf6ea;border-radius:11px;padding:12px;font-size:14px;color:var(--tinta);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="flex:1;min-width:150px">🏆 <b>${esc(g.nombre)}</b><br><span class="mini">📞 ${esc(g.telefono)}</span></span>
+      <button class="btn btn-g btn-peq" onclick="avisarGanador()">💬 Avisarle por WhatsApp</button>
+      <button class="btn btn-b btn-peq" onclick="sortearGanador()" title="Repetir el sorteo">↻</button>
+    </div>`;
+};
+window.avisarGanador=()=>{
+  const g=window._ganador; if(!g) return;
+  const premio=$('#premio-sorteo').value.trim()||'un descuento';
+  const t='🎉 ¡Enhorabuena '+g.nombre+'! Has ganado el sorteo del club de El Paraíso 🌴: '+premio+'. Enséñanos este mensaje en el local para canjearlo. ¡Te esperamos!';
+  window.open('https://wa.me/'+telWa(g.telefono)+'?text='+encodeURIComponent(t),'_blank');
+};
+
 // Abre WhatsApp (o el correo) de ese cliente con el mensaje ya escrito.
 // El enlace de la carta va SIEMPRE: por wa.me no se pueden adjuntar imágenes
 // (límite de WhatsApp), pero el enlace enseña la tarjetita con vista previa.

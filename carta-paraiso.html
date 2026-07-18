@@ -117,6 +117,13 @@
   .promo-acciones .on{background:var(--oro);border-color:var(--oro);color:#2a1c08;font-weight:700}
   .club-in{display:block;width:100%;margin-bottom:8px;padding:11px 12px;border:1px solid var(--linea);border-radius:9px;font-size:15px;font-family:-apple-system,"Segoe UI",sans-serif;background:#fff}
   .club-in:focus{outline:none;border-color:var(--oro)}
+  /* 🎁 sorteo de descuentos: banner llamativo + corazón con latido */
+  .sorteo-banner{background:linear-gradient(135deg,#b4884a,#cba15f);color:#2a1c08;border-radius:14px;padding:14px 18px;margin:0 0 18px;text-align:center;font-family:-apple-system,"Segoe UI",sans-serif;box-shadow:0 8px 24px rgba(180,136,74,.45);cursor:pointer}
+  .sorteo-banner b{font-size:16.5px;letter-spacing:.02em}
+  .sorteo-banner .sb-sub{font-size:13px;margin-top:5px}
+  .sorteo-banner .sb-inst{font-size:11.5px;margin-top:6px;opacity:.8}
+  @keyframes latido{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+  .promo-acciones button:first-child{animation:latido 1.8s ease-in-out infinite}
   .vp-vacio{text-align:center;color:var(--tinta-suave);font-family:Georgia,serif;font-style:italic;padding:26px 10px;line-height:1.6}
 
   /* aviso instalar app */
@@ -158,8 +165,8 @@
 <!-- 🎁 CLUB DE PROMOS: ventana fija (no se borra con el refresco de la carta) -->
 <div id="club-fondo" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:70" onclick="cerrarClub()"></div>
 <div id="club-modal" style="display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:71;background:var(--papel);border:1px solid var(--oro);border-radius:16px;padding:20px;width:min(92vw,380px);box-shadow:0 20px 60px rgba(0,0,0,.4)">
-  <h3 style="color:var(--verde);font-size:18px;margin-bottom:4px;font-weight:400">🎁 Club de promos de El Paraíso</h3>
-  <p style="font-family:Georgia,serif;font-size:13px;color:var(--tinta-suave);margin-bottom:12px">Déjanos tu WhatsApp y sé el primero en enterarte de las promociones y sorpresas.</p>
+  <h3 id="club-titulo" style="color:var(--verde);font-size:18px;margin-bottom:4px;font-weight:400">🎁 Club de promos de El Paraíso</h3>
+  <p id="club-sub" style="font-family:Georgia,serif;font-size:13px;color:var(--tinta-suave);margin-bottom:12px">Déjanos tu WhatsApp y sé el primero en enterarte de las promociones y sorpresas.</p>
   <input class="club-in" id="club-nombre" placeholder="Tu nombre" autocomplete="name">
   <input class="club-in" id="club-tel" type="tel" placeholder="Tu móvil (WhatsApp)" autocomplete="tel">
   <input class="club-in" id="club-email" type="email" placeholder="Tu correo (opcional)" autocomplete="email">
@@ -265,6 +272,11 @@ function pintarVistaPromos(){
   const orden=[...todas].sort((a,b)=>(enVivo(b)?1:0)-(enVivo(a)?1:0));
   cont.innerHTML = `
     <div class="cab" style="margin-bottom:18px"><h2>Promociones<span class="en">Offers · El Paraíso</span></h2></div>
+    <div class="sorteo-banner" onclick="${localStorage.getItem('club_apuntado')==='1'?'':'abrirClubSorteo()'}">
+      🎁 <b>SORTEO DE DESCUENTOS</b><br>
+      <span class="sb-sub">Toca ❤️ Me gusta en tu promo favorita y apúntate: premiamos a clientes del club.</span>
+      <div class="sb-inst">${localStorage.getItem('club_apuntado')==='1'?'✓ Ya participas — ¡mucha suerte! 🍀':'📲 Instala la carta en tu móvil y no te pierdas el resultado'}</div>
+    </div>
     ${orden.length ? orden.map(p=>`
       <div class="promo-card">
         ${p.icono?'<div style="font-size:30px;line-height:1;margin-bottom:8px">'+esc(p.icono)+'</div>':''}
@@ -345,6 +357,17 @@ window.votarPromo=async(cl,tipo,btn)=>{
   const sp=btn.querySelector('.n-'+tipo); if(sp) sp.textContent=(parseInt(sp.textContent||'0',10)||0)+1;
   try{ await fetch('/api/avisos',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({accion:'promo-voto',carta:ID_CARTA,promo:cl,tipo,dev:DEV_ID})}); }catch(e){}
+  // 🎁 cada "me gusta" invita al sorteo de descuentos (si aún no está en el club)
+  if(tipo==='gusta' && localStorage.getItem('club_apuntado')!=='1'){
+    setTimeout(abrirClubSorteo, 700);
+  }
+};
+// Abre el formulario del club con el mensaje del sorteo
+window.abrirClubSorteo=()=>{
+  const t=document.getElementById('club-titulo'), s=document.getElementById('club-sub');
+  if(t) t.textContent='🎁 ¡Tu me gusta entra en el sorteo!';
+  if(s) s.textContent='Déjanos tu nombre y tu WhatsApp para avisarte si ganas el descuento. Premiamos a clientes del club. ¡Mucha suerte! 🍀';
+  abrirClub();
 };
 // ── 🎁 CLUB DE PROMOS: el cliente deja sus datos para recibir promociones ──
 window.abrirClub=()=>{ document.getElementById('club-fondo').style.display='block'; document.getElementById('club-modal').style.display='block'; };
