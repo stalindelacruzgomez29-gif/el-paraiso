@@ -205,6 +205,7 @@ function pintarPromos(){
           <button class="btn btn-b btn-peq" onclick="moverPromo(${i},-1)" title="Subir">⬆️</button>
           <button class="btn btn-b btn-peq" onclick="moverPromo(${i},1)" title="Bajar">⬇️</button>
           <button class="btn btn-g btn-peq" onclick="avisarPromo(${i})">📣 Avisar a los móviles</button>
+          <button class="btn btn-peq" style="background:#7c3aed;color:#fff" onclick="compartirPromo(${i})">📤 Compartir en redes</button>
           <button class="btn quitar btn-peq" onclick="borrarPromo(${i})">🗑 Quitar</button>
         </div>
       </div>
@@ -232,6 +233,67 @@ function cuandoTexto(p){
   const horas = p.desde&&p.hasta ? '⏰ de '+p.desde+' a '+p.hasta : '';
   return [dias,horas].filter(Boolean).join(' · ');
 }
+// ===== COMPARTIR una promo en redes: genera un cartel cuadrado (Instagram) y lo comparte =====
+function cargarImg(src){return new Promise(res=>{const i=new Image();i.crossOrigin='anonymous';i.onload=()=>res(i);i.onerror=()=>res(null);i.src=src;});}
+async function cartelPromo(p){
+  const S=1080, c=document.createElement('canvas'); c.width=S; c.height=S; const x=c.getContext('2d');
+  // fondo verde degradado
+  const g=x.createRadialGradient(S/2,S*0.3,60,S/2,S*0.5,S*0.9);
+  g.addColorStop(0,'#1a5540'); g.addColorStop(.6,'#123f2e'); g.addColorStop(1,'#0c2c20');
+  x.fillStyle=g; x.fillRect(0,0,S,S);
+  // marco dorado
+  x.strokeStyle='#b4884a'; x.lineWidth=8; x.strokeRect(30,30,S-60,S-60);
+  x.strokeStyle='rgba(203,161,95,.5)'; x.lineWidth=2; x.strokeRect(48,48,S-96,S-96);
+  // logo arriba
+  const logo=await cargarImg('/logo-paraiso-oficial.png');
+  if(logo){ const lw=300, lh=lw*(logo.height/logo.width||1); x.globalAlpha=.95; x.drawImage(logo,(S-lw)/2,70,lw,lh); x.globalAlpha=1; }
+  x.textAlign='center'; x.fillStyle='#cba15f';
+  x.font='bold 34px Georgia'; x.fillText('🎉  PROMOCIÓN  🎉', S/2, 430);
+  // título de la promo
+  x.fillStyle='#fff'; x.font='bold 76px Georgia';
+  envolver(x, (p.titulo||'Promoción'), S/2, 540, S-180, 80);
+  // precio grande
+  if(p.precio){ x.fillStyle='#cba15f'; x.font='bold 130px Georgia'; x.fillText(p.precio, S/2, 760); }
+  // descripción
+  if(p.desc){ x.fillStyle='#e9dfc6'; x.font='italic 40px Georgia'; envolver(x, p.desc, S/2, p.precio?840:720, S-200, 50); }
+  // cuándo
+  const cuando=cuandoTexto(p);
+  if(cuando){ x.fillStyle='#cba15f'; x.font='30px Georgia'; x.fillText(cuando.replace(/[🗓📅⏰]/g,'').trim(), S/2, 940); }
+  // pie
+  x.fillStyle='#cba15f'; x.font='bold 32px Georgia'; x.fillText('EL PARAÍSO · Bar Restaurante', S/2, 1010);
+  return new Promise(res=>c.toBlob(res,'image/jpeg',0.9));
+}
+function envolver(x,texto,cx,cy,maxw,lh){
+  const pal=String(texto).split(' '); let linea='',lineas=[];
+  for(const w of pal){ const t=linea+w+' '; if(x.measureText(t).width>maxw && linea){lineas.push(linea);linea=w+' ';}else linea=t; }
+  lineas.push(linea);
+  lineas.forEach((l,i)=>x.fillText(l.trim(),cx,cy+i*lh));
+}
+window.compartirPromo=async(i)=>{
+  const p=CARTA.promos[i];
+  if(!p.titulo){ aviso('Ponle un título a la promo primero.'); return; }
+  aviso('📤 Preparando el cartel…');
+  const enlaceCarta='https://el-paraiso-eight.vercel.app/carta-paraiso.html';
+  const texto='🎉 '+p.titulo+(p.precio?' — '+p.precio:'')+'\n'+(p.desc?p.desc+'\n':'')+'📍 El Paraíso Bar Restaurante\n🍽 Carta y reservas: '+enlaceCarta;
+  try{
+    const blob=await cartelPromo(p);
+    const file=new File([blob],'promo-el-paraiso.jpg',{type:'image/jpeg'});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({files:[file], text:texto, title:'Promoción · El Paraíso'});
+      return;
+    }
+    // Sin compartir nativo (ordenador): descargar el cartel + copiar el texto + abrir redes
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='promo-el-paraiso.jpg'; document.body.appendChild(a); a.click(); a.remove();
+    try{ await navigator.clipboard.writeText(texto); }catch(e){}
+    setTimeout(()=>{
+      if(confirm('✅ Cartel descargado y texto copiado.\n\nAhora se abrirán tus redes: sube el cartel (está en Descargas) y pega el texto.\n\n¿Abrir las redes?')){
+        window.open('https://www.instagram.com/','_blank');
+        window.open('https://www.facebook.com/','_blank');
+      }
+    },400);
+  }catch(e){ aviso('No se pudo compartir: '+e.message); }
+};
+
 window.borrarPromo=i=>{if(confirm('¿Quitar la promoción "'+(CARTA.promos[i].titulo||'sin título')+'"?')){CARTA.promos.splice(i,1);pintarPromos();}};
 window.moverPromo=(i,d)=>{const j=i+d;if(j<0||j>=CARTA.promos.length)return;const t=CARTA.promos[i];CARTA.promos[i]=CARTA.promos[j];CARTA.promos[j]=t;pintarPromos();};
 window.avisarPromo=async i=>{
