@@ -234,13 +234,14 @@ function pintar(c){
 // ── PESTAÑA "🎉 PROMOS": todas las promos del día, dentro de la misma app ──
 function pintarVistaPromos(){
   const cont=document.getElementById('vista-promos'); if(!cont) return;
-  const todas=(CARTA_ACTUAL.promos||[]).filter(p=>p&&p.titulo&&p.activa!==false);
-  const ahora=todas.filter(promoEnHora);
+  const todas=(CARTA_ACTUAL.promos||[]).filter(p=>p&&p.titulo&&p.activa!==false&&!promoCaducada(p));
+  const enVivo=p=>promoEnDia(p)&&promoEnHora(p);
+  const ahora=todas.filter(enVivo);
   // numerito rojo de la pestaña: promos activas EN ESTE MOMENTO
   const num=document.getElementById('tab-num');
   if(num){ num.textContent=ahora.length; num.style.display=ahora.length?'inline-block':'none'; }
-  // primero las de ahora mismo, luego las que empiezan más tarde
-  const orden=[...todas].sort((a,b)=>(promoEnHora(b)?1:0)-(promoEnHora(a)?1:0));
+  // primero las de ahora mismo, luego las que vienen (otro día u otra hora)
+  const orden=[...todas].sort((a,b)=>(enVivo(b)?1:0)-(enVivo(a)?1:0));
   cont.innerHTML = `
     <div class="cab" style="margin-bottom:18px"><h2>Promociones<span class="en">Offers · El Paraíso</span></h2></div>
     ${orden.length ? orden.map(p=>`
@@ -250,11 +251,7 @@ function pintarVistaPromos(){
         ${p.en?'<div class="promo-en">'+esc(p.en)+'</div>':''}
         ${p.desc?'<div class="promo-desc">'+esc(p.desc)+'</div>':''}
         ${p.precio?'<div class="promo-precio">'+esc(conEuro(p.precio))+'</div>':''}
-        ${p.desde&&p.hasta
-          ? (promoEnHora(p)
-              ? '<span class="vp-estado ahora">● Ahora mismo · hasta las '+esc(p.hasta)+'</span>'
-              : '<span class="vp-estado">🕗 Hoy de '+esc(p.desde)+' a '+esc(p.hasta)+'</span>')
-          : ''}
+        ${estadoPromoVista(p)}
       </div>`).join('')
     : `<div class="vp-vacio">Ahora mismo no hay promociones…<br>¡pero pronto llegará la próxima! 🌴</div>`}
     <div style="text-align:center;margin-top:8px">
@@ -281,6 +278,37 @@ function promoEnHora(p){
   const ah=new Date(), m=ah.getHours()*60+ah.getMinutes();
   return a<=b ? (m>=a&&m<=b) : (m>=a||m<=b);   // también vale de noche (22:00–02:00)
 }
+// Promo con días: p.dias = días de la semana (0=domingo…6=sábado) o p.fecha = un día concreto (AAAA-MM-DD).
+// Sin nada de eso, la promo vale todos los días (como hasta ahora).
+const DIAS_NOM=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+function hoyISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function promoEnDia(p){
+  if(p.fecha) return String(p.fecha)===hoyISO();
+  if(Array.isArray(p.dias)&&p.dias.length) return p.dias.includes(new Date().getDay());
+  return true;
+}
+// Una promo de fecha concreta ya pasada no se enseña en ningún sitio
+function promoCaducada(p){ return !!p.fecha && String(p.fecha)<hoyISO(); }
+function diasTexto(dias){
+  if(!Array.isArray(dias)||!dias.length||dias.length===7) return 'Todos los días';
+  return 'Los '+dias.slice().sort().map(d=>DIAS_NOM[d]+'s').join(' y ');
+}
+function fechaBonita(f){ try{ return new Date(f+'T00:00:00').toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'}); }catch(e){ return f; } }
+// Etiqueta de estado de una promo en la pestaña 🎉 Promos
+function estadoPromoVista(p){
+  const horas=p.desde&&p.hasta?' · '+esc(p.desde)+'–'+esc(p.hasta):'';
+  if(!promoEnDia(p)){
+    if(p.fecha) return '<span class="vp-estado">📅 '+esc(fechaBonita(p.fecha))+horas+'</span>';
+    return '<span class="vp-estado">🗓 '+esc(diasTexto(p.dias))+horas+'</span>';
+  }
+  if(p.desde&&p.hasta)
+    return promoEnHora(p)
+      ? '<span class="vp-estado ahora">● Ahora mismo · hasta las '+esc(p.hasta)+'</span>'
+      : '<span class="vp-estado">🕗 Hoy de '+esc(p.desde)+' a '+esc(p.hasta)+'</span>';
+  if(p.fecha) return '<span class="vp-estado ahora">● Solo hoy</span>';
+  if(Array.isArray(p.dias)&&p.dias.length&&p.dias.length<7) return '<span class="vp-estado ahora">● Hoy '+esc(DIAS_NOM[new Date().getDay()])+'</span>';
+  return '';
+}
 // El precio de una promo lleva SIEMPRE el €: si Stalin escribe "1", se enseña "1 €"
 function conEuro(v){
   v=(v==null?'':String(v)).trim();
@@ -288,7 +316,7 @@ function conEuro(v){
   return /€/.test(v) ? v : v+' €';
 }
 function promosHTML(promos){
-  const act=(promos||[]).filter(p=>p&&p.titulo&&p.activa!==false&&promoEnHora(p));
+  const act=(promos||[]).filter(p=>p&&p.titulo&&p.activa!==false&&promoEnDia(p)&&promoEnHora(p));
   if(!act.length) return '';
   return `<section class="promos-zona no-print">
     <div class="cab" onclick="verPestana('promos')" style="cursor:pointer" title="Ver todas las promociones"><h2>Promociones<span class="en">Offers · Ver todas ›</span></h2></div>
@@ -298,7 +326,7 @@ function promosHTML(promos){
       ${p.en?'<div class="promo-en">'+esc(p.en)+'</div>':''}
       ${p.desc?'<div class="promo-desc">'+esc(p.desc)+'</div>':''}
       ${p.precio?'<div class="promo-precio">'+esc(conEuro(p.precio))+'</div>':''}
-      ${p.desde&&p.hasta?'<div style="margin-top:8px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#cdbf9f;font-family:Georgia,serif">🕗 Hoy '+esc(p.desde)+' – '+esc(p.hasta)+'</div>':''}
+      ${p.desde&&p.hasta?'<div style="margin-top:8px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#cdbf9f;font-family:Georgia,serif">🕗 Hoy '+esc(p.desde)+' – '+esc(p.hasta)+'</div>':(p.fecha?'<div style="margin-top:8px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#cdbf9f;font-family:Georgia,serif">📅 Solo hoy</div>':'')}
     </div>`).join('')}</div>
   </section>`;
 }

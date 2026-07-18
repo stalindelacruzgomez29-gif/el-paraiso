@@ -37,6 +37,8 @@
   .acciones{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px;align-items:center}
   .quitar{background:#fde8e8;color:#9b1c1c}
   .add{background:#eaf3ec;color:var(--verde);border:1px dashed var(--verde)}
+  .dia{width:36px;height:36px;border-radius:50%;border:1px solid var(--linea);background:#fff;font-size:13px;font-weight:700;color:var(--mut);cursor:pointer}
+  .dia.on{background:var(--verde);border-color:var(--verde);color:#fff}
   /* catálogo de un toque */
   .cat-tit{font-size:13.5px;font-weight:700;color:var(--verde);margin:12px 0 7px}
   .chips{display:flex;flex-wrap:wrap;gap:8px}
@@ -211,6 +213,14 @@ function pintarPromos(){
           <input type="time" value="${esc(p.hasta||'')}" style="width:auto" onchange="CARTA.promos[${i}].hasta=this.value">
           <button class="btn btn-b btn-peq" onclick="CARTA.promos[${i}].desde='';CARTA.promos[${i}].hasta='';promoNueva=-1;pintarPromos()" title="Quitar horario: la promo se ve todo el día">Todo el día</button>
         </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;color:var(--mut)">
+          🗓 ¿Qué días?
+          ${diasChips(p,i)}
+          <span>o solo el</span>
+          <input type="date" value="${esc(p.fecha||'')}" style="width:auto" onchange="ponFecha(${i},this.value)" title="La promo saldrá solo ese día">
+          <button class="btn btn-b btn-peq" onclick="CARTA.promos[${i}].dias=[];CARTA.promos[${i}].fecha='';promoNueva=-1;pintarPromos()" title="Quitar días y fecha: la promo sale siempre">Siempre</button>
+        </div>
+        <p class="mini">${esc(cuandoTexto(p)||'Sale todos los días')} — marca días (D = domingos) o pon una fecha y se enciende y apaga sola.</p>
         <div class="acciones">
           <label style="display:inline-flex;align-items:center;gap:6px;margin:0;text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--tinta)">
             <input type="checkbox" style="width:auto" ${p.activa!==false?'checked':''} onchange="CARTA.promos[${i}].activa=this.checked"> Visible
@@ -218,12 +228,88 @@ function pintarPromos(){
           <button class="btn btn-b btn-peq" onclick="moverPromo(${i},-1)" title="Subir">⬆️</button>
           <button class="btn btn-b btn-peq" onclick="moverPromo(${i},1)" title="Bajar">⬇️</button>
           <button class="btn btn-g btn-peq" onclick="avisarPromo(${i})">📣 Avisar</button>
+          <button class="btn btn-b btn-peq" onclick="compartirPromo(${i})" title="Crea la imagen de la promo y la compartes en Instagram, Facebook, TikTok o WhatsApp">📤 Compartir</button>
           <button class="btn quitar btn-peq" onclick="borrarPromo(${i})">🗑</button>
         </div>
       </div>
     </div>`).join('') || '<p class="mini" style="margin-bottom:8px">Todavía no hay promociones. Crea una con un toque aquí abajo. 👇</p>';
 }
 window.addPromo=()=>{CARTA.promos.unshift({icono:'🎉',titulo:'',en:'',desc:'',precio:'',activa:true});promoNueva=0;pintarPromos();};
+
+// ── DÍAS Y FECHA DE CADA PROMO ──
+// p.dias = días de la semana (0=domingo…6=sábado) · p.fecha = un día concreto. Sin nada → sale siempre.
+const DIAS_NOM=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+const DIAS_BTN=[['L',1],['M',2],['X',3],['J',4],['V',5],['S',6],['D',0]];
+function diasChips(p,i){
+  return DIAS_BTN.map(([t,v])=>`<button class="dia${(Array.isArray(p.dias)&&p.dias.includes(v))?' on':''}" onclick="toggleDia(${i},${v})" title="${DIAS_NOM[v]}">${t}</button>`).join('');
+}
+window.toggleDia=(i,d)=>{
+  const p=CARTA.promos[i]; p.dias=Array.isArray(p.dias)?p.dias:[];
+  const k=p.dias.indexOf(d); k>=0?p.dias.splice(k,1):p.dias.push(d);
+  if(p.dias.length) p.fecha='';           // días de la semana y fecha concreta no se mezclan
+  pintarPromos();
+};
+window.ponFecha=(i,v)=>{ const p=CARTA.promos[i]; p.fecha=v||''; if(v) p.dias=[]; pintarPromos(); };
+function fechaBonita(f){ try{ return new Date(f+'T00:00:00').toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'}); }catch(e){ return f; } }
+function cuandoTexto(p){
+  const dias = p.fecha ? '📅 Solo el '+fechaBonita(p.fecha)
+    : (Array.isArray(p.dias)&&p.dias.length&&p.dias.length<7 ? '🗓 Los '+p.dias.slice().sort().map(d=>DIAS_NOM[d]+'s').join(' y ') : '');
+  const horas = p.desde&&p.hasta ? '⏰ de '+p.desde+' a '+p.hasta : '';
+  return [dias,horas].filter(Boolean).join(' · ');
+}
+
+// ── COMPARTIR EN REDES: crea una imagen (formato historia 1080×1920) y abre
+// el menú de compartir del móvil → Instagram, Facebook, TikTok, WhatsApp… ──
+const LOGO_IMG=new Image(); LOGO_IMG.src='/logo-paraiso-oficial.png';
+function parteLineas(x,txt,max){
+  const out=[]; let lin='';
+  for(const w of String(txt).trim().split(/\s+/)){ const t=lin?lin+' '+w:w; if(x.measureText(t).width>max&&lin){out.push(lin);lin=w;} else lin=t; }
+  if(lin) out.push(lin);
+  return out.slice(0,4);
+}
+window.compartirPromo=async i=>{
+  const p=CARTA.promos[i];
+  if(!p.titulo){ aviso('Ponle un título a la promo antes de compartirla'); return; }
+  const W=1080,H=1920,c=document.createElement('canvas'); c.width=W; c.height=H;
+  const x=c.getContext('2d');
+  const g=x.createLinearGradient(0,0,0,H); g.addColorStop(0,'#1d5a41'); g.addColorStop(1,'#0b2a1e');
+  x.fillStyle=g; x.fillRect(0,0,W,H);
+  x.strokeStyle='#cba15f'; x.lineWidth=6; x.strokeRect(40,40,W-80,H-80);
+  try{
+    if(LOGO_IMG.complete&&LOGO_IMG.naturalWidth){
+      x.globalAlpha=.12;
+      let s=Math.min(760/LOGO_IMG.naturalWidth,760/LOGO_IMG.naturalHeight);
+      x.drawImage(LOGO_IMG,(W-LOGO_IMG.naturalWidth*s)/2,(H-LOGO_IMG.naturalHeight*s)/2,LOGO_IMG.naturalWidth*s,LOGO_IMG.naturalHeight*s);
+      x.globalAlpha=1;
+      s=Math.min(300/LOGO_IMG.naturalWidth,300/LOGO_IMG.naturalHeight);
+      x.drawImage(LOGO_IMG,(W-LOGO_IMG.naturalWidth*s)/2,110,LOGO_IMG.naturalWidth*s,LOGO_IMG.naturalHeight*s);
+    }
+  }catch(e){}
+  x.textAlign='center';
+  x.font='150px -apple-system,sans-serif'; x.fillText(p.icono||'🎉',W/2,630);
+  x.font='bold 82px Georgia,serif'; x.fillStyle='#f6efe0';
+  let y=790;
+  for(const ln of parteLineas(x,String(p.titulo).toUpperCase(),W-220)){ x.fillText(ln,W/2,y); y+=100; }
+  if(p.desc){
+    x.font='46px Georgia,serif'; x.fillStyle='#e7dcc2'; y+=20;
+    for(const ln of parteLineas(x,p.desc,W-260)){ x.fillText(ln,W/2,y); y+=62; }
+  }
+  if(p.precio){ x.font='bold 135px Georgia,serif'; x.fillStyle='#cba15f'; y+=190; x.fillText(conEuro(p.precio),W/2,y); }
+  const cuando=cuandoTexto(p).replace(/📅|🗓|⏰/g,'').replace(/\s+/g,' ').trim();
+  if(cuando){ x.font='44px -apple-system,sans-serif'; x.fillStyle='#cdbf9f'; x.fillText(cuando,W/2,y+110); }
+  x.font='bold 56px Georgia,serif'; x.fillStyle='#cba15f'; x.fillText('El Paraíso',W/2,H-210);
+  x.font='36px -apple-system,sans-serif'; x.fillStyle='#e7dcc2'; x.fillText('Carta y promos 🌴 el-paraiso-eight.vercel.app',W/2,H-140);
+  const blob=await new Promise(r=>c.toBlob(r,'image/png'));
+  if(!blob){ aviso('⚠️ No pude crear la imagen'); return; }
+  const file=new File([blob],'promo-el-paraiso.png',{type:'image/png'});
+  const texto=(p.icono||'🎉')+' '+p.titulo+(p.precio?' · '+conEuro(p.precio):'')+(p.desc?'\n'+p.desc:'')+(cuando?'\n'+cuando:'')+'\n🌴 El Paraíso';
+  if(navigator.canShare&&navigator.canShare({files:[file]})){
+    try{ await navigator.share({files:[file],text:texto}); }catch(e){} // si cancela, no pasa nada
+  }else{
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='promo-el-paraiso.png'; a.click();
+    aviso('💾 Imagen descargada: súbela a tus redes desde la galería.');
+  }
+};
 window.borrarPromo=i=>{if(confirm('¿Quitar la promoción "'+(CARTA.promos[i].titulo||'sin título')+'"?')){CARTA.promos.splice(i,1);promoNueva=-1;pintarPromos();}};
 window.moverPromo=(i,d)=>{const j=i+d;if(j<0||j>=CARTA.promos.length)return;const t=CARTA.promos[i];CARTA.promos[i]=CARTA.promos[j];CARTA.promos[j]=t;promoNueva=-1;pintarPromos();};
 

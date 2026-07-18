@@ -38,6 +38,8 @@
   .fila2{display:grid;grid-template-columns:1fr 130px;gap:8px}
   .acciones-plato{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
   .quitar{background:#fde8e8;color:#9b1c1c}
+  .dia{width:34px;height:34px;border-radius:50%;border:1px solid var(--linea);background:#fff;font-size:12.5px;font-weight:700;color:var(--mut);cursor:pointer}
+  .dia.on{background:var(--verde);border-color:var(--verde);color:#fff}
   .mini{font-size:12px;color:var(--mut)}
   .add{background:#eaf3ec;color:var(--verde);border:1px dashed var(--verde)}
   /* login */
@@ -188,6 +190,14 @@ function pintarPromos(){
         </div>
         <input placeholder="Título en inglés (opcional)" value="${esc(p.en||'')}" onchange="CARTA.promos[${i}].en=this.value">
         <textarea placeholder="Descripción (opcional)" rows="2" onchange="CARTA.promos[${i}].desc=this.value">${esc(p.desc||'')}</textarea>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;color:var(--mut);margin:4px 0">
+          🗓 ¿Qué días?
+          ${diasChips(p,i)}
+          <span>o solo el</span>
+          <input type="date" value="${esc(p.fecha||'')}" style="width:auto" onchange="ponFecha(${i},this.value)" title="La promo saldrá solo ese día">
+          <button class="btn btn-b btn-peq" onclick="CARTA.promos[${i}].dias=[];CARTA.promos[${i}].fecha='';pintarPromos()" title="Quitar días y fecha: la promo sale siempre">Siempre</button>
+        </div>
+        <p class="mini" style="margin-bottom:6px">${esc(cuandoTexto(p)||'Sale todos los días')} — marca días (D = domingos) o pon una fecha y se enciende y apaga sola.</p>
         <div class="acciones-plato">
           <label style="display:inline-flex;align-items:center;gap:6px;margin:0;text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--tinta)">
             <input type="checkbox" style="width:auto" ${p.activa!==false?'checked':''} onchange="CARTA.promos[${i}].activa=this.checked"> Visible en la carta
@@ -201,6 +211,27 @@ function pintarPromos(){
     </div>`).join('') || '<p class="mini" style="margin-bottom:8px">Todavía no hay promociones. Crea la primera con el botón de abajo.</p>';
 }
 window.addPromo=()=>{CARTA.promos=CARTA.promos||[];CARTA.promos.push({titulo:'',en:'',desc:'',precio:'',activa:true});pintarPromos();};
+// Días y fecha de cada promo: p.dias = días de la semana (0=domingo…6=sábado),
+// p.fecha = un día concreto. Sin nada → la promo sale siempre (como antes).
+const DIAS_NOM=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+const DIAS_BTN=[['L',1],['M',2],['X',3],['J',4],['V',5],['S',6],['D',0]];
+function diasChips(p,i){
+  return DIAS_BTN.map(([t,v])=>`<button class="dia${(Array.isArray(p.dias)&&p.dias.includes(v))?' on':''}" onclick="toggleDia(${i},${v})" title="${DIAS_NOM[v]}">${t}</button>`).join('');
+}
+window.toggleDia=(i,d)=>{
+  const p=CARTA.promos[i]; p.dias=Array.isArray(p.dias)?p.dias:[];
+  const k=p.dias.indexOf(d); k>=0?p.dias.splice(k,1):p.dias.push(d);
+  if(p.dias.length) p.fecha='';
+  pintarPromos();
+};
+window.ponFecha=(i,v)=>{ const p=CARTA.promos[i]; p.fecha=v||''; if(v) p.dias=[]; pintarPromos(); };
+function fechaBonita(f){ try{ return new Date(f+'T00:00:00').toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'}); }catch(e){ return f; } }
+function cuandoTexto(p){
+  const dias = p.fecha ? '📅 Solo el '+fechaBonita(p.fecha)
+    : (Array.isArray(p.dias)&&p.dias.length&&p.dias.length<7 ? '🗓 Los '+p.dias.slice().sort().map(d=>DIAS_NOM[d]+'s').join(' y ') : '');
+  const horas = p.desde&&p.hasta ? '⏰ de '+p.desde+' a '+p.hasta : '';
+  return [dias,horas].filter(Boolean).join(' · ');
+}
 window.borrarPromo=i=>{if(confirm('¿Quitar la promoción "'+(CARTA.promos[i].titulo||'sin título')+'"?')){CARTA.promos.splice(i,1);pintarPromos();}};
 window.moverPromo=(i,d)=>{const j=i+d;if(j<0||j>=CARTA.promos.length)return;const t=CARTA.promos[i];CARTA.promos[i]=CARTA.promos[j];CARTA.promos[j]=t;pintarPromos();};
 window.avisarPromo=async i=>{
