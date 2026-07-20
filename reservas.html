@@ -78,6 +78,8 @@
 
   <div class="msj" id="msj"></div>
   <div id="post-reserva" style="display:none;margin-top:12px;font-size:14.5px;line-height:2;text-align:center"></div>
+  <!-- Puente a la carta digital: la reserva y la carta son un mismo sistema -->
+  <a id="enlace-carta" href="carta-paraiso.html" style="display:none;margin-top:16px;text-align:center;padding:12px;border:1.5px solid var(--verde);border-radius:12px;color:var(--verde);text-decoration:none;font-weight:700">🍽 Mira nuestra carta y nuestras promos</a>
 </div>
 
 <script>
@@ -86,6 +88,11 @@ const params = new URLSearchParams(location.search);
 const local = ['paraiso', 'sazon'].includes(params.get('l')) ? params.get('l') : 'paraiso';
 // Si vienen desde la carta (pestaña 📅 Reservar), enseñamos el botón de volver
 if (params.get('volver') === 'carta') $('#volver').style.display = 'inline-block';
+// Y si NO vienen de la carta, les enseñamos el puente hacia ella (solo en El Paraíso,
+// no en las apps clonadas de otros negocios, que tienen su propia carta o ninguna)
+if (params.get('volver') !== 'carta' && location.hostname === 'el-paraiso-eight.vercel.app') {
+  document.getElementById('enlace-carta').style.display = 'block';
+}
 
 // Nombre y logo del local (si el negocio subió su propio logo, se usa ese)
 const NOMBRES = { paraiso: 'El Paraíso Bar Restaurante', sazon: 'El Sazón de Quisqueya' };
