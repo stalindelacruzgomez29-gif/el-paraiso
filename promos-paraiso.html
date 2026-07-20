@@ -630,6 +630,19 @@ window.instalarApp=async()=>{
 const esiOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
 const yaApp=window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
 if(esiOS && !yaApp){ const b=$('#btn-instalar'); if(b) b.style.display='inline-block'; const t=$('#btn-anclar-top'); if(t) t.style.display='inline-block'; }
+
+// Cartel dorado GRANDE para anclarla a la pantalla de inicio (sale hasta que se instala)
+if(esiOS && !yaApp){
+  const c=document.createElement('div');
+  c.id='cartel-anclar';
+  c.style.cssText='position:fixed;left:10px;right:10px;bottom:12px;z-index:9999;background:linear-gradient(135deg,#b8963e,#8a6d1f);color:#fff;border-radius:16px;padding:14px 44px 14px 16px;font-size:15px;line-height:1.55;box-shadow:0 8px 26px rgba(0,0,0,.35);font-weight:600';
+  c.innerHTML='📲 <b>Ancla esta app a tu pantalla de inicio</b> (solo una vez):<br>'+
+    '1. Toca el botón <b>Compartir</b> <span style="display:inline-block;border:1.5px solid #fff;border-radius:6px;padding:0 7px">⬆️</span> de Safari (abajo en el centro)<br>'+
+    '2. Elige <b>"Añadir a pantalla de inicio"</b> y dale a <b>Añadir</b><br>'+
+    'Quedará el icono <b>%</b> dorado y se abrirá como una app de verdad.'+
+    '<button onclick="this.parentNode.remove();localStorage.setItem(\'promos_cartel_anclar\',\'no\')" style="position:absolute;top:8px;right:10px;border:0;background:transparent;color:#fff;font-size:20px;font-weight:bold">✕</button>';
+  if(localStorage.getItem('promos_cartel_anclar')!=='no') document.body.appendChild(c);
+}
 </script>
 </body>
 </html>
