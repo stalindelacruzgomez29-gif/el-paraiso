@@ -42,13 +42,14 @@
   <h1 id="nombre-negocio">El Paraíso Bar Restaurante</h1>
   <p class="sub">Reserva tu mesa y te la confirmamos enseguida</p>
 
+  <div id="form-reserva">
   <label>Tu nombre</label>
   <input class="campo" id="r-nombre" autocomplete="name" placeholder="Nombre y apellido">
   <label>Tu teléfono (te confirmamos por ahí)</label>
   <input class="campo" id="r-telefono" type="tel" autocomplete="tel" placeholder="600 000 000">
   <div class="fila">
     <div><label>Día</label><input class="campo" id="r-fecha" type="date"></div>
-    <div><label>Hora</label><input class="campo" id="r-hora" type="time"></div>
+    <div><label>Hora</label><input class="campo" id="r-hora" type="time"><select class="campo" id="r-hora-sel" style="display:none"></select></div>
     <div style="flex:0 0 110px"><label>Personas</label><input class="campo" id="r-personas" type="number" min="1" max="40" value="2"></div>
   </div>
   <label>Algo que debamos saber (opcional)</label>
@@ -64,7 +65,19 @@
   <input class="oculto-humanos" id="r-web" tabindex="-1" autocomplete="off">
 
   <button class="btn" id="btn-reservar">📅 Pedir la reserva</button>
+  </div>
+
+  <!-- Consulta / anulación de una reserva ya hecha (se entra con el enlace ?ver=) -->
+  <div id="zona-ver" style="display:none">
+    <label>Tu teléfono (el de la reserva)</label>
+    <input class="campo" id="v-telefono" type="tel" autocomplete="tel" placeholder="600 000 000">
+    <button class="btn" id="btn-ver">🔎 Ver mi reserva</button>
+    <div id="v-datos" style="display:none;margin-top:14px;padding:14px;background:#f2f8f2;border-radius:12px;font-size:15px;line-height:1.8"></div>
+    <button class="btn" id="btn-anular" style="display:none;background:#c62828">❌ Anular esta reserva</button>
+  </div>
+
   <div class="msj" id="msj"></div>
+  <div id="post-reserva" style="display:none;margin-top:12px;font-size:14.5px;line-height:2;text-align:center"></div>
 </div>
 
 <script>
@@ -85,6 +98,38 @@ $('#logo').onerror = () => { $('#logo').onerror = null; $('#logo').src = LOGOS_F
 // El día no puede ser anterior a hoy
 $('#r-fecha').min = new Date().toLocaleDateString('sv-SE');
 $('#r-fecha').value = new Date().toLocaleDateString('sv-SE');
+
+// ¿Por qué canal ha llegado el cliente? (google, instagram, facebook, whatsapp, qr...)
+// Cada enlace que reparte el local lleva su ?o=; así el jefe sabe qué canal le trae reservas.
+const origen = ['google', 'instagram', 'facebook', 'whatsapp', 'carta', 'qr'].includes(params.get('o'))
+  ? params.get('o')
+  : ((params.get('volver') === 'carta' || params.get('promo')) ? 'carta' : 'web');
+
+// ── HORAS POR TRAMOS: si el local configuró sus franjas, la hora se elige de una
+// lista (y las horas ya completas salen bloqueadas). Si no, campo de hora libre. ──
+async function cargarHoras() {
+  try {
+    const r = await fetch('/api/equipo', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accion: 'infoReservas', local, fecha: $('#r-fecha').value })
+    });
+    const j = await r.json();
+    if (!j.horas || !j.horas.length) return;   // el local no puso franjas: hora libre
+    const sel = $('#r-hora-sel');
+    const antes = sel.value;
+    const llenas = j.llenas || [];
+    sel.innerHTML = '<option value="">Elige la hora…</option>' +
+      j.horas.map(h => `<option value="${h}" ${llenas.includes(h) ? 'disabled' : ''}>${h}${llenas.includes(h) ? ' — completa' : ''}</option>`).join('');
+    if (antes && j.horas.includes(antes) && !llenas.includes(antes)) sel.value = antes;
+    $('#r-hora').style.display = 'none';
+    sel.style.display = 'block';
+  } catch (e) { /* si falla, se queda el campo de hora libre */ }
+}
+$('#r-fecha').addEventListener('change', cargarHoras);
+cargarHoras();
+function horaElegida() {
+  return $('#r-hora-sel').style.display !== 'none' ? $('#r-hora-sel').value : $('#r-hora').value;
+}
 
 // Si vienen de tocar "📅 Reservar" en una promoción, la apuntamos en la nota
 const promoElegida = (params.get('promo') || '').slice(0, 80);
@@ -138,13 +183,15 @@ function msj(tipo, texto) { const m = $('#msj'); m.className = 'msj ' + tipo; m.
 $('#btn-reservar').onclick = async () => {
   const btn = $('#btn-reservar'); btn.disabled = true; btn.textContent = 'Enviando...';
   try {
+    const fecha = $('#r-fecha').value, hora = horaElegida();
+    if (!hora) throw new Error('Elige la hora de la lista.');
     const r = await fetch('/api/equipo', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        accion: 'crearReserva', local,
+        accion: 'crearReserva', local, origen,
         nombre: $('#r-nombre').value, telefono: $('#r-telefono').value,
-        personas: $('#r-personas').value, fecha: $('#r-fecha').value,
-        hora: $('#r-hora').value, nota: $('#r-nota').value,
+        personas: $('#r-personas').value, fecha,
+        hora, nota: $('#r-nota').value,
         platos: Object.values(PEDIDO), web: $('#r-web').value
       })
     });
@@ -152,9 +199,83 @@ $('#btn-reservar').onclick = async () => {
     if (!r.ok) throw new Error(j.error || 'No se pudo enviar. Prueba de nuevo.');
     msj('ok', '🎉 ' + j.mensaje);
     btn.style.display = 'none';
+    // Le dejamos su enlace para ver o anular la reserva, y el botón de calendario
+    if (j.id) {
+      const verUrl = location.origin + '/reservas.html?l=' + local + '&ver=' + encodeURIComponent(j.id);
+      const ini = new Date(fecha + 'T' + hora);
+      const fin = new Date(ini.getTime() + 2 * 3600 * 1000);
+      const fCal = d => d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0') +
+        'T' + String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0') + '00';
+      const cal = 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' +
+        encodeURIComponent('Reserva · ' + $('#nombre-negocio').textContent) +
+        '&dates=' + fCal(ini) + '/' + fCal(fin) +
+        '&details=' + encodeURIComponent('Mesa para ' + $('#r-personas').value + '. Ver o anular: ' + verUrl);
+      const post = $('#post-reserva');
+      post.style.display = 'block';
+      post.innerHTML =
+        `<a href="${verUrl}" style="color:var(--verde);font-weight:700">🔎 Ver o anular mi reserva</a><br>` +
+        `<a href="${cal}" target="_blank" rel="noopener" style="color:var(--verde);font-weight:700">📆 Añadir a mi calendario</a><br>` +
+        `<span style="color:#789;font-size:13px">Guarda esta página en favoritos por si hay algún cambio.</span>`;
+    }
   } catch (e) { msj('mal', e.message); }
   btn.disabled = false; btn.textContent = '📅 Pedir la reserva';
 };
+
+// ── MODO "VER MI RESERVA": se entra con el enlace ?ver=<id> que damos al reservar.
+// El cliente pone su teléfono y puede ver el estado o anular la mesa él mismo. ──
+const verId = params.get('ver');
+if (verId) {
+  $('#form-reserva').style.display = 'none';
+  $('#zona-ver').style.display = 'block';
+  document.querySelector('.sub').textContent = 'Consulta o anula tu reserva';
+  const ESTADOS = {
+    pendiente: '🕐 Pendiente de confirmar (te avisamos enseguida)',
+    confirmada: '✅ CONFIRMADA — ¡te esperamos!',
+    anulada: '❌ Anulada',
+    noVino: '❌ Cerrada'
+  };
+  let reservaVista = null;
+  $('#btn-ver').onclick = async () => {
+    const btn = $('#btn-ver'); btn.disabled = true;
+    try {
+      const r = await fetch('/api/equipo', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'verReserva', local, id: verId, telefono: $('#v-telefono').value })
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'No se pudo consultar. Prueba de nuevo.');
+      reservaVista = j.reserva;
+      const rv = j.reserva;
+      const bonita = new Date(rv.fecha + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+      $('#v-datos').style.display = 'block';
+      $('#v-datos').innerHTML =
+        `<b>${ESTADOS[rv.estado] || rv.estado}</b><br>` +
+        `👤 ${rv.nombre}<br>📅 ${bonita} a las ${rv.hora}<br>👥 ${rv.personas} persona${rv.personas == 1 ? '' : 's'}` +
+        (rv.nota ? `<br>📝 ${rv.nota}` : '') +
+        (rv.platos && rv.platos.length ? `<br>🍽 ${rv.platos.map(pl => pl.cant + '× ' + pl.nom).join(' · ')}` : '');
+      const hoy = new Date().toLocaleDateString('sv-SE');
+      $('#btn-anular').style.display = (rv.estado !== 'anulada' && rv.estado !== 'noVino' && rv.fecha >= hoy) ? 'block' : 'none';
+      $('#msj').style.display = 'none';
+    } catch (e) { msj('mal', e.message); }
+    btn.disabled = false;
+  };
+  $('#btn-anular').onclick = async () => {
+    if (!confirm('¿Seguro que quieres anular la reserva? La mesa quedará libre.')) return;
+    const btn = $('#btn-anular'); btn.disabled = true;
+    try {
+      const r = await fetch('/api/equipo', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'anularReservaCliente', local, id: verId, telefono: $('#v-telefono').value })
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'No se pudo anular. Llámanos y lo hacemos al momento.');
+      msj('ok', j.mensaje);
+      btn.style.display = 'none';
+      $('#v-datos').style.display = 'none';
+    } catch (e) { msj('mal', e.message); }
+    btn.disabled = false;
+  };
+}
 </script>
 </body>
 </html>

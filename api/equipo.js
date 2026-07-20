@@ -346,6 +346,46 @@ function apuntarHistorialReserva(datos, rv, nuevoEstado) {
   if (nuevoEstado === 'anulada') { h.anuladas++; h.ultimo = rv.fecha; }
 }
 
+// ── Reservas PRO: franjas de apertura, horas reservables y aforo ──
+// Las franjas las escribe el jefe como texto: "12:30-16:00, 19:30-23:30"
+function franjasReservas(datos) {
+  return String((datos.config && datos.config.reservasFranjas) || '').split(',').map(t => {
+    const m = t.trim().match(/^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/);
+    if (!m) return null;
+    const ini = +m[1] * 60 + +m[2], fin = +m[3] * 60 + +m[4];
+    return fin > ini ? { ini, fin } : null;
+  }).filter(Boolean);
+}
+function minAHora(min) { return String(Math.floor(min / 60)).padStart(2, '0') + ':' + String(min % 60).padStart(2, '0'); }
+// Todas las horas a las que se puede reservar (cada 30 min dentro de las franjas)
+function horasReservables(datos) {
+  const horas = [];
+  franjasReservas(datos).forEach(f => { for (let m = f.ini; m <= f.fin; m += 30) horas.push(minAHora(m)); });
+  return horas;
+}
+// Personas ya apuntadas ese día a esa misma hora (para no pasarse del aforo)
+function personasEnHora(datos, fecha, hora) {
+  return (datos.reservas || [])
+    .filter(r => r.fecha === fecha && r.hora === hora && (r.estado === 'pendiente' || r.estado === 'confirmada'))
+    .reduce((s, r) => s + (Number(r.personas) || 0), 0);
+}
+// Resumen de reservas de los últimos 30 días (lo ve el jefe en el portal)
+function resumenReservas(datos) {
+  const t = new Date(hoyEspana() + 'T12:00:00Z'); t.setUTCDate(t.getUTCDate() - 30);
+  const d0 = t.toISOString().slice(0, 10);
+  const rs = (datos.reservas || []).filter(r => r.fecha >= d0 && r.fecha <= hoyEspana());
+  const porOrigen = {};
+  rs.forEach(r => { const o = r.origen || 'web'; porOrigen[o] = (porOrigen[o] || 0) + 1; });
+  return {
+    total: rs.length,
+    confirmadas: rs.filter(r => r.estado === 'confirmada').length,
+    anuladas: rs.filter(r => r.estado === 'anulada').length,
+    plantones: rs.filter(r => r.estado === 'noVino').length,
+    personas: rs.filter(r => r.estado === 'confirmada').reduce((s, r) => s + (Number(r.personas) || 0), 0),
+    porOrigen
+  };
+}
+
 // El código del editor de la carta es válido si SU carta existe en el repo
 // (el nombre del archivo deriva del código: sin el código correcto no hay archivo)
 async function codigoCartaOK(codigo) {
@@ -448,7 +488,9 @@ function vistaPara(datos, yo) {
     }).slice(-200),
     // Lo que cuesta la hora de cada uno: SOLO lo ve el jefe
     ...(esJefe ? { costesHora: Object.fromEntries(datos.empleados.filter(e => e.costeHora).map(e => [e.id, e.costeHora])) } : {}),
-    config: { radioM: (datos.config && datos.config.radioM) || 100, controlUbicacion: !!(datos.config && datos.config.local), avisosFichaje: !!(datos.config && datos.config.avisosFichaje), reservasAuto: !!(datos.config && datos.config.reservasAuto), logoPersonalizado: (datos.config && datos.config.logoPersonalizado) || null, objetivoCosteSemanal: (esJefe && datos.config && datos.config.objetivoCosteSemanal) || null }
+    // Resumen de reservas de los últimos 30 días: solo lo ve el jefe
+    ...(esJefe ? { reservasResumen: resumenReservas(datos) } : {}),
+    config: { radioM: (datos.config && datos.config.radioM) || 100, controlUbicacion: !!(datos.config && datos.config.local), avisosFichaje: !!(datos.config && datos.config.avisosFichaje), reservasAuto: !!(datos.config && datos.config.reservasAuto), reservasFranjas: (datos.config && datos.config.reservasFranjas) || '', reservasAforo: (datos.config && datos.config.reservasAforo) || 0, reservasResenas: (datos.config && datos.config.reservasResenas) || '', logoPersonalizado: (datos.config && datos.config.logoPersonalizado) || null, objetivoCosteSemanal: (esJefe && datos.config && datos.config.objetivoCosteSemanal) || null }
   };
 }
 
@@ -569,6 +611,38 @@ module.exports = async (req, res) => {
             }
           } catch (e) { /* sin romper el cron */ }
 
+          // AUTOMÁTICO: por la mañana, lista de reservas de HOY con un enlace por cliente
+          // para mandarle el recordatorio por WhatsApp con un toque. Y a los que vinieron
+          // AYER, enlace para pedirles la reseña de Google (si el jefe puso su enlace).
+          try {
+            if (process.env.WHATSAPP_TELEFONO && datos.recordatorioReservasDia !== hoy) {
+              datos.recordatorioReservasDia = hoy;
+              const waDe = tel => { const t = String(tel || '').replace(/\D/g, ''); return 'https://wa.me/' + (t.length === 9 ? '34' + t : t); };
+              const deHoy = (datos.reservas || [])
+                .filter(r => r.fecha === hoy && (r.estado === 'confirmada' || r.estado === 'pendiente'))
+                .sort((a, b) => (a.hora || '') < (b.hora || '') ? -1 : 1);
+              if (deHoy.length) {
+                const lineas = deHoy.slice(0, 12).map(r => {
+                  const txt = `¡Hola ${r.nombre}! Te recordamos tu reserva de HOY a las ${r.hora} para ${r.personas} en ${LOCALES[clave].nombre}. ¡Te esperamos! 🌴 Si hay cualquier cambio, respóndenos por aquí.`;
+                  return `• ${r.hora} · ${r.nombre} · ${r.personas} pers.${r.estado === 'pendiente' ? ' (SIN confirmar aún)' : ''}\nRecordar 👉 ${waDe(r.telefono)}?text=${encodeURIComponent(txt)}`;
+                }).join('\n');
+                await avisarWhatsApp(`📅 *${LOCALES[clave].nombre.toUpperCase()} · Reservas de HOY (${deHoy.length})*\n${lineas}${deHoy.length > 12 ? '\n…y ' + (deHoy.length - 12) + ' más en el portal.' : ''}\n\nToca el enlace de cada una y dale a enviar: el mensaje ya va escrito.`);
+              }
+              const enlaceRes = datos.config && datos.config.reservasResenas;
+              if (enlaceRes) {
+                const ayer = new Date(hoy + 'T12:00:00Z'); ayer.setUTCDate(ayer.getUTCDate() - 1);
+                const deAyer = (datos.reservas || []).filter(r => r.fecha === ayer.toISOString().slice(0, 10) && r.estado === 'confirmada');
+                if (deAyer.length) {
+                  const lineas = deAyer.slice(0, 12).map(r => {
+                    const txt = `¡Hola ${r.nombre}! Gracias por venir a ${LOCALES[clave].nombre}. 🌴 ¿Nos dejas una reseña? Nos ayuda muchísimo: ${enlaceRes}`;
+                    return `• ${r.nombre}\nPedir reseña 👉 ${waDe(r.telefono)}?text=${encodeURIComponent(txt)}`;
+                  }).join('\n');
+                  await avisarWhatsApp(`⭐ *${LOCALES[clave].nombre.toUpperCase()} · Reseñas*\nEstos clientes vinieron ayer con reserva. Pídeles la reseña con un toque:\n${lineas}`);
+                }
+              }
+            }
+          } catch (e) { /* sin romper el cron */ }
+
           // Archivar los fichajes de meses cerrados en el archivo del año
           // (así el registro horario legal se conserva años sin que crezca el archivo principal)
           const mesGuardar = mesAnteriorDe(hoy.slice(0, 7));   // se conservan a mano el mes actual y el anterior
@@ -638,8 +712,11 @@ module.exports = async (req, res) => {
       const nombre = limpio(p.nombre).slice(0, 60);
       const telefono = limpio(p.telefono).replace(/[^\d+ ]/g, '').slice(0, 20);
       const personas = Math.round(Number(p.personas));
-      const fecha = limpio(p.fecha), hora = limpio(p.hora);
+      const fecha = limpio(p.fecha), hora = limpio(p.hora).padStart(5, '0');
       const nota = limpio(p.nota).slice(0, 200);
+      // ¿Por qué canal llegó? (para las estadísticas del jefe)
+      const ORIGENES = ['google', 'instagram', 'facebook', 'whatsapp', 'carta', 'qr', 'web'];
+      const origen = ORIGENES.includes(limpio(p.origen)) ? limpio(p.origen) : 'web';
       // Platos que el cliente ya sabe que va a querer (opcional): así cocina se organiza
       const platos = (Array.isArray(p.platos) ? p.platos : []).slice(0, 25)
         .map(pl => ({
@@ -656,6 +733,16 @@ module.exports = async (req, res) => {
       const tope = new Date(hoy + 'T12:00:00Z'); tope.setUTCDate(tope.getUTCDate() + 90);
       if (fecha < hoy || fecha > tope.toISOString().slice(0, 10)) return res.status(400).json({ error: 'Solo se puede reservar de hoy a 90 días vista.' });
       datos.reservas = datos.reservas || [];
+      // Si el jefe configuró franjas de apertura, la hora tiene que caer dentro
+      const horasOk = horasReservables(datos);
+      if (horasOk.length && !horasOk.includes(hora)) {
+        return res.status(400).json({ error: 'A esa hora no cogemos reservas. Elige una hora de la lista.' });
+      }
+      // Y si configuró aforo, no dejamos que una hora se llene de más
+      const aforo = Number(datos.config && datos.config.reservasAforo) || 0;
+      if (aforo && personasEnHora(datos, fecha, hora) + personas > aforo) {
+        return res.status(409).json({ error: 'Esa hora ya está completa. Prueba media hora antes o después. 🙏' });
+      }
       const telNorm = telefono.replace(/\D/g, '');
       if (datos.reservas.some(r => r.fecha === fecha && r.estado !== 'anulada' && r.telefono.replace(/\D/g, '') === telNorm)) {
         return res.status(409).json({ error: 'Ya tenemos una reserva con este teléfono para ese día. Si quieres cambiarla, llámanos.' });
@@ -674,7 +761,8 @@ module.exports = async (req, res) => {
       const autoConfirmar = !!(datos.config && datos.config.reservasAuto);
       // Si el cliente tiene avisos, NUNCA se confirma sola: la decides tú
       const confirmada = autoConfirmar && !alerta;
-      datos.reservas.push({ id: id(), nombre, telefono, personas, fecha, hora, nota, platos, alerta, estado: confirmada ? 'confirmada' : 'pendiente', creada: ahora(), resueltaPor: null });
+      const rid = id();
+      datos.reservas.push({ id: rid, nombre, telefono, personas, fecha, hora, nota, platos, alerta, origen, estado: confirmada ? 'confirmada' : 'pendiente', creada: ahora(), resueltaPor: null });
       if (datos.reservas.length > 800) datos.reservas = datos.reservas.slice(-600);
       if (!await guardarDatos(archivoLocal, datos, sha)) continue;
       const txtPlatos = platos.length ? '\n🍽 Ya piden: ' + platos.map(pl => pl.cant + '× ' + pl.nom).join(', ').slice(0, 400) : '';
@@ -683,7 +771,47 @@ module.exports = async (req, res) => {
         `📅 Reserva ${confirmada ? 'confirmada' : 'nueva'} · ${LOCALES[localClave].nombre}`,
         `${nombre} · ${personas} pers. · ${fecha} a las ${hora} · 📞 ${telefono}${platos.length ? ' · 🍽 ' + platos.length + ' plato' + (platos.length === 1 ? '' : 's') + ' elegidos' : ''}${alerta ? ' · ' + alerta : ''}${confirmada ? '' : ' · Decídela en el portal o en Promos'}`
       );
-      return res.status(200).json({ ok: true, mensaje: confirmada ? '¡Reserva CONFIRMADA! Te esperamos. Si hay cualquier cambio, te llamamos.' : '¡Reserva apuntada! Te llamaremos o escribiremos para confirmarla.' });
+      return res.status(200).json({ ok: true, id: rid, mensaje: confirmada ? '¡Reserva CONFIRMADA! Te esperamos. Si hay cualquier cambio, te llamamos.' : '¡Reserva apuntada! Te llamaremos o escribiremos para confirmarla.' });
+    }
+
+    if (accion === 'infoReservas') {
+      // La página pública pregunta qué horas se pueden reservar un día (y cuáles están llenas)
+      const fecha = limpio(p.fecha);
+      const horas = horasReservables(datos);
+      const aforo = Number(datos.config && datos.config.reservasAforo) || 0;
+      const llenas = (aforo && /^\d{4}-\d{2}-\d{2}$/.test(fecha) && horas.length)
+        ? horas.filter(h => personasEnHora(datos, fecha, h) >= aforo) : [];
+      return res.status(200).json({ ok: true, horas, llenas });
+    }
+
+    if (accion === 'verReserva') {
+      // El cliente consulta su reserva con su enlace + su teléfono (nada más)
+      const tel = limpio(p.telefono).replace(/\D/g, '');
+      const rv = (datos.reservas || []).find(x => x.id === String(p.id || ''));
+      if (!rv || tel.length < 9 || String(rv.telefono || '').replace(/\D/g, '') !== tel) {
+        return res.status(404).json({ error: 'No encuentro esa reserva con ese teléfono. Revisa el número.' });
+      }
+      return res.status(200).json({ ok: true, reserva: {
+        nombre: rv.nombre, fecha: rv.fecha, hora: rv.hora, personas: rv.personas,
+        estado: rv.estado, nota: rv.nota || '', platos: rv.platos || []
+      } });
+    }
+
+    if (accion === 'anularReservaCliente') {
+      // El cliente anula su propia reserva desde su enlace (libera la mesa y avisa al local)
+      const tel = limpio(p.telefono).replace(/\D/g, '');
+      const rv = (datos.reservas || []).find(x => x.id === String(p.id || ''));
+      if (!rv || tel.length < 9 || String(rv.telefono || '').replace(/\D/g, '') !== tel) {
+        return res.status(404).json({ error: 'No encuentro esa reserva con ese teléfono. Revisa el número.' });
+      }
+      if (rv.estado === 'anulada') return res.status(200).json({ ok: true, mensaje: 'Esa reserva ya estaba anulada.' });
+      if (rv.fecha < hoyEspana()) return res.status(400).json({ error: 'Esa reserva ya pasó: no se puede anular.' });
+      apuntarHistorialReserva(datos, rv, 'anulada');
+      rv.estado = 'anulada'; rv.resueltaPor = 'cliente';
+      if (!await guardarDatos(archivoLocal, datos, sha)) continue;
+      await avisarWhatsApp(`🚫 *${LOCALES[localClave].nombre.toUpperCase()} · Reserva ANULADA por el cliente*\n${rv.nombre} · ${rv.personas} pers.\n${rv.fecha} a las ${rv.hora}\n📞 ${rv.telefono}\nLa mesa queda libre.`);
+      await avisarAdminPush(`🚫 Reserva anulada · ${LOCALES[localClave].nombre}`, `${rv.nombre} anuló su mesa del ${rv.fecha} a las ${rv.hora} (${rv.personas} pers.). La mesa queda libre.`);
+      return res.status(200).json({ ok: true, mensaje: 'Tu reserva queda anulada. ¡Gracias por avisar! Te esperamos otro día. 🌴' });
     }
 
     if (accion === 'unirseClub') {
@@ -1077,6 +1205,25 @@ module.exports = async (req, res) => {
         if (!esJefe) soloJefe();
         datos.config = datos.config || {};
         datos.config.reservasAuto = !!p.activar;
+        break;
+      }
+      case 'configurarReservasPro': {
+        // Franjas de apertura, aforo por hora y enlace de reseñas de Google (solo jefe)
+        if (!esJefe) soloJefe();
+        datos.config = datos.config || {};
+        if (p.franjas !== undefined) {
+          const txt = limpio(p.franjas).slice(0, 120);
+          if (txt && !txt.split(',').every(t => /^\s*\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\s*$/.test(t))) {
+            const e = new Error('Las franjas se escriben así: 12:30-16:00, 19:30-23:30'); e.codigo = 400; throw e;
+          }
+          datos.config.reservasFranjas = txt;
+        }
+        if (p.aforo !== undefined) datos.config.reservasAforo = Math.max(0, Math.min(500, Math.round(Number(p.aforo)) || 0));
+        if (p.enlaceResenas !== undefined) {
+          const u = limpio(p.enlaceResenas).slice(0, 300);
+          if (u && !/^https:\/\//.test(u)) { const e = new Error('El enlace de reseñas tiene que empezar por https://'); e.codigo = 400; throw e; }
+          datos.config.reservasResenas = u;
+        }
         break;
       }
 
