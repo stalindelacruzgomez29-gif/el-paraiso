@@ -102,6 +102,16 @@
       <span class="mini" id="n-admin"></span>
     </div>
     <div id="lista-reservas" class="mini">Cargando reservas…</div>
+    <details style="margin-top:10px">
+      <summary style="cursor:pointer;font-weight:700;font-size:13.5px">⚙️ Horas, aforo y reseñas</summary>
+      <p class="mini" style="margin:6px 0 2px">Franjas en que cogéis reservas (vacío = a cualquier hora):</p>
+      <input id="cfg-rv-franjas" placeholder="12:30-16:00, 19:30-23:30" style="width:100%;padding:9px;border:1px solid #d9cfae;border-radius:9px;font-size:14px">
+      <p class="mini" style="margin:6px 0 2px">Personas como máximo por cada media hora (0 = sin límite):</p>
+      <input id="cfg-rv-aforo" type="number" min="0" max="500" style="width:110px;padding:9px;border:1px solid #d9cfae;border-radius:9px;font-size:14px">
+      <p class="mini" style="margin:6px 0 2px">Enlace de reseñas de Google (para pedirla con 💬 a los que vinieron):</p>
+      <input id="cfg-rv-resenas" placeholder="https://g.page/r/..." style="width:100%;padding:9px;border:1px solid #d9cfae;border-radius:9px;font-size:14px">
+      <button class="btn btn-g btn-peq" style="margin-top:8px" onclick="guardarConfigReservas()">Guardar</button>
+    </details>
   </div>
 
   <div class="caja">
@@ -181,30 +191,70 @@ async function cargarReservas(){
     const j=await r.json();
     if(!r.ok) throw new Error(j.error||'Error');
     CLUB=j.club||[]; pintarClub();
+    CONFIG_RESERVAS=j.configReservas||CONFIG_RESERVAS; pintarConfigReservas();
     const na=j.avisosAdmin||0;
     $('#n-admin').textContent=' · 🔔 '+na+' móvil'+(na===1?'':'es')+' recibe el aviso';
     if(localStorage.getItem('promos_avisos_admin')==='1'){ const b=$('#btn-avisos-admin'); b.textContent='🔔 Este móvil recibe las reservas ✓'; b.disabled=true; }
     const el=$('#lista-reservas');
     if(!(j.reservas||[]).length){ el.textContent='No hay reservas próximas.'; return; }
+    RESERVAS_APP=j.reservas;
     el.innerHTML=j.reservas.map(rv=>{
       const yaPaso=new Date(rv.fecha+'T'+(rv.hora||'23:59'))<=new Date();
       const badge=rv.estado==='confirmada'?'background:#def7ec;color:#03543f':(rv.estado==='noVino'?'background:#fde8e8;color:#9b1c1c':'background:#fdf0d5;color:#8a5a00');
       const btxt=rv.estado==='confirmada'?'✓ confirmada':(rv.estado==='noVino'?'😞 no vino':'⏳ pendiente');
+      const ORIG={google:'🔍 Google',instagram:'📸 Instagram',facebook:'📘 Facebook',whatsapp:'💬 WhatsApp',carta:'🍽 Carta',qr:'🔳 QR mesa'};
       return `
       <div style="border:1px solid ${rv.alerta?'#e7b3b3':'#eadfc6'};border-radius:10px;padding:9px 12px;margin-bottom:7px;background:#fff;font-size:13.5px;color:var(--tinta)">
-        <b>${esc(rv.nombre)}</b> · ${esc(rv.personas)} pers. — <b>${esc(fFecha(rv.fecha))}</b> a las <b>${esc(rv.hora)}</b>
+        <b>${esc(rv.nombre)}</b> · ${esc(rv.personas)} pers. — <b>${esc(fFecha(rv.fecha))}</b> a las <b>${esc(rv.hora)}</b>${ORIG[rv.origen]?' · <span style="font-size:11px;color:#8a7">'+ORIG[rv.origen]+'</span>':''}
         <span style="float:right;font-size:11.5px;font-weight:700;border-radius:999px;padding:2px 9px;${badge}">${btxt}</span>
         <br>📞 ${esc(rv.telefono)}${rv.nota?' · 📝 '+esc(rv.nota):''}
         ${(rv.platos&&rv.platos.length)?'<br>🍽 <b>Ya piden:</b> '+esc(rv.platos.map(x=>x.cant+'× '+x.nom).join(' · ')):''}
         ${rv.alerta?'<br><b style="color:#9b1c1c">'+esc(rv.alerta)+'</b>':''}
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px">
           ${rv.estado==='pendiente'?`<button class="btn btn-g btn-peq" onclick="decidirReserva('${esc(rv.id)}','confirmada','${esc(rv.nombre)}')">✅ Confirmar</button>`:''}
+          ${rv.estado!=='noVino'?`<button class="btn btn-b btn-peq" onclick="waReservaApp('${esc(rv.id)}')" title="Mensaje ya escrito según el estado">💬 WhatsApp</button>`:''}
           ${rv.estado!=='noVino'?`<button class="btn quitar btn-peq" onclick="decidirReserva('${esc(rv.id)}','anulada','${esc(rv.nombre)}')">❌ Anular</button>`:''}
           ${(rv.estado==='confirmada'||rv.estado==='pendiente')&&yaPaso?`<button class="btn btn-b btn-peq" onclick="decidirReserva('${esc(rv.id)}','noVino','${esc(rv.nombre)}')" title="El cliente no se presentó">😞 No vino</button>`:''}
         </div>
       </div>`;}).join('');
   }catch(e){ $('#lista-reservas').textContent='No pude cargar las reservas ('+e.message+').'; }
 }
+// 💬 WhatsApp al cliente con el mensaje que toca: confirmación, recordatorio o reseña
+let RESERVAS_APP=[];
+let CONFIG_RESERVAS={franjas:'',aforo:0,resenas:''};
+window.waReservaApp=idr=>{
+  const rv=RESERVAS_APP.find(x=>x.id===idr); if(!rv) return;
+  const bonita=new Date(rv.fecha+'T12:00:00').toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+  const yaPaso=new Date(rv.fecha+'T'+(rv.hora||'23:59'))<=new Date();
+  let texto;
+  if(rv.estado==='confirmada'&&yaPaso&&CONFIG_RESERVAS.resenas){
+    texto=`¡Hola ${rv.nombre}! Gracias por venir a El Paraíso. 🌴 ¿Nos dejas una reseña? Nos ayuda muchísimo: ${CONFIG_RESERVAS.resenas}`;
+  }else if(rv.estado==='confirmada'){
+    texto=`¡Hola ${rv.nombre}! Tu mesa en El Paraíso está CONFIRMADA ✅ para el ${bonita} a las ${rv.hora} (${rv.personas} pers.). ¡Te esperamos! 🌴 Si hay cualquier cambio, respóndenos por aquí.`;
+  }else{
+    texto=`¡Hola ${rv.nombre}! Hemos recibido tu reserva en El Paraíso para el ${bonita} a las ${rv.hora} (${rv.personas} pers.). Enseguida te la confirmamos. 🌴`;
+  }
+  const tel=String(rv.telefono||'').replace(/\D/g,'');
+  window.open('https://wa.me/'+(tel.length===9?'34'+tel:tel)+'?text='+encodeURIComponent(texto),'_blank');
+};
+// ⚙️ Horas, aforo y enlace de reseñas (se guardan con el código del editor)
+function pintarConfigReservas(){
+  const f=$('#cfg-rv-franjas'),a=$('#cfg-rv-aforo'),r=$('#cfg-rv-resenas');
+  if(f&&document.activeElement!==f) f.value=CONFIG_RESERVAS.franjas||'';
+  if(a&&document.activeElement!==a) a.value=CONFIG_RESERVAS.aforo||0;
+  if(r&&document.activeElement!==r) r.value=CONFIG_RESERVAS.resenas||'';
+}
+window.guardarConfigReservas=async()=>{
+  try{
+    const r=await fetch('/api/equipo',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({accion:'configurarReservasCarta',local:'paraiso',codigo,
+        franjas:$('#cfg-rv-franjas').value,aforo:$('#cfg-rv-aforo').value,enlaceResenas:$('#cfg-rv-resenas').value})});
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||'Error');
+    aviso('⚙️ Guardado: la página de reservas ya usa tus horas y tu aforo');
+    cargarReservas();
+  }catch(e){ aviso('⚠️ '+e.message); }
+};
 // El admin decide una reserva desde esta app: confirmar, anular o apuntar el plantón
 window.decidirReserva=async(idr,estado,nombre)=>{
   const txt=estado==='confirmada'?'¿Confirmar la reserva de "'+nombre+'"?'
@@ -216,7 +266,7 @@ window.decidirReserva=async(idr,estado,nombre)=>{
       body:JSON.stringify({accion:'resolverReservaCarta',local:'paraiso',codigo,id:idr,estado})});
     const j=await r.json();
     if(!r.ok) throw new Error(j.error||'Error');
-    aviso(estado==='confirmada'?'✅ Confirmada: avisa al cliente':(estado==='anulada'?'❌ Reserva anulada':'😞 Apuntado: si vuelve a reservar, te aviso'));
+    aviso(estado==='confirmada'?'✅ Confirmada: toca 💬 para avisarle por WhatsApp':(estado==='anulada'?'❌ Reserva anulada':'😞 Apuntado: si vuelve a reservar, te aviso'));
     cargarReservas();
   }catch(e){ aviso('⚠️ '+e.message); }
 };

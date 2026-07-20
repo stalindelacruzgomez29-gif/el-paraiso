@@ -858,6 +858,27 @@ module.exports = async (req, res) => {
       return res.status(200).json({ ok: true });
     }
 
+    if (accion === 'configurarReservasCarta') {
+      // Horas, aforo y enlace de reseñas desde la app de promos (con el código del editor)
+      if (!await codigoCartaOK(p.codigo)) return res.status(403).json({ error: 'Código incorrecto.' });
+      datos.config = datos.config || {};
+      if (p.franjas !== undefined) {
+        const txt = limpio(p.franjas).slice(0, 120);
+        if (txt && !txt.split(',').every(t => /^\s*\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\s*$/.test(t))) {
+          return res.status(400).json({ error: 'Las franjas se escriben así: 12:30-16:00, 19:30-23:30' });
+        }
+        datos.config.reservasFranjas = txt;
+      }
+      if (p.aforo !== undefined) datos.config.reservasAforo = Math.max(0, Math.min(500, Math.round(Number(p.aforo)) || 0));
+      if (p.enlaceResenas !== undefined) {
+        const u = limpio(p.enlaceResenas).slice(0, 300);
+        if (u && !/^https:\/\//.test(u)) return res.status(400).json({ error: 'El enlace de reseñas tiene que empezar por https://' });
+        datos.config.reservasResenas = u;
+      }
+      if (!await guardarDatos(archivoLocal, datos, sha)) continue;
+      return res.status(200).json({ ok: true });
+    }
+
     if (accion === 'verFidelidad') {
       // El cliente consulta su tarjeta de sellos desde la página pública (solo con su teléfono)
       const tel = limpio(p.telefono).replace(/\D/g, '');
