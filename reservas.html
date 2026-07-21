@@ -121,8 +121,18 @@ async function cargarHoras() {
       body: JSON.stringify({ accion: 'infoReservas', local, fecha: $('#r-fecha').value })
     });
     const j = await r.json();
-    if (!j.horas || !j.horas.length) return;   // el local no puso franjas: hora libre
     const sel = $('#r-hora-sel');
+    if (j.cerrado) {   // ese día de la semana el local no abre
+      sel.innerHTML = '<option value="">😴 Ese día estamos cerrados — elige otro día</option>';
+      $('#r-hora').style.display = 'none';
+      sel.style.display = 'block';
+      return;
+    }
+    if (!j.horas || !j.horas.length) {   // el local no puso franjas: hora libre
+      sel.style.display = 'none';
+      $('#r-hora').style.display = 'block';
+      return;
+    }
     const antes = sel.value;
     const llenas = j.llenas || [];
     sel.innerHTML = '<option value="">Elige la hora…</option>' +

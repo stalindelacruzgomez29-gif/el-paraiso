@@ -238,7 +238,7 @@ function hoyEspana() {
 }
 
 function normalizarNombre(t) {
-  return String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+  return String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
 }
 
 // Nombre de un empleado por su id (para mensajes; nunca datos sensibles)
@@ -362,6 +362,27 @@ function horasReservables(datos) {
   const horas = [];
   franjasReservas(datos).forEach(f => { for (let m = f.ini; m <= f.fin; m += 30) horas.push(minAHora(m)); });
   return horas;
+}
+// Días de la semana en que el local NO coge reservas (config.reservasCerrado = "3" ó "0,3"; 0=domingo … 6=sábado)
+function diaCerradoReservas(datos, fecha) {
+  const c = String((datos.config && datos.config.reservasCerrado) || '').trim();
+  if (!c || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return false;
+  const dia = new Date(fecha + 'T12:00:00Z').getUTCDay();
+  return c.split(',').some(t => parseInt(t.trim(), 10) === dia);
+}
+// "miércoles" ó "lunes, martes" ó "3" → "3" / "1,2" (números 0-6); '' si vacío; null si no se entiende
+function normalizarDiasCerrado(txt) {
+  const NOMBRES = { domingo: 0, lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6 };
+  const s = String(txt || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  if (!s.trim()) return '';
+  const dias = [];
+  for (const parte of s.split(/[,;]|\by\b/)) {
+    const t = parte.trim(); if (!t) continue;
+    const n = /^[0-6]$/.test(t) ? Number(t) : NOMBRES[t];
+    if (n === undefined) return null;
+    if (!dias.includes(n)) dias.push(n);
+  }
+  return dias.length >= 7 ? null : dias.join(',');   // cerrar los 7 días no tiene sentido
 }
 // Personas ya apuntadas ese día a esa misma hora (para no pasarse del aforo)
 function personasEnHora(datos, fecha, hora) {
@@ -732,6 +753,7 @@ module.exports = async (req, res) => {
       const hoy = hoyEspana();
       const tope = new Date(hoy + 'T12:00:00Z'); tope.setUTCDate(tope.getUTCDate() + 90);
       if (fecha < hoy || fecha > tope.toISOString().slice(0, 10)) return res.status(400).json({ error: 'Solo se puede reservar de hoy a 90 días vista.' });
+      if (diaCerradoReservas(datos, fecha)) return res.status(400).json({ error: 'Ese día estamos cerrados. Elige otro día, porfa. 🙏' });
       datos.reservas = datos.reservas || [];
       // Si el jefe configuró franjas de apertura, la hora tiene que caer dentro
       const horasOk = horasReservables(datos);
@@ -777,6 +799,7 @@ module.exports = async (req, res) => {
     if (accion === 'infoReservas') {
       // La página pública pregunta qué horas se pueden reservar un día (y cuáles están llenas)
       const fecha = limpio(p.fecha);
+      if (diaCerradoReservas(datos, fecha)) return res.status(200).json({ ok: true, cerrado: true, horas: [], llenas: [] });
       const horas = horasReservables(datos);
       const aforo = Number(datos.config && datos.config.reservasAforo) || 0;
       const llenas = (aforo && /^\d{4}-\d{2}-\d{2}$/.test(fecha) && horas.length)
@@ -874,6 +897,11 @@ module.exports = async (req, res) => {
         const u = limpio(p.enlaceResenas).slice(0, 300);
         if (u && !/^https:\/\//.test(u)) return res.status(400).json({ error: 'El enlace de reseñas tiene que empezar por https://' });
         datos.config.reservasResenas = u;
+      }
+      if (p.cerrado !== undefined) {
+        const dias = normalizarDiasCerrado(p.cerrado);
+        if (dias === null) return res.status(400).json({ error: 'Los días cerrados se escriben así: miércoles (o varios: lunes, martes). Vacío = abrís todos los días.' });
+        datos.config.reservasCerrado = dias;
       }
       if (!await guardarDatos(archivoLocal, datos, sha)) continue;
       return res.status(200).json({ ok: true });
@@ -1244,6 +1272,11 @@ module.exports = async (req, res) => {
           const u = limpio(p.enlaceResenas).slice(0, 300);
           if (u && !/^https:\/\//.test(u)) { const e = new Error('El enlace de reseñas tiene que empezar por https://'); e.codigo = 400; throw e; }
           datos.config.reservasResenas = u;
+        }
+        if (p.cerrado !== undefined) {
+          const dias = normalizarDiasCerrado(p.cerrado);
+          if (dias === null) { const e = new Error('Los días cerrados se escriben así: miércoles (o varios: lunes, martes). Vacío = abrís todos los días.'); e.codigo = 400; throw e; }
+          datos.config.reservasCerrado = dias;
         }
         break;
       }

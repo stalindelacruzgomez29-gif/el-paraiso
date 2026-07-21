@@ -706,6 +706,9 @@ function aviso(txt, mal) {
   clearTimeout(aviso._t); aviso._t = setTimeout(() => el.style.display = 'none', 3500);
 }
 const esc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// "3" o "1,2" (días cerrados guardados como números) → "miércoles" / "lunes, martes"
+const diasCerradoBonito = v => String(v == null ? '' : v).split(',').filter(t => t.trim() !== '')
+  .map(t => ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'][Number(t.trim())] || '').filter(Boolean).join(', ');
 // Dictado por voz: rellena un campo hablando por el micrófono (móvil u ordenador, en Chrome)
 let _recVoz = null;
 window.hablar = (id) => {
@@ -1990,6 +1993,8 @@ function pintarReservas() {
       <input class="campo" id="cfg-res-aforo" type="number" min="0" max="500" value="${cfg.reservasAforo || 0}">
       <label class="meta" style="display:block;margin-top:6px">Enlace de reseñas de Google (cada mañana te llegan por WhatsApp los clientes de ayer para pedírsela con un toque)</label>
       <input class="campo" id="cfg-res-resenas" placeholder="https://g.page/r/..." value="${esc(cfg.reservasResenas || '')}">
+      <label class="meta" style="display:block;margin-top:6px">Días que cerráis (nadie podrá reservar esos días; vacío = abrís todos)</label>
+      <input class="campo" id="cfg-res-cerrado" placeholder="miércoles" value="${esc(diasCerradoBonito(cfg.reservasCerrado))}">
       <button class="btn btn-primario btn-peq" id="btn-cfg-reservas" style="margin-top:8px">Guardar</button>
     </details>
     <details style="margin-top:8px">
@@ -2015,7 +2020,8 @@ function pintarReservas() {
       await refrescar('configurarReservasPro', {
         franjas: $('#cfg-res-franjas').value,
         aforo: $('#cfg-res-aforo').value,
-        enlaceResenas: $('#cfg-res-resenas').value
+        enlaceResenas: $('#cfg-res-resenas').value,
+        cerrado: $('#cfg-res-cerrado').value
       });
       aviso('⚙️ Guardado: la página de reservas ya usa tus horas y tu aforo');
     } catch (e) { aviso(e.message, true); }

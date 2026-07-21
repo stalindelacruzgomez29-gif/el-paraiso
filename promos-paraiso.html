@@ -110,6 +110,8 @@
       <input id="cfg-rv-aforo" type="number" min="0" max="500" style="width:110px;padding:9px;border:1px solid #d9cfae;border-radius:9px;font-size:14px">
       <p class="mini" style="margin:6px 0 2px">Enlace de reseñas de Google (para pedirla con 💬 a los que vinieron):</p>
       <input id="cfg-rv-resenas" placeholder="https://g.page/r/..." style="width:100%;padding:9px;border:1px solid #d9cfae;border-radius:9px;font-size:14px">
+      <p class="mini" style="margin:6px 0 2px">Días que cerráis (nadie podrá reservar esos días; vacío = abrís todos):</p>
+      <input id="cfg-rv-cerrado" placeholder="miércoles" style="width:100%;padding:9px;border:1px solid #d9cfae;border-radius:9px;font-size:14px">
       <button class="btn btn-g btn-peq" style="margin-top:8px" onclick="guardarConfigReservas()">Guardar</button>
     </details>
   </div>
@@ -239,16 +241,20 @@ window.waReservaApp=idr=>{
 };
 // ⚙️ Horas, aforo y enlace de reseñas (se guardan con el código del editor)
 function pintarConfigReservas(){
-  const f=$('#cfg-rv-franjas'),a=$('#cfg-rv-aforo'),r=$('#cfg-rv-resenas');
+  const f=$('#cfg-rv-franjas'),a=$('#cfg-rv-aforo'),r=$('#cfg-rv-resenas'),c=$('#cfg-rv-cerrado');
   if(f&&document.activeElement!==f) f.value=CONFIG_RESERVAS.franjas||'';
   if(a&&document.activeElement!==a) a.value=CONFIG_RESERVAS.aforo||0;
   if(r&&document.activeElement!==r) r.value=CONFIG_RESERVAS.resenas||'';
+  // los días cerrados llegan como números ("3") y se enseñan con su nombre ("miércoles")
+  if(c&&document.activeElement!==c) c.value=String(CONFIG_RESERVAS.cerrado||'').split(',').filter(t=>t.trim()!=='')
+    .map(t=>['domingo','lunes','martes','miércoles','jueves','viernes','sábado'][Number(t.trim())]||'').filter(Boolean).join(', ');
 }
 window.guardarConfigReservas=async()=>{
   try{
     const r=await fetch('/api/equipo',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({accion:'configurarReservasCarta',local:'paraiso',codigo,
-        franjas:$('#cfg-rv-franjas').value,aforo:$('#cfg-rv-aforo').value,enlaceResenas:$('#cfg-rv-resenas').value})});
+        franjas:$('#cfg-rv-franjas').value,aforo:$('#cfg-rv-aforo').value,enlaceResenas:$('#cfg-rv-resenas').value,
+        cerrado:$('#cfg-rv-cerrado').value})});
     const j=await r.json();
     if(!r.ok) throw new Error(j.error||'Error');
     aviso('⚙️ Guardado: la página de reservas ya usa tus horas y tu aforo');
