@@ -330,7 +330,7 @@ function promoEnDia(p){
 function promoCaducada(p){ return !!p.fecha && String(p.fecha)<hoyISO(); }
 function diasTexto(dias){
   if(!Array.isArray(dias)||!dias.length||dias.length===7) return 'Todos los días';
-  return 'Los '+dias.slice().sort().map(d=>DIAS_NOM[d]+'s').join(' y ');
+  return 'Los '+dias.slice().sort().map(d=>DIAS_NOM[d]+(DIAS_NOM[d].endsWith('s')?'':'s')).join(' y ');
 }
 function fechaBonita(f){ try{ return new Date(f+'T00:00:00').toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'}); }catch(e){ return f; } }
 // ── ME GUSTA / ME INTERESA / RESERVAR en cada promo ──

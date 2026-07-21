@@ -456,7 +456,7 @@ window.ponFecha=(i,v)=>{ const p=CARTA.promos[i]; p.fecha=v||''; if(v) p.dias=[]
 function fechaBonita(f){ try{ return new Date(f+'T00:00:00').toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'}); }catch(e){ return f; } }
 function cuandoTexto(p){
   const dias = p.fecha ? '📅 Solo el '+fechaBonita(p.fecha)
-    : (Array.isArray(p.dias)&&p.dias.length&&p.dias.length<7 ? '🗓 Los '+p.dias.slice().sort().map(d=>DIAS_NOM[d]+'s').join(' y ') : '');
+    : (Array.isArray(p.dias)&&p.dias.length&&p.dias.length<7 ? '🗓 Los '+p.dias.slice().sort().map(d=>DIAS_NOM[d]+(DIAS_NOM[d].endsWith('s')?'':'s')).join(' y ') : '');
   const horas = p.desde&&p.hasta ? '⏰ de '+p.desde+' a '+p.hasta : '';
   return [dias,horas].filter(Boolean).join(' · ');
 }
