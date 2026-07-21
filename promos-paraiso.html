@@ -39,6 +39,10 @@
   .add{background:#eaf3ec;color:var(--verde);border:1px dashed var(--verde)}
   .dia{width:36px;height:36px;border-radius:50%;border:1px solid var(--linea);background:#fff;font-size:13px;font-weight:700;color:var(--mut);cursor:pointer}
   .dia.on{background:var(--verde);border-color:var(--verde);color:#fff}
+  /* apartados: barra de pestañas para no tener que bajar hasta el fondo */
+  .pestanas{position:sticky;z-index:25;top:0;background:var(--papel);display:flex;gap:6px;padding:10px 0 8px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .pestanas button{flex:1;white-space:nowrap;border:1px solid var(--linea);background:#fff;border-radius:999px;padding:9px 12px;font-size:13.5px;font-weight:700;color:var(--mut);cursor:pointer}
+  .pestanas button.on{background:var(--verde);border-color:var(--verde);color:#fff}
   /* catálogo de un toque */
   .cat-tit{font-size:13.5px;font-weight:700;color:var(--verde);margin:12px 0 7px}
   .chips{display:flex;flex-wrap:wrap;gap:8px}
@@ -81,7 +85,14 @@
 
 <main id="main" style="display:none">
 
-  <div class="caja oro">
+  <div class="pestanas" id="pestanas">
+    <button id="tab-sec-promos" onclick="verSeccion('sec-promos')">🎉 Promos</button>
+    <button id="tab-sec-reservas" onclick="verSeccion('sec-reservas')">📅 Reservas</button>
+    <button id="tab-sec-club" onclick="verSeccion('sec-club')">🎁 Club</button>
+    <button id="tab-sec-toque" onclick="verSeccion('sec-toque')">⚡ Un toque</button>
+  </div>
+
+  <div class="caja oro" id="sec-promos">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <h2>🎉 Tus promociones</h2>
       <span class="mini" id="n-avisos"></span>
@@ -91,7 +102,7 @@
     <button class="btn add btn-peq" onclick="addPromo()">➕ Promoción en blanco</button>
   </div>
 
-  <div class="caja">
+  <div class="caja" id="sec-reservas">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <h2>📅 Reservas de mesa</h2>
       <button class="btn btn-b btn-peq" onclick="cargarReservas()" title="Actualizar">↻ Actualizar</button>
@@ -116,7 +127,7 @@
     </details>
   </div>
 
-  <div class="caja">
+  <div class="caja" id="sec-club">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <h2>🎁 Club de clientes</h2>
       <span class="mini" id="n-club"></span>
@@ -142,7 +153,7 @@
     <div id="lista-club" class="mini">Cargando el club…</div>
   </div>
 
-  <div class="caja">
+  <div class="caja" id="sec-toque">
     <h2>⚡ Poner en promoción con un toque</h2>
     <p class="mini">Toca un producto y se crea la promo ya rellenada: solo ajustas el precio y guardas.</p>
     <div id="catalogo"></div>
@@ -623,6 +634,21 @@ $('#cod').addEventListener('keydown',e=>{if(e.key==='Enter')entrar();});
 // Las reservas se refrescan SOLAS (como WhatsApp): cada 45 s y al volver a la app
 setInterval(()=>{ if(codigo) cargarReservas(); }, 45000);
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && codigo) cargarReservas(); });
+
+// ── APARTADOS: cada cosa en su pestaña, sin tener que bajar hasta el fondo ──
+window.verSeccion=(id)=>{
+  ['sec-promos','sec-reservas','sec-club','sec-toque'].forEach(s=>{
+    const c=document.getElementById(s); if(c) c.style.display=(s===id?'block':'none');
+    const b=document.getElementById('tab-'+s); if(b) b.classList.toggle('on', s===id);
+  });
+  localStorage.setItem('promos_seccion', id);
+  window.scrollTo({top:0});
+};
+// La barra de pestañas se queda pegada justo debajo de la cabecera verde
+function ajustarBarraSecciones(){ const t=document.getElementById('top'), b=document.getElementById('pestanas'); if(t&&b&&t.offsetHeight) b.style.top=t.offsetHeight+'px'; }
+window.addEventListener('resize', ajustarBarraSecciones);
+setTimeout(ajustarBarraSecciones, 400);
+verSeccion(localStorage.getItem('promos_seccion')||'sec-reservas');
 window.olvidarCodigo=()=>{ localStorage.removeItem('carta_codigo_editor'); location.reload(); };
 
 // Anclar como app (móvil y ordenador)
