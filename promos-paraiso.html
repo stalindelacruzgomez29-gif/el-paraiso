@@ -620,6 +620,9 @@ async function cargarNAvisos(){
 $('#cod').addEventListener('keydown',e=>{if(e.key==='Enter')entrar();});
 // Si ya recordó el código (aquí o en el editor), entra directo
 (async()=>{ const g=localStorage.getItem('carta_codigo_editor'); if(g) await entrar(g); })();
+// Las reservas se refrescan SOLAS (como WhatsApp): cada 45 s y al volver a la app
+setInterval(()=>{ if(codigo) cargarReservas(); }, 45000);
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && codigo) cargarReservas(); });
 window.olvidarCodigo=()=>{ localStorage.removeItem('carta_codigo_editor'); location.reload(); };
 
 // Anclar como app (móvil y ordenador)
