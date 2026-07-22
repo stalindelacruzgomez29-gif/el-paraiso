@@ -407,6 +407,15 @@ function resumenReservas(datos) {
   };
 }
 
+// ── 🍽 Pedidos por mesa (QR de cada mesa) ──
+// "12,50 €" → 12.5, para sumar el total aproximado del pedido (tope 500 € por artículo)
+function precioNum(t) {
+  const m = String(t == null ? '' : t).replace(',', '.').match(/\d+(\.\d+)?/);
+  const n = m ? parseFloat(m[0]) : 0;
+  return (n >= 0 && n <= 500) ? n : 0;
+}
+function eur(n) { return (Math.round(n * 100) / 100).toFixed(2).replace('.', ',') + ' €'; }
+
 // El código del editor de la carta es válido si SU carta existe en el repo
 // (el nombre del archivo deriva del código: sin el código correcto no hay archivo)
 async function codigoCartaOK(codigo) {
@@ -905,6 +914,75 @@ module.exports = async (req, res) => {
       }
       if (!await guardarDatos(archivoLocal, datos, sha)) continue;
       return res.status(200).json({ ok: true });
+    }
+
+    // ── 🍽 PEDIDOS POR MESA: el cliente escanea el QR de SU mesa y pide desde la carta.
+    //    El pedido queda apuntado con su número de mesa, avisa por WhatsApp y push,
+    //    sale en la app Promos (apartado 🍽 Mesas) y el TPV lo recoge por el feed. ──
+    if (accion === 'pedirMesa') {
+      if (limpio(p.web)) return res.status(400).json({ error: 'No se pudo enviar.' });   // trampa anti-robots
+      const mesa = parseInt(limpio(p.mesa), 10) || 0;
+      if (!(mesa >= 1 && mesa <= 99)) return res.status(400).json({ error: 'Escanea el QR de tu mesa para poder pedir.' });
+      const dev = String(p.dev || '');
+      if (dev.length < 8 || dev.length > 64) return res.status(400).json({ error: 'No se pudo enviar. Recarga la carta e inténtalo otra vez.' });
+      const items = (Array.isArray(p.items) ? p.items : []).slice(0, 30)
+        .map(it => ({
+          nom: limpio(it && it.nom).slice(0, 60),
+          precio: limpio(it && it.precio).slice(0, 15),
+          cant: Math.min(40, Math.max(1, Math.round(Number(it && it.cant)) || 1))
+        }))
+        .filter(it => it.nom);
+      if (!items.length) return res.status(400).json({ error: 'El pedido está vacío: toca ➕ en lo que quieras.' });
+      const nota = limpio(p.nota).slice(0, 140);
+      datos.pedidosMesa = datos.pedidosMesa || [];
+      const abiertos = datos.pedidosMesa.filter(x => x.estado === 'nuevo');
+      if (abiertos.length >= 120) return res.status(503).json({ error: 'Ahora mismo no podemos coger pedidos por aquí. Pide al camarero. 🙏' });
+      const devH = crypto.createHash('sha256').update(dev).digest('hex').slice(0, 16);
+      if (abiertos.filter(x => x.mesa === mesa).length >= 5 || abiertos.filter(x => x.dev === devH).length >= 4) {
+        return res.status(429).json({ error: 'Tienes varios pedidos en marcha. En cuanto te los llevemos podrás pedir más. 🙏' });
+      }
+      const total = Math.round(items.reduce((s, it) => s + precioNum(it.precio) * it.cant, 0) * 100) / 100;
+      const pid = id();
+      datos.pedidosMesa.push({ id: pid, mesa, items, total, nota, dev: devH, estado: 'nuevo', creada: ahora(), tpv: false });
+      if (datos.pedidosMesa.length > 700) datos.pedidosMesa = datos.pedidosMesa.slice(-500);
+      if (!await guardarDatos(archivoLocal, datos, sha)) continue;
+      const lista = items.map(it => it.cant + '× ' + it.nom).join(', ').slice(0, 400);
+      await avisarWhatsApp(`🍽 *${LOCALES[localClave].nombre.toUpperCase()} · MESA ${mesa}*\nPiden: ${lista}\n💶 Total aprox.: ${eur(total)}${nota ? '\n📝 ' + nota : ''}\n(lo tienes en 🍽 Mesas de la app Promos; el TPV lo recoge solo)`);
+      await avisarAdminPush(`🍽 Mesa ${mesa} pide · ${LOCALES[localClave].nombre}`, `${lista} — ${eur(total)}${nota ? ' · 📝 ' + nota : ''}`);
+      return res.status(200).json({ ok: true, id: pid, mensaje: `¡Marchando! Tu pedido ya está en la caja (mesa ${mesa}). Enseguida te lo llevamos. 🌴` });
+    }
+
+    if (accion === 'resolverPedidoMesa') {
+      // Atendido / cobrado / anulado desde la app Promos (con el código del editor)
+      if (!await codigoCartaOK(p.codigo)) return res.status(403).json({ error: 'Código incorrecto.' });
+      const pd = (datos.pedidosMesa || []).find(x => x.id === String(p.id || ''));
+      if (!pd) return res.status(404).json({ error: 'No encuentro ese pedido.' });
+      if (!['atendido', 'cobrado', 'anulado'].includes(p.estado)) return res.status(400).json({ error: 'Estado no válido.' });
+      pd.estado = p.estado; pd.resuelta = ahora();
+      if (!await guardarDatos(archivoLocal, datos, sha)) continue;
+      return res.status(200).json({ ok: true });
+    }
+
+    if (accion === 'pedidosTPV') {
+      // FEED para el TPV (Universo Bistro): pedidos de mesa que el TPV aún no tiene.
+      // El TPV los añade a su mesa y luego confirma con 'pedidosTPVRecibidos'.
+      if (!await codigoCartaOK(p.codigo)) return res.status(403).json({ error: 'Código incorrecto.' });
+      const pendientes = (datos.pedidosMesa || [])
+        .filter(x => !x.tpv && x.estado !== 'anulado')
+        .slice(-200)
+        .map(x => ({ id: x.id, mesa: x.mesa, items: x.items, total: x.total, nota: x.nota || '', creada: x.creada, estado: x.estado }));
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(200).json({ ok: true, pedidos: pendientes });
+    }
+
+    if (accion === 'pedidosTPVRecibidos') {
+      // El TPV confirma los pedidos que ya metió en su mesa (idempotente: nunca se duplican)
+      if (!await codigoCartaOK(p.codigo)) return res.status(403).json({ error: 'Código incorrecto.' });
+      const ids = (Array.isArray(p.ids) ? p.ids : []).map(String).slice(0, 300);
+      let marcados = 0;
+      (datos.pedidosMesa || []).forEach(x => { if (ids.includes(x.id) && !x.tpv) { x.tpv = true; x.tpvEn = ahora(); marcados++; } });
+      if (marcados && !await guardarDatos(archivoLocal, datos, sha)) continue;
+      return res.status(200).json({ ok: true, marcados });
     }
 
     if (accion === 'verFidelidad') {

@@ -194,6 +194,13 @@ module.exports = async (req, res) => {
       const club = (datos.club || []).slice(-500).map(c => ({
         id: c.id, nombre: c.nombre, telefono: c.telefono, email: c.email || '', alta: c.alta
       }));
+      // 🍽 Pedidos por mesa (QR de cada mesa): los de HOY, para el apartado Mesas de la app
+      const hoyMadrid = new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Madrid' }).slice(0, 10);
+      const diaMadrid = iso => { try { return new Date(iso).toLocaleString('sv-SE', { timeZone: 'Europe/Madrid' }).slice(0, 10); } catch (e) { return ''; } };
+      const pedidosMesa = (datos.pedidosMesa || [])
+        .filter(x => x.estado === 'nuevo' || diaMadrid(x.creada) === hoyMadrid)
+        .slice(-120)
+        .map(x => ({ id: x.id, mesa: x.mesa, items: x.items || [], total: x.total || 0, nota: x.nota || '', estado: x.estado, creada: x.creada, tpv: !!x.tpv }));
       const { blobs } = await list({ prefix: `pushadmin/${id}/` });
       res.setHeader('Cache-Control', 'no-store');
       // La configuración de reservas, para que la app del admin la enseñe y la edite
@@ -203,7 +210,7 @@ module.exports = async (req, res) => {
         resenas: (datos.config && datos.config.reservasResenas) || '',
         cerrado: (datos.config && datos.config.reservasCerrado) || ''
       };
-      return res.status(200).json({ reservas, club, avisosAdmin: blobs.length, configReservas });
+      return res.status(200).json({ reservas, club, pedidosMesa, avisosAdmin: blobs.length, configReservas });
     }
 
     return res.status(400).json({ error: 'Acción desconocida.' });

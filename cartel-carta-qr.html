@@ -37,6 +37,13 @@
 
   .preview{transform:scale(1.25);transform-origin:top center;margin-bottom:3cm}
 
+  /* banda dorada con el número de mesa (QRs numerados) */
+  .mesa-num{background:var(--oro);color:#2a1c08;font-weight:800;border-radius:.18cm;padding:.09cm .45cm;
+    font-size:17px;letter-spacing:.06em;font-family:-apple-system,sans-serif;display:inline-block}
+  .zona-mesas{background:#fff;border:1.5px solid var(--oro);border-radius:12px;padding:14px 16px;max-width:640px;text-align:center}
+  .zona-mesas h3{font-family:-apple-system,sans-serif;font-size:15px;color:var(--verde);margin-bottom:8px}
+  .zona-mesas input{width:70px;padding:9px;border:1px solid var(--oro);border-radius:8px;font-size:16px;text-align:center;font-family:-apple-system,sans-serif}
+
   /* ===== HOJA DE IMPRESIÓN (rejilla) ===== */
   #hoja{display:none}
   @media print{
@@ -75,6 +82,17 @@
 </div>
 <p class="nota">Para las mesas lo mejor es <b>4 o 6 por hoja</b>: recortas, plastificas y pegas. El QR lleva a tu carta digital, así que <b>nunca hay que reimprimir</b> aunque cambies precios.<br>Enlace de la carta: <b id="urlmuestra">…</b></p>
 
+<div class="zona-mesas">
+  <h3>🪑 QRs NUMERADOS por mesa (para pedir desde la mesa)</h3>
+  <p class="nota" style="margin-bottom:10px">Cada tarjeta lleva su número (<b>MESA 1, MESA 2…</b>) y su QR propio. El cliente escanea el de su mesa, pide desde la carta y <b>el pedido entra en la caja con ese número de mesa</b>. Pega en cada mesa SU tarjeta (el número tiene que coincidir).</p>
+  <div class="barra" style="margin-bottom:4px">
+    <span style="font-family:-apple-system,sans-serif;font-size:14px;align-self:center">¿Cuántas mesas tienes?</span>
+    <input id="n-mesas" type="number" min="1" max="99" value="12">
+    <button class="oro" onclick="imprimirMesas(4)">🖨 Imprimir QRs de mesas (4 por hoja)</button>
+    <button onclick="imprimirMesas(6)">🖨 6 por hoja (mini)</button>
+  </div>
+</div>
+
 <!-- Vista previa (una tarjeta) -->
 <div class="preview">
   <div class="tarjeta" id="modelo">
@@ -111,6 +129,29 @@ function imprimir(n){
   hoja.innerHTML=Array.from({length:n},()=>modelo).join('');
   setTimeout(()=>window.print(),200);
 }
+
+// ── 🪑 QRs NUMERADOS: una tarjeta por mesa, cada una con su QR (?mesa=N) ──
+function tarjetaMesa(n){
+  const url=URL_CARTA+'?mesa='+n;
+  return document.getElementById('modelo').outerHTML
+    .replace('id="modelo"','')
+    .replace(/src="[^"]*"/,'src="https://api.qrserver.com/v1/create-qr-code/?size=440x440&margin=6&data='+encodeURIComponent(url)+'"')
+    .replace('<div class="llamada">','<div class="mesa-num">MESA '+n+'</div><div class="llamada" style="margin:.06cm 0">')
+    .replace('Escanea y mira<br>nuestra carta 📲','Escanea ¡y pide<br>desde tu mesa! 📲');
+}
+function imprimirMesas(porHoja){
+  const total=Math.max(1,Math.min(99,parseInt(document.getElementById('n-mesas').value,10)||0));
+  localStorage.setItem('qr_n_mesas',String(total));
+  const hoja=document.getElementById('hoja');
+  hoja.className='g'+porHoja;
+  hoja.innerHTML=Array.from({length:total},(_,i)=>tarjetaMesa(i+1)).join('');
+  // esperar a que carguen todos los QRs (uno por mesa) antes de abrir la impresión
+  const imgs=[...hoja.querySelectorAll('img')];
+  Promise.all(imgs.map(im=>im.complete?Promise.resolve():new Promise(r=>{im.onload=im.onerror=r;})))
+    .then(()=>setTimeout(()=>window.print(),300));
+}
+const nGuardado=parseInt(localStorage.getItem('qr_n_mesas')||'',10);
+if(nGuardado>=1) document.getElementById('n-mesas').value=nGuardado;
 async function descargarQR(){
   const url='https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&margin=20&data='+encodeURIComponent(URL_CARTA);
   try{const r=await fetch(url);const b=await r.blob();const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='QR-Carta-El-Paraiso.png';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);}catch(e){window.open(url,'_blank');}

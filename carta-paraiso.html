@@ -126,6 +126,22 @@
   .promo-acciones button:first-child{animation:latido 1.8s ease-in-out infinite}
   .vp-vacio{text-align:center;color:var(--tinta-suave);font-family:Georgia,serif;font-style:italic;padding:26px 10px;line-height:1.6}
 
+  /* 🍽 MODO MESA: el QR de cada mesa enlaza la carta con esa mesa y deja pedir */
+  .mesa-banner{position:sticky;top:0;z-index:56;background:linear-gradient(135deg,#b4884a,#cba15f);color:#2a1c08;
+    text-align:center;padding:9px 34px 9px 12px;font-family:-apple-system,"Segoe UI",sans-serif;font-size:13.5px;font-weight:600}
+  .mesa-banner .salir{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:#2a1c08;font-size:17px;cursor:pointer;opacity:.65;padding:2px 6px}
+  .pedir-btn{border:1px solid var(--oro);background:#fff;color:var(--verde);border-radius:999px;padding:5px 12px;
+    font-family:-apple-system,"Segoe UI",sans-serif;font-size:12.5px;font-weight:700;cursor:pointer;margin-top:5px}
+  .pedir-btn:active{background:var(--oro);color:#2a1c08}
+  .promo-acciones .pedir-btn{margin-top:0;background:var(--oro);border-color:var(--oro);color:#2a1c08}
+  .carrito-btn{position:fixed;left:14px;right:14px;bottom:74px;z-index:54;max-width:430px;margin:0 auto;display:block;
+    background:linear-gradient(135deg,#b4884a,#cba15f);color:#2a1c08;border:0;border-radius:999px;padding:13px 16px;
+    font-family:-apple-system,"Segoe UI",sans-serif;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 10px 26px rgba(0,0,0,.35)}
+  .carr-item{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px dotted var(--linea);font-family:-apple-system,"Segoe UI",sans-serif;font-size:14px}
+  .carr-item .nom{flex:1;min-width:0}
+  .carr-item .paso{width:30px;height:30px;border-radius:50%;border:1px solid var(--oro);background:#fff;color:var(--verde);font-size:16px;font-weight:700;cursor:pointer;flex:0 0 30px}
+  .carr-item .cant{min-width:20px;text-align:center;font-weight:700}
+
   /* aviso instalar app */
   .instalar{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);z-index:60;background:var(--verde);color:#fff;
     display:none;align-items:center;gap:12px;padding:12px 16px;border-radius:14px;box-shadow:0 8px 26px rgba(0,0,0,.3);font-family:-apple-system,sans-serif;max-width:92vw}
@@ -155,6 +171,9 @@
 <body>
 <div class="barra-print no-print" id="barra-gestion" style="display:none">📄 Modo gestión (solo tú lo ves) · <button onclick="window.print()">🖨 Imprimir / PDF</button> <button onclick="location.href='editar-carta.html'" style="background:#1d5a41;color:#fff">✏️ Editar la carta</button> <button onclick="location.href='cartel-carta-qr.html'" style="background:#1d5a41;color:#fff">🖼 Cartel del QR</button></div>
 
+<!-- 🍽 Banner del modo mesa: sale cuando el cliente escanea el QR de SU mesa -->
+<div class="mesa-banner no-print" id="mesa-banner" style="display:none"></div>
+
 <div class="marca-agua"></div>
 <div class="lienzo" id="lienzo">
   <div style="text-align:center;padding:60px;color:#8b8b7a">Cargando la carta…</div>
@@ -176,6 +195,22 @@
   <input id="club-web" style="position:absolute;left:-5000px" tabindex="-1" autocomplete="off">
   <button id="club-btn" onclick="enviarClub()" style="width:100%;background:var(--oro);border:0;color:#2a1c08;font-weight:700;padding:12px;border-radius:10px;font-size:15px;cursor:pointer;font-family:-apple-system,sans-serif">Apuntarme 🌴</button>
   <div id="club-msj" style="display:none;margin-top:10px;font-size:13px;text-align:center;font-family:-apple-system,sans-serif"></div>
+</div>
+
+<!-- 🛎 Botón del pedido (solo en modo mesa, cuando hay algo en el carrito) -->
+<button class="carrito-btn no-print" id="carrito-btn" style="display:none" onclick="abrirCarrito()"></button>
+
+<!-- 🛎 Ventana del pedido: fija, fuera del re-pintado de la carta -->
+<div id="carr-fondo" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:72" onclick="cerrarCarrito()"></div>
+<div id="carr-modal" style="display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:73;background:var(--papel);border:1px solid var(--oro);border-radius:16px;padding:20px;width:min(92vw,400px);max-height:82vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+  <h3 id="carr-titulo" style="color:var(--verde);font-size:18px;margin-bottom:4px;font-weight:400">🛎 Tu pedido</h3>
+  <p style="font-family:Georgia,serif;font-size:13px;color:var(--tinta-suave);margin-bottom:10px">Revísalo y envíalo: llega directo a la caja con tu número de mesa.</p>
+  <div id="carr-lista"></div>
+  <div id="carr-total" style="text-align:right;font-family:-apple-system,sans-serif;font-weight:800;color:var(--verde);font-size:16px;padding:10px 0"></div>
+  <input class="club-in" id="carr-nota" placeholder="Alguna nota (opcional): sin hielo, sin cebolla…" maxlength="140">
+  <input id="carr-web" style="position:absolute;left:-5000px" tabindex="-1" autocomplete="off">
+  <button id="carr-btn" onclick="enviarPedidoMesa()" style="width:100%;background:var(--oro);border:0;color:#2a1c08;font-weight:700;padding:13px;border-radius:10px;font-size:15px;cursor:pointer;font-family:-apple-system,sans-serif">🛎 Enviar a la mesa</button>
+  <div id="carr-msj" style="display:none;margin-top:10px;font-size:13.5px;text-align:center;font-family:-apple-system,sans-serif;line-height:1.45"></div>
 </div>
 
 <nav class="tabs no-print" id="tabs">
@@ -211,6 +246,95 @@ if(ES_GESTION || localStorage.getItem('carta_gestion')==='1'){
   const b=document.getElementById('barra-gestion'); if(b) b.style.display='block';
 }
 
+// ── 🍽 MODO MESA: cada mesa tiene su QR (carta-paraiso.html?mesa=5). Al escanearlo,
+// la carta queda enlazada a ESA mesa y el cliente puede pedir: el pedido entra en la
+// caja con su número de mesa. Sin QR de mesa no se puede pedir (solo ver la carta). ──
+const MESA_QR = parseInt((location.search.match(/[?&]mesa=(\d{1,2})\b/i)||[])[1]||'',10)||0;
+if(MESA_QR>=1) localStorage.setItem('carta_mesa', JSON.stringify({m:MESA_QR, t:Date.now()}));
+function mesaActual(){
+  try{
+    const g=JSON.parse(localStorage.getItem('carta_mesa')||'null');
+    if(g && g.m>=1 && (Date.now()-g.t) < 3*3600*1000) return g.m;   // el enlace con la mesa dura 3 horas
+  }catch(e){}
+  return 0;
+}
+window.salirMesa=()=>{ localStorage.removeItem('carta_mesa'); localStorage.removeItem('carta_carrito'); CARRITO=[]; pintarBarraCarrito(); cargarCarta(); };
+
+// El carrito se recuerda en el móvil (aguanta el re-pintado de la carta cada minuto)
+let CARRITO=[];
+try{ CARRITO=JSON.parse(localStorage.getItem('carta_carrito')||'[]')||[]; }catch(e){ CARRITO=[]; }
+function guardarCarrito(){ localStorage.setItem('carta_carrito', JSON.stringify(CARRITO)); }
+function precioNum(t){ const m=String(t==null?'':t).replace(',','.').match(/\d+(\.\d+)?/); return m?parseFloat(m[0]):0; }
+function eur(n){ return (Math.round(n*100)/100).toFixed(2).replace('.',',')+' €'; }
+function addCarrito(nom,precio){
+  if(!mesaActual()||!nom) return;
+  const it=CARRITO.find(x=>x.nom===nom);
+  it ? it.cant=Math.min(40,it.cant+1) : CARRITO.push({nom,precio:precio||'',cant:1});
+  guardarCarrito(); pintarBarraCarrito();
+}
+// El botón dorado de abajo y el banner de arriba (solo en modo mesa)
+function pintarBarraCarrito(){
+  const m=mesaActual(), ban=document.getElementById('mesa-banner'), btn=document.getElementById('carrito-btn');
+  if(!ban||!btn) return;
+  if(!m){ ban.style.display='none'; btn.style.display='none'; return; }
+  ban.style.display='block';
+  ban.innerHTML='🍽 Estás en la <b>MESA '+m+'</b> — toca <b>➕ Pedir</b> y te lo llevamos'+
+    '<button class="salir" onclick="salirMesa()" title="Ya no estoy en esta mesa">✕</button>';
+  const n=CARRITO.reduce((s,x)=>s+x.cant,0);
+  if(!n){ btn.style.display='none'; return; }
+  btn.style.display='block';
+  btn.textContent='🛎 Enviar pedido · Mesa '+m+' — '+n+(n===1?' artículo':' artículos')+' · '+eur(CARRITO.reduce((s,x)=>s+precioNum(x.precio)*x.cant,0));
+}
+// Botones ➕ Pedir: por delegación, porque la carta se re-pinta sola cada minuto
+document.addEventListener('click',e=>{
+  const b=e.target.closest&&e.target.closest('.pedir-btn');
+  if(b) addCarrito(b.dataset.nom, b.dataset.precio);
+});
+window.abrirCarrito=()=>{ pintarCarrito(); document.getElementById('carr-fondo').style.display='block'; document.getElementById('carr-modal').style.display='block'; };
+window.cerrarCarrito=()=>{ document.getElementById('carr-fondo').style.display='none'; document.getElementById('carr-modal').style.display='none'; };
+function pintarCarrito(){
+  const m=mesaActual();
+  document.getElementById('carr-titulo').textContent='🛎 Tu pedido · Mesa '+m;
+  document.getElementById('carr-lista').innerHTML = CARRITO.length ? CARRITO.map((x,i)=>`
+    <div class="carr-item">
+      <span class="nom">${esc(x.nom)}${x.precio?' <span style="color:var(--tinta-suave);font-size:12px">· '+esc(x.precio)+(/€/.test(x.precio)?'':' €')+'</span>':''}</span>
+      <button class="paso" onclick="masCarrito(${i},-1)">−</button>
+      <span class="cant">${x.cant}</span>
+      <button class="paso" onclick="masCarrito(${i},1)">+</button>
+    </div>`).join('') : '<p style="font-family:Georgia,serif;font-style:italic;color:var(--tinta-suave);padding:8px 0">El pedido está vacío. Cierra esta ventana y toca ➕ Pedir en lo que te apetezca.</p>';
+  const t=CARRITO.reduce((s,x)=>s+precioNum(x.precio)*x.cant,0);
+  document.getElementById('carr-total').textContent = CARRITO.length ? 'Total aprox.: '+eur(t) : '';
+  document.getElementById('carr-btn').style.display = CARRITO.length ? 'block' : 'none';
+}
+window.masCarrito=(i,d)=>{
+  if(!CARRITO[i]) return;
+  CARRITO[i].cant+=d;
+  if(CARRITO[i].cant<1) CARRITO.splice(i,1);
+  guardarCarrito(); pintarCarrito(); pintarBarraCarrito();
+};
+window.enviarPedidoMesa=async()=>{
+  const m=mesaActual();
+  const btn=document.getElementById('carr-btn'), msj=document.getElementById('carr-msj');
+  const pinta=(t,mal)=>{ msj.style.display='block'; msj.style.color=mal?'#9b1c1c':'#03543f'; msj.innerHTML=t; };
+  if(!m){ pinta('El enlace con tu mesa caducó: vuelve a escanear el QR de la mesa.',true); return; }
+  if(!CARRITO.length) return;
+  btn.disabled=true; btn.textContent='Enviando…';
+  try{
+    const r=await fetch('/api/equipo',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({accion:'pedirMesa',local:'paraiso',mesa:m,
+        items:CARRITO.map(x=>({nom:x.nom,precio:x.precio,cant:x.cant})),
+        nota:document.getElementById('carr-nota').value,
+        dev:DEV_ID, web:document.getElementById('carr-web').value})});
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||'No se pudo enviar. Prueba otra vez.');
+    CARRITO=[]; guardarCarrito(); document.getElementById('carr-nota').value='';
+    pintarCarrito(); pintarBarraCarrito();
+    pinta('✅ <b>'+j.mensaje+'</b>',false);
+    setTimeout(()=>{ cerrarCarrito(); msj.style.display='none'; },2600);
+  }catch(e){ pinta('⚠️ '+e.message,true); }
+  btn.disabled=false; btn.textContent='🛎 Enviar a la mesa';
+};
+
 function emblemaSVG(){
   return `<svg class="emblema" viewBox="0 0 120 120" aria-hidden="true">
     <circle cx="60" cy="60" r="57" fill="none" stroke="#b4884a" stroke-width="1.5"/>
@@ -221,10 +345,12 @@ function emblemaSVG(){
     <circle cx="60" cy="47" r="4"/></g></svg>`;
 }
 function platoHTML(p){
+  // En modo mesa (QR de la mesa escaneado), cada plato lleva su botón ➕ Pedir
+  const pedir = mesaActual() ? `<div style="text-align:right"><button class="pedir-btn no-print" data-nom="${esc(p.nom)}" data-precio="${esc(p.precio||'')}">➕ Pedir</button></div>` : '';
   const filaTxt = `<div class="fila"><div><div class="pl-nom">${esc(p.nom)}${p.en?' <span class="pl-en">· '+esc(p.en)+'</span>':''}</div>${p.desc?'<div class="pl-desc">'+esc(p.desc)+'</div>':''}</div>
     <div class="pl-precio">${esc(p.precio)}</div></div>`;
-  if(p.foto) return `<div class="plato"><div class="con-foto"><img class="foto" src="${p.foto}" alt="${esc(p.nom)}">${filaTxt}</div></div>`;
-  return `<div class="plato">${filaTxt}</div>`;
+  if(p.foto) return `<div class="plato"><div class="con-foto"><img class="foto" src="${p.foto}" alt="${esc(p.nom)}">${filaTxt}</div>${pedir}</div>`;
+  return `<div class="plato">${filaTxt}${pedir}</div>`;
 }
 function seccionHTML(s){
   const clase = s.estilo==='premium'?'seccion premium':(s.estilo==='kids'?'seccion kids':'seccion');
@@ -257,6 +383,7 @@ function pintar(c){
       <div class="grx">El Paraíso · Desde ${esc(c.desde||'1968')}</div>
     </footer>`;
   pintarVistaPromos();
+  pintarBarraCarrito();
 }
 
 // ── PESTAÑA "🎉 PROMOS": todas las promos del día, dentro de la misma app ──
@@ -344,7 +471,11 @@ async function cargarVotos(){
 function yaVoto(cl,t){ return localStorage.getItem('voto_'+cl+'_'+t)==='1'; }
 function botonesPromo(p){
   const cl=clavePromo(p), v=VOTOS[cl]||{};
+  // En modo mesa, las promos con precio también se pueden pedir a la mesa
+  const pedir = (mesaActual()&&p.precio&&promoEnDia(p)&&promoEnHora(p))
+    ? `<button class="pedir-btn" data-nom="${esc(p.titulo)}" data-precio="${esc(p.precio)}">➕ Pedir</button>` : '';
   return `<div class="promo-acciones" data-promo="${cl}">
+    ${pedir}
     <button class="${yaVoto(cl,'gusta')?'on':''}" onclick="votarPromo('${cl}','gusta',this)">❤️ Me gusta <span class="n-gusta">${v.gusta||''}</span></button>
     <button class="${yaVoto(cl,'interesa')?'on':''}" onclick="votarPromo('${cl}','interesa',this)">🙋 Me interesa <span class="n-interesa">${v.interesa||''}</span></button>
     <a href="reservas.html?volver=carta&promo=${encodeURIComponent(p.titulo||'')}">📅 Reservar</a>
