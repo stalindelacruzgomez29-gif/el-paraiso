@@ -99,13 +99,19 @@
       <button class="btn btn-b btn-peq" onclick="cargarReservas()" title="Actualizar">↻ Actualizar</button>
     </div>
     <p class="mini" style="margin:2px 0 10px">Lo que pide cada mesa escaneando SU QR (se imprimen en 🖼 Cartel del QR → "QRs numerados por mesa"). Cada pedido te llega también por WhatsApp y notificación, y el TPV lo recoge solo (🧾 TPV ✓ = ya está en la caja). Se refresca solo cada 45 segundos.</p>
+    <div style="margin-bottom:10px">
+      <button class="btn btn-peq btn-b" id="btn-pedidos-onoff" onclick="alternarPedidosMesa()">Cargando…</button>
+      <p class="mini" style="margin-top:4px">Enciéndelo cuando el TPV (Brasa) esté enlazado. Apagado: el cliente escanea el QR y ve la carta con su mesa, pero SIN botones de pedir.</p>
+    </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
       <b style="color:var(--verde);font-size:14px">🗺 Mapa de mesas</b>
       <span class="mini">¿Cuántas tienes?</span>
-      <input id="n-mesas-mapa" type="number" min="1" max="99" style="width:64px;text-align:center" onchange="localStorage.setItem('mesas_total',this.value);pintarMesas()">
+      <input id="n-mesas-mapa" type="number" min="1" max="99" style="width:60px;text-align:center" onchange="localStorage.setItem('mesas_total',this.value);pintarMesas()">
+      <span class="mini">¿De terraza (las últimas)?</span>
+      <input id="n-terraza-mapa" type="number" min="0" max="99" style="width:60px;text-align:center" onchange="localStorage.setItem('mesas_terraza',this.value);pintarMesas()">
       <span class="mini">⬜ libre · 🟡 pide AHORA · 🟢 atendida · 🔵 cobrada. Toca una mesa para ver su detalle.</span>
     </div>
-    <div id="mapa-mesas" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:7px;margin-bottom:14px"></div>
+    <div id="mapa-mesas" style="margin-bottom:14px"></div>
     <div id="lista-mesas" class="mini">Cargando los pedidos…</div>
   </div>
 
@@ -254,16 +260,35 @@ async function cargarReservas(){
 let PEDIDOS_MESA=[];
 function eurM(n){ return (Math.round((Number(n)||0)*100)/100).toFixed(2).replace('.',',')+' €'; }
 function horaDe(iso){ try{ return new Date(iso).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Madrid'}); }catch(e){ return ''; } }
-// 🗺 El mapa: una casilla por mesa, con su color según lo que tenga hoy
+// 🔌 Interruptor de los pedidos por mesa (se enciende cuando el TPV Brasa esté enlazado)
+function pintarBotonPedidos(){
+  const b=$('#btn-pedidos-onoff'); if(!b) return;
+  const on=!!(CONFIG_RESERVAS&&CONFIG_RESERVAS.pedidosMesaActivo);
+  b.textContent=on?'🟢 Pedidos desde la mesa: ENCENDIDOS (toca para apagar)':'🔴 Pedidos desde la mesa: APAGADOS (toca para encender)';
+  b.className='btn btn-peq '+(on?'btn-g':'quitar');
+}
+window.alternarPedidosMesa=async()=>{
+  const act=!(CONFIG_RESERVAS&&CONFIG_RESERVAS.pedidosMesaActivo);
+  if(act && !confirm('¿ENCENDER los pedidos desde la mesa?\n\nLos clientes que escaneen el QR de su mesa podrán pedir y el pedido entrará en la caja.')) return;
+  if(!act && !confirm('¿APAGAR los pedidos desde la mesa?\n\nEl cliente seguirá viendo la carta con su QR, pero sin poder pedir.')) return;
+  try{
+    const r=await fetch('/api/equipo',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({accion:'configurarPedidosMesa',local:'paraiso',codigo,activo:act})});
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||'Error');
+    aviso(act?'🟢 Encendidos: los clientes ya pueden pedir desde su mesa':'🔴 Apagados: la carta se ve, pero sin pedir');
+    cargarReservas();
+  }catch(e){ aviso('⚠️ '+e.message); }
+};
+// 🗺 El mapa: una casilla por mesa (dentro y terraza), con su color según lo que tenga hoy
 function pintarMapaMesas(porMesa){
   const el=$('#mapa-mesas'); if(!el) return;
-  const inp=$('#n-mesas-mapa');
+  const inpT=$('#n-mesas-mapa'), inpTe=$('#n-terraza-mapa');
   const total=Math.max(1,Math.min(99,parseInt(localStorage.getItem('mesas_total')||'25',10)||25));
-  if(inp&&document.activeElement!==inp) inp.value=total;
-  // si hay pedidos de una mesa mayor que el total configurado, también se pinta
-  const nums=new Set(Array.from({length:total},(_,i)=>i+1));
-  Object.keys(porMesa).forEach(m=>nums.add(Number(m)));
-  el.innerHTML=[...nums].sort((a,b)=>a-b).map(m=>{
+  const terraza=Math.max(0,Math.min(total,parseInt(localStorage.getItem('mesas_terraza')==null?'7':localStorage.getItem('mesas_terraza'),10)||0));
+  if(inpT&&document.activeElement!==inpT) inpT.value=total;
+  if(inpTe&&document.activeElement!==inpTe) inpTe.value=terraza;
+  const casilla=m=>{
     const lista=porMesa[m]||[];
     const consumo=lista.filter(x=>x.estado!=='anulado').reduce((s,x)=>s+(Number(x.total)||0),0);
     const hayNuevo=lista.some(x=>x.estado==='nuevo');
@@ -277,7 +302,16 @@ function pintarMapaMesas(porMesa){
       <div style="font-size:15px;font-weight:800;color:${hayNuevo?'#2a1c08':'var(--verde)'}">${icono} ${m}</div>
       <div style="font-size:10.5px;color:${hayNuevo?'#2a1c08':'var(--mut)'};margin-top:2px">${consumo?eurM(consumo):'libre'}</div>
     </button>`;
-  }).join('');
+  };
+  const dentro=[],fuera=[];
+  for(let m=1;m<=total;m++) (m>total-terraza?fuera:dentro).push(m);
+  // si hay pedidos de una mesa mayor que el total configurado, también se pinta
+  const extras=Object.keys(porMesa).map(Number).filter(m=>m>total).sort((a,b)=>a-b);
+  const grid=arr=>'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:7px">'+arr.map(casilla).join('')+'</div>';
+  el.innerHTML=
+    '<div class="mini" style="font-weight:700;margin:2px 0 5px">🏠 Dentro (mesas 1-'+(total-terraza)+')</div>'+grid(dentro)+
+    (terraza?'<div class="mini" style="font-weight:700;margin:10px 0 5px">🌞 Terraza (mesas '+(total-terraza+1)+'-'+total+')</div>'+grid(fuera):'')+
+    (extras.length?'<div class="mini" style="font-weight:700;margin:10px 0 5px">➕ Otras con pedidos</div>'+grid(extras):'');
 }
 window.verMesaDetalle=m=>{
   const c=document.getElementById('mesa-card-'+m);
@@ -365,6 +399,7 @@ function pintarConfigReservas(){
   // los días cerrados llegan como números ("3") y se enseñan con su nombre ("miércoles")
   if(c&&document.activeElement!==c) c.value=String(CONFIG_RESERVAS.cerrado||'').split(',').filter(t=>t.trim()!=='')
     .map(t=>['domingo','lunes','martes','miércoles','jueves','viernes','sábado'][Number(t.trim())]||'').filter(Boolean).join(', ');
+  pintarBotonPedidos();
 }
 window.guardarConfigReservas=async()=>{
   try{

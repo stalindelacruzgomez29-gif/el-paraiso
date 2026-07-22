@@ -208,7 +208,8 @@ module.exports = async (req, res) => {
         franjas: (datos.config && datos.config.reservasFranjas) || '',
         aforo: (datos.config && datos.config.reservasAforo) || 0,
         resenas: (datos.config && datos.config.reservasResenas) || '',
-        cerrado: (datos.config && datos.config.reservasCerrado) || ''
+        cerrado: (datos.config && datos.config.reservasCerrado) || '',
+        pedidosMesaActivo: !!(datos.config && datos.config.pedidosMesaActivo)
       };
       return res.status(200).json({ reservas, club, pedidosMesa, avisosAdmin: blobs.length, configReservas });
     }

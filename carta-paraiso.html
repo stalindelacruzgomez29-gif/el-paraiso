@@ -275,6 +275,19 @@ function mesaActual(){
   }catch(e){}
   return 0;
 }
+// ¿Están ENCENDIDOS los pedidos por mesa? (interruptor de la app Promos: se enciende
+// cuando el TPV esté enlazado). Apagado = el cliente ve la carta pero sin botones de pedir.
+let PEDIR_ON=false;
+async function cargarPedirOn(){
+  if(!mesaActual()) return;
+  try{
+    const r=await fetch('/api/equipo',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({accion:'infoReservas',local:'paraiso'})});
+    const j=await r.json();
+    const antes=PEDIR_ON; PEDIR_ON=!!j.pedidosMesa;
+    if(antes!==PEDIR_ON && CARTA_ACTUAL) pintar(CARTA_ACTUAL);
+  }catch(e){}
+}
 window.salirMesa=()=>{ localStorage.removeItem('carta_mesa'); localStorage.removeItem('carta_carrito'); CARRITO=[]; pintarBarraCarrito(); cargarCarta(); };
 // La pregunta del cambio de mesa (se enseña nada más cargar, si toca)
 function preguntarCambioMesa(){
@@ -311,10 +324,10 @@ function pintarBarraCarrito(){
   if(!ban||!btn) return;
   if(!m){ ban.style.display='none'; btn.style.display='none'; return; }
   ban.style.display='block';
-  ban.innerHTML='🍽 Estás en la <b>MESA '+m+'</b> — toca <b>➕ Pedir</b> y te lo llevamos'+
+  ban.innerHTML='🍽 Estás en la <b>MESA '+m+'</b>'+(PEDIR_ON?' — toca <b>➕ Pedir</b> y te lo llevamos':' — ¡muy pronto podrás pedir desde aquí!')+
     '<button class="salir" onclick="salirMesa()" title="Ya no estoy en esta mesa">✕</button>';
   const n=CARRITO.reduce((s,x)=>s+x.cant,0);
-  if(!n){ btn.style.display='none'; return; }
+  if(!n||!PEDIR_ON){ btn.style.display='none'; return; }
   btn.style.display='block';
   btn.textContent='🛎 Enviar pedido · Mesa '+m+' — '+n+(n===1?' artículo':' artículos')+' · '+eur(CARRITO.reduce((s,x)=>s+precioNum(x.precio)*x.cant,0));
 }
@@ -378,8 +391,8 @@ function emblemaSVG(){
     <circle cx="60" cy="47" r="4"/></g></svg>`;
 }
 function platoHTML(p){
-  // En modo mesa (QR de la mesa escaneado), cada plato lleva su botón ➕ Pedir
-  const pedir = mesaActual() ? `<div style="text-align:right"><button class="pedir-btn no-print" data-nom="${esc(p.nom)}" data-precio="${esc(p.precio||'')}">➕ Pedir</button></div>` : '';
+  // En modo mesa (QR de la mesa escaneado y pedidos encendidos), cada plato lleva su botón ➕ Pedir
+  const pedir = (mesaActual()&&PEDIR_ON) ? `<div style="text-align:right"><button class="pedir-btn no-print" data-nom="${esc(p.nom)}" data-precio="${esc(p.precio||'')}">➕ Pedir</button></div>` : '';
   const filaTxt = `<div class="fila"><div><div class="pl-nom">${esc(p.nom)}${p.en?' <span class="pl-en">· '+esc(p.en)+'</span>':''}</div>${p.desc?'<div class="pl-desc">'+esc(p.desc)+'</div>':''}</div>
     <div class="pl-precio">${esc(p.precio)}</div></div>`;
   if(p.foto) return `<div class="plato"><div class="con-foto"><img class="foto" src="${p.foto}" alt="${esc(p.nom)}">${filaTxt}</div>${pedir}</div>`;
@@ -504,8 +517,8 @@ async function cargarVotos(){
 function yaVoto(cl,t){ return localStorage.getItem('voto_'+cl+'_'+t)==='1'; }
 function botonesPromo(p){
   const cl=clavePromo(p), v=VOTOS[cl]||{};
-  // En modo mesa, las promos con precio también se pueden pedir a la mesa
-  const pedir = (mesaActual()&&p.precio&&promoEnDia(p)&&promoEnHora(p))
+  // En modo mesa (con pedidos encendidos), las promos con precio también se pueden pedir a la mesa
+  const pedir = (mesaActual()&&PEDIR_ON&&p.precio&&promoEnDia(p)&&promoEnHora(p))
     ? `<button class="pedir-btn" data-nom="${esc(p.titulo)}" data-precio="${esc(p.precio)}">➕ Pedir</button>` : '';
   return `<div class="promo-acciones" data-promo="${cl}">
     ${pedir}
@@ -620,6 +633,7 @@ async function cargarCarta(){
   pintar(carta);
   estadoAvisos();
   cargarVotos();
+  cargarPedirOn();
 }
 cargarCarta();
 preguntarCambioMesa();

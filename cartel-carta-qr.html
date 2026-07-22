@@ -88,6 +88,8 @@
   <div class="barra" style="margin-bottom:4px">
     <span style="font-family:-apple-system,sans-serif;font-size:14px;align-self:center">¿Cuántas mesas tienes?</span>
     <input id="n-mesas" type="number" min="1" max="99" value="25">
+    <span style="font-family:-apple-system,sans-serif;font-size:14px;align-self:center">¿De terraza (las últimas)?</span>
+    <input id="n-terraza" type="number" min="0" max="99" value="7">
     <button class="oro" onclick="imprimirMesas(4)">🖨 Imprimir QRs de mesas (4 por hoja)</button>
     <button onclick="imprimirMesas(6)">🖨 6 por hoja (mini)</button>
   </div>
@@ -131,20 +133,24 @@ function imprimir(n){
 }
 
 // ── 🪑 QRs NUMERADOS: una tarjeta por mesa, cada una con su QR (?mesa=N) ──
-function tarjetaMesa(n){
+function tarjetaMesa(n,esTerraza){
   const url=URL_CARTA+'?mesa='+n;
+  const banda='<div class="mesa-num">MESA '+n+'</div>'+
+    (esTerraza?'<div style="font-size:9px;letter-spacing:.28em;color:var(--oro-claro);font-family:-apple-system,sans-serif;margin-top:.05cm">🌞 TERRAZA</div>':'');
   return document.getElementById('modelo').outerHTML
     .replace('id="modelo"','')
     .replace(/src="[^"]*"/,'src="https://api.qrserver.com/v1/create-qr-code/?size=440x440&margin=6&data='+encodeURIComponent(url)+'"')
-    .replace('<div class="llamada">','<div class="mesa-num">MESA '+n+'</div><div class="llamada" style="margin:.06cm 0">')
+    .replace('<div class="llamada">',banda+'<div class="llamada" style="margin:.06cm 0">')
     .replace('Escanea y mira<br>nuestra carta 📲','Escanea ¡y pide<br>desde tu mesa! 📲');
 }
 function imprimirMesas(porHoja){
   const total=Math.max(1,Math.min(99,parseInt(document.getElementById('n-mesas').value,10)||0));
+  const terraza=Math.max(0,Math.min(total,parseInt(document.getElementById('n-terraza').value,10)||0));
   localStorage.setItem('qr_n_mesas',String(total));
+  localStorage.setItem('qr_n_terraza',String(terraza));
   const hoja=document.getElementById('hoja');
   hoja.className='g'+porHoja;
-  hoja.innerHTML=Array.from({length:total},(_,i)=>tarjetaMesa(i+1)).join('');
+  hoja.innerHTML=Array.from({length:total},(_,i)=>tarjetaMesa(i+1, i+1>total-terraza)).join('');
   // esperar a que carguen todos los QRs (uno por mesa) antes de abrir la impresión
   const imgs=[...hoja.querySelectorAll('img')];
   Promise.all(imgs.map(im=>im.complete?Promise.resolve():new Promise(r=>{im.onload=im.onerror=r;})))
@@ -152,6 +158,8 @@ function imprimirMesas(porHoja){
 }
 const nGuardado=parseInt(localStorage.getItem('qr_n_mesas')||'',10);
 if(nGuardado>=1) document.getElementById('n-mesas').value=nGuardado;
+const tGuardado=parseInt(localStorage.getItem('qr_n_terraza')||'',10);
+if(tGuardado>=0) document.getElementById('n-terraza').value=tGuardado;
 async function descargarQR(){
   const url='https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&margin=20&data='+encodeURIComponent(URL_CARTA);
   try{const r=await fetch(url);const b=await r.blob();const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='QR-Carta-El-Paraiso.png';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);}catch(e){window.open(url,'_blank');}
