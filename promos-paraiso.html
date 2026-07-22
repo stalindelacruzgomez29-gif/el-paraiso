@@ -99,6 +99,13 @@
       <button class="btn btn-b btn-peq" onclick="cargarReservas()" title="Actualizar">↻ Actualizar</button>
     </div>
     <p class="mini" style="margin:2px 0 10px">Lo que pide cada mesa escaneando SU QR (se imprimen en 🖼 Cartel del QR → "QRs numerados por mesa"). Cada pedido te llega también por WhatsApp y notificación, y el TPV lo recoge solo (🧾 TPV ✓ = ya está en la caja). Se refresca solo cada 45 segundos.</p>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+      <b style="color:var(--verde);font-size:14px">🗺 Mapa de mesas</b>
+      <span class="mini">¿Cuántas tienes?</span>
+      <input id="n-mesas-mapa" type="number" min="1" max="99" style="width:64px;text-align:center" onchange="localStorage.setItem('mesas_total',this.value);pintarMesas()">
+      <span class="mini">⬜ libre · 🟡 pide AHORA · 🟢 atendida · 🔵 cobrada. Toca una mesa para ver su detalle.</span>
+    </div>
+    <div id="mapa-mesas" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:7px;margin-bottom:14px"></div>
     <div id="lista-mesas" class="mini">Cargando los pedidos…</div>
   </div>
 
@@ -247,14 +254,47 @@ async function cargarReservas(){
 let PEDIDOS_MESA=[];
 function eurM(n){ return (Math.round((Number(n)||0)*100)/100).toFixed(2).replace('.',',')+' €'; }
 function horaDe(iso){ try{ return new Date(iso).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Madrid'}); }catch(e){ return ''; } }
+// 🗺 El mapa: una casilla por mesa, con su color según lo que tenga hoy
+function pintarMapaMesas(porMesa){
+  const el=$('#mapa-mesas'); if(!el) return;
+  const inp=$('#n-mesas-mapa');
+  const total=Math.max(1,Math.min(99,parseInt(localStorage.getItem('mesas_total')||'12',10)||12));
+  if(inp&&document.activeElement!==inp) inp.value=total;
+  // si hay pedidos de una mesa mayor que el total configurado, también se pinta
+  const nums=new Set(Array.from({length:total},(_,i)=>i+1));
+  Object.keys(porMesa).forEach(m=>nums.add(Number(m)));
+  el.innerHTML=[...nums].sort((a,b)=>a-b).map(m=>{
+    const lista=porMesa[m]||[];
+    const consumo=lista.filter(x=>x.estado!=='anulado').reduce((s,x)=>s+(Number(x.total)||0),0);
+    const hayNuevo=lista.some(x=>x.estado==='nuevo');
+    const hayAtendido=lista.some(x=>x.estado==='atendido');
+    const hayCobrado=lista.some(x=>x.estado==='cobrado');
+    let fondo='#f6f2e6',borde='var(--linea)',icono='';
+    if(hayNuevo){ fondo='linear-gradient(135deg,#b4884a,#cba15f)'; borde='var(--oro)'; icono='🆕'; }
+    else if(hayAtendido){ fondo='#def7ec'; borde='#03543f'; icono='✅'; }
+    else if(hayCobrado){ fondo='#e1effe'; borde='#1a56db'; icono='💰'; }
+    return `<button onclick="verMesaDetalle(${m})" style="border:1.5px solid ${borde};background:${fondo};border-radius:11px;padding:8px 4px;cursor:pointer;text-align:center;font-family:inherit${hayNuevo?';box-shadow:0 3px 10px rgba(180,136,74,.5)':''}">
+      <div style="font-size:15px;font-weight:800;color:${hayNuevo?'#2a1c08':'var(--verde)'}">${icono} ${m}</div>
+      <div style="font-size:10.5px;color:${hayNuevo?'#2a1c08':'var(--mut)'};margin-top:2px">${consumo?eurM(consumo):'libre'}</div>
+    </button>`;
+  }).join('');
+}
+window.verMesaDetalle=m=>{
+  const c=document.getElementById('mesa-card-'+m);
+  if(!c){ aviso('La mesa '+m+' no tiene pedidos hoy'); return; }
+  c.scrollIntoView({behavior:'smooth',block:'center'});
+  c.style.boxShadow='0 0 0 4px rgba(180,136,74,.55)';
+  setTimeout(()=>{ c.style.boxShadow=''; },1600);
+};
 function pintarMesas(){
   const el=$('#lista-mesas'); if(!el) return;
   // numerito en la pestaña: pedidos NUEVOS sin atender
   const nuevos=PEDIDOS_MESA.filter(x=>x.estado==='nuevo').length;
   const tb=$('#tab-sec-mesas'); if(tb) tb.textContent='🍽 Mesas'+(nuevos?' ('+nuevos+')':'');
-  if(!PEDIDOS_MESA.length){ el.innerHTML='Hoy todavía no hay pedidos desde los QRs de las mesas.<br>Imprime los QRs numerados en <b>👁 Carta → 🖼 Cartel del QR</b> y pégalos en las mesas.'; return; }
   const porMesa={};
   PEDIDOS_MESA.forEach(pd=>{ (porMesa[pd.mesa]=porMesa[pd.mesa]||[]).push(pd); });
+  pintarMapaMesas(porMesa);
+  if(!PEDIDOS_MESA.length){ el.innerHTML='Hoy todavía no hay pedidos desde los QRs de las mesas.<br>Imprime los QRs numerados en <b>👁 Carta → 🖼 Cartel del QR</b> y pégalos en las mesas.'; return; }
   const validos=PEDIDOS_MESA.filter(x=>x.estado!=='anulado');
   const totalDia=validos.reduce((s,x)=>s+(Number(x.total)||0),0);
   const CHIP={nuevo:'background:#fdf0d5;color:#8a5a00',atendido:'background:#def7ec;color:#03543f',cobrado:'background:#e1effe;color:#1a56db',anulado:'background:#fde8e8;color:#9b1c1c'};
@@ -264,7 +304,7 @@ function pintarMesas(){
       const lista=porMesa[m].slice().reverse();
       const consumo=porMesa[m].filter(x=>x.estado!=='anulado').reduce((s,x)=>s+(Number(x.total)||0),0);
       const pendiente=lista.some(x=>x.estado==='nuevo');
-      return `<div style="border:1.5px solid ${pendiente?'var(--oro)':'#eadfc6'};border-radius:12px;padding:10px 12px;margin-bottom:9px;background:${pendiente?'#fbf6ea':'#fff'};font-size:13.5px;color:var(--tinta)">
+      return `<div id="mesa-card-${esc(m)}" style="border:1.5px solid ${pendiente?'var(--oro)':'#eadfc6'};border-radius:12px;padding:10px 12px;margin-bottom:9px;background:${pendiente?'#fbf6ea':'#fff'};font-size:13.5px;color:var(--tinta)">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
           <b style="color:var(--verde);font-size:15px">🪑 Mesa ${esc(m)}</b>
           <b style="color:var(--verde)">${eurM(consumo)} hoy</b>
@@ -276,6 +316,7 @@ function pintarMesas(){
             ${pd.tpv?'<span style="float:right;font-size:11.5px;margin-right:6px;color:#1a56db">🧾 TPV ✓</span>':''}
             <br>${esc((pd.items||[]).map(x=>x.cant+'× '+x.nom).join(' · '))} — <b>${eurM(pd.total)}</b>
             ${pd.nota?'<br>📝 '+esc(pd.nota):''}
+            ${pd.aviso?'<br><b style="color:#9b1c1c">'+esc(pd.aviso)+'</b>':''}
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
               ${pd.estado==='nuevo'?`<button class="btn btn-g btn-peq" onclick="decidirPedido('${esc(pd.id)}','atendido')">✅ Atendido</button>`:''}
               ${(pd.estado==='nuevo'||pd.estado==='atendido')?`<button class="btn btn-b btn-peq" onclick="decidirPedido('${esc(pd.id)}','cobrado')">💰 Cobrado</button>`:''}

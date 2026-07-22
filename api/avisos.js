@@ -200,7 +200,7 @@ module.exports = async (req, res) => {
       const pedidosMesa = (datos.pedidosMesa || [])
         .filter(x => x.estado === 'nuevo' || diaMadrid(x.creada) === hoyMadrid)
         .slice(-120)
-        .map(x => ({ id: x.id, mesa: x.mesa, items: x.items || [], total: x.total || 0, nota: x.nota || '', estado: x.estado, creada: x.creada, tpv: !!x.tpv }));
+        .map(x => ({ id: x.id, mesa: x.mesa, items: x.items || [], total: x.total || 0, nota: x.nota || '', aviso: x.aviso || '', estado: x.estado, creada: x.creada, tpv: !!x.tpv }));
       const { blobs } = await list({ prefix: `pushadmin/${id}/` });
       res.setHeader('Cache-Control', 'no-store');
       // La configuración de reservas, para que la app del admin la enseñe y la edite

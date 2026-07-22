@@ -213,6 +213,15 @@
   <div id="carr-msj" style="display:none;margin-top:10px;font-size:13.5px;text-align:center;font-family:-apple-system,sans-serif;line-height:1.45"></div>
 </div>
 
+<!-- 📍 Pregunta de cambio de mesa: sale si este móvil ya estaba enlazado a OTRA mesa -->
+<div id="cambio-fondo" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:74"></div>
+<div id="cambio-modal" style="display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:75;background:var(--papel);border:1px solid var(--oro);border-radius:16px;padding:22px;width:min(92vw,360px);text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4);font-family:-apple-system,'Segoe UI',sans-serif">
+  <div style="font-size:34px;margin-bottom:6px">📍</div>
+  <p id="cambio-texto" style="font-size:15px;color:var(--tinta);line-height:1.5;margin-bottom:14px"></p>
+  <button id="cambio-si" onclick="cambiarMesa(true)" style="width:100%;background:var(--oro);border:0;color:#2a1c08;font-weight:700;padding:12px;border-radius:10px;font-size:15px;cursor:pointer;margin-bottom:8px"></button>
+  <button id="cambio-no" onclick="cambiarMesa(false)" style="width:100%;background:transparent;border:1px solid var(--oro);color:var(--verde);font-weight:700;padding:11px;border-radius:10px;font-size:14px;cursor:pointer"></button>
+</div>
+
 <nav class="tabs no-print" id="tabs">
   <button class="tab act" id="tab-carta" onclick="verPestana('carta')">🌴 Carta</button>
   <button class="tab" id="tab-promos" onclick="verPestana('promos')">🎉 Promos <span class="num" id="tab-num" style="display:none">0</span></button>
@@ -250,7 +259,15 @@ if(ES_GESTION || localStorage.getItem('carta_gestion')==='1'){
 // la carta queda enlazada a ESA mesa y el cliente puede pedir: el pedido entra en la
 // caja con su número de mesa. Sin QR de mesa no se puede pedir (solo ver la carta). ──
 const MESA_QR = parseInt((location.search.match(/[?&]mesa=(\d{1,2})\b/i)||[])[1]||'',10)||0;
-if(MESA_QR>=1) localStorage.setItem('carta_mesa', JSON.stringify({m:MESA_QR, t:Date.now()}));
+// Si este móvil ya estaba enlazado a OTRA mesa (hace menos de 3 h), NO se cambia solo:
+// se le pregunta. Así el QR de la mesa 4 no "roba" al que está sentado en la 5.
+let MESA_CAMBIO=null;
+if(MESA_QR>=1){
+  let ant=0;
+  try{ const g=JSON.parse(localStorage.getItem('carta_mesa')||'null'); if(g&&g.m>=1&&(Date.now()-g.t)<3*3600*1000) ant=g.m; }catch(e){}
+  if(ant && ant!==MESA_QR) MESA_CAMBIO={de:ant, a:MESA_QR};
+  else localStorage.setItem('carta_mesa', JSON.stringify({m:MESA_QR, t:Date.now()}));
+}
 function mesaActual(){
   try{
     const g=JSON.parse(localStorage.getItem('carta_mesa')||'null');
@@ -259,6 +276,22 @@ function mesaActual(){
   return 0;
 }
 window.salirMesa=()=>{ localStorage.removeItem('carta_mesa'); localStorage.removeItem('carta_carrito'); CARRITO=[]; pintarBarraCarrito(); cargarCarta(); };
+// La pregunta del cambio de mesa (se enseña nada más cargar, si toca)
+function preguntarCambioMesa(){
+  if(!MESA_CAMBIO) return;
+  document.getElementById('cambio-texto').innerHTML='Este QR es de la <b>MESA '+MESA_CAMBIO.a+'</b>, pero estabas pidiendo en la <b>MESA '+MESA_CAMBIO.de+'</b>.<br>¿Te has cambiado de mesa?';
+  document.getElementById('cambio-si').textContent='✅ Sí, ahora estoy en la MESA '+MESA_CAMBIO.a;
+  document.getElementById('cambio-no').textContent='↩️ No, sigo en la MESA '+MESA_CAMBIO.de;
+  document.getElementById('cambio-fondo').style.display='block';
+  document.getElementById('cambio-modal').style.display='block';
+}
+window.cambiarMesa=si=>{
+  if(MESA_CAMBIO) localStorage.setItem('carta_mesa', JSON.stringify({m: si?MESA_CAMBIO.a:MESA_CAMBIO.de, t:Date.now()}));
+  MESA_CAMBIO=null;
+  document.getElementById('cambio-fondo').style.display='none';
+  document.getElementById('cambio-modal').style.display='none';
+  pintarBarraCarrito(); cargarCarta();
+};
 
 // El carrito se recuerda en el móvil (aguanta el re-pintado de la carta cada minuto)
 let CARRITO=[];
@@ -589,6 +622,7 @@ async function cargarCarta(){
   cargarVotos();
 }
 cargarCarta();
+preguntarCambioMesa();
 
 // ── AVISOS DE PROMOCIONES (notificaciones al móvil del cliente) ──
 const CLAVE_AVISOS = "BOeVjJvIFCUGI-TRZkebiwMEnXKolDq8PinCh1tlUkFswql89dDUiy4gonmv7Qba3EdymP3AqRUsaxCIdo6lprs";

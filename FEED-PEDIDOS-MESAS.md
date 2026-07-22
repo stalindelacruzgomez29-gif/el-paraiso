@@ -27,6 +27,7 @@ Respuesta:
       "items": [ { "nom": "Caña", "precio": "1,60 €", "cant": 2 }, { "nom": "Nachos", "precio": "8", "cant": 1 } ],
       "total": 11.2,
       "nota": "sin hielo",
+      "aviso": "",
       "creada": "2026-07-22T18:40:00.000Z",
       "estado": "nuevo"
     }
@@ -38,6 +39,7 @@ Respuesta:
 - `estado`: `nuevo` (sin atender), `atendido`, `cobrado` (marcados por Stalin en la app Promos). Normalmente los recogerás en `nuevo`.
 - `total` es orientativo (suma de los precios que enseña la carta). El precio que manda es el del catálogo del TPV; casa los `items` por nombre (`nom` = nombre EXACTO del plato/promo en la carta).
 - `precio` llega tal y como está escrito en la carta (texto: puede ser "12,50 €", "12,50" o incluso "3,50 / 5,00").
+- `aviso`: texto de alerta para el personal (ej. "📍 Este móvil pidió antes en la mesa 4" — clientes que cambian de mesa). Enséñalo en el TPV si puedes. Además, un mismo móvil NO puede tener pedidos sin atender en dos mesas a la vez (el servidor lo rechaza con 409).
 - Frecuencia recomendada de sondeo: cada 15–30 s.
 
 ## 2. Confirmar los que ya metiste en la mesa (idempotencia)

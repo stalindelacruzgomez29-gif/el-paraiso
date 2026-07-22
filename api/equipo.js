@@ -941,14 +941,24 @@ module.exports = async (req, res) => {
       if (abiertos.filter(x => x.mesa === mesa).length >= 5 || abiertos.filter(x => x.dev === devH).length >= 4) {
         return res.status(429).json({ error: 'Tienes varios pedidos en marcha. En cuanto te los llevemos podrás pedir más. 🙏' });
       }
+      // 📍 Un mismo móvil NO puede tener pedidos SIN ATENDER en dos mesas a la vez
+      // (gente que escanea el QR de otra mesa al pasar, o se levanta y pide donde no está)
+      const enOtra = abiertos.find(x => x.dev === devH && x.mesa !== mesa);
+      if (enOtra) {
+        return res.status(409).json({ error: 'Este móvil tiene un pedido en marcha en la MESA ' + enOtra.mesa + '. En cuanto os lo llevemos podrás pedir aquí. Si te has cambiado de mesa, avisa al camarero. 🙏' });
+      }
+      // Y si este móvil ya pidió HOY en otra mesa (aunque esté atendido), el equipo lo ve avisado
+      const hoyES = hoyEspana();
+      const otraHoy = datos.pedidosMesa.find(x => x.dev === devH && x.mesa !== mesa && x.estado !== 'anulado' && fechaHoraEspana(x.creada).slice(0, 10) === hoyES);
+      const aviso = otraHoy ? '📍 Este móvil pidió antes en la mesa ' + otraHoy.mesa : '';
       const total = Math.round(items.reduce((s, it) => s + precioNum(it.precio) * it.cant, 0) * 100) / 100;
       const pid = id();
-      datos.pedidosMesa.push({ id: pid, mesa, items, total, nota, dev: devH, estado: 'nuevo', creada: ahora(), tpv: false });
+      datos.pedidosMesa.push({ id: pid, mesa, items, total, nota, aviso, dev: devH, estado: 'nuevo', creada: ahora(), tpv: false });
       if (datos.pedidosMesa.length > 700) datos.pedidosMesa = datos.pedidosMesa.slice(-500);
       if (!await guardarDatos(archivoLocal, datos, sha)) continue;
       const lista = items.map(it => it.cant + '× ' + it.nom).join(', ').slice(0, 400);
-      await avisarWhatsApp(`🍽 *${LOCALES[localClave].nombre.toUpperCase()} · MESA ${mesa}*\nPiden: ${lista}\n💶 Total aprox.: ${eur(total)}${nota ? '\n📝 ' + nota : ''}\n(lo tienes en 🍽 Mesas de la app Promos; el TPV lo recoge solo)`);
-      await avisarAdminPush(`🍽 Mesa ${mesa} pide · ${LOCALES[localClave].nombre}`, `${lista} — ${eur(total)}${nota ? ' · 📝 ' + nota : ''}`);
+      await avisarWhatsApp(`🍽 *${LOCALES[localClave].nombre.toUpperCase()} · MESA ${mesa}*\nPiden: ${lista}\n💶 Total aprox.: ${eur(total)}${nota ? '\n📝 ' + nota : ''}${aviso ? '\n' + aviso : ''}\n(lo tienes en 🍽 Mesas de la app Promos; el TPV lo recoge solo)`);
+      await avisarAdminPush(`🍽 Mesa ${mesa} pide · ${LOCALES[localClave].nombre}`, `${lista} — ${eur(total)}${nota ? ' · 📝 ' + nota : ''}${aviso ? ' · ' + aviso : ''}`);
       return res.status(200).json({ ok: true, id: pid, mensaje: `¡Marchando! Tu pedido ya está en la caja (mesa ${mesa}). Enseguida te lo llevamos. 🌴` });
     }
 
@@ -970,7 +980,7 @@ module.exports = async (req, res) => {
       const pendientes = (datos.pedidosMesa || [])
         .filter(x => !x.tpv && x.estado !== 'anulado')
         .slice(-200)
-        .map(x => ({ id: x.id, mesa: x.mesa, items: x.items, total: x.total, nota: x.nota || '', creada: x.creada, estado: x.estado }));
+        .map(x => ({ id: x.id, mesa: x.mesa, items: x.items, total: x.total, nota: x.nota || '', aviso: x.aviso || '', creada: x.creada, estado: x.estado }));
       res.setHeader('Cache-Control', 'no-store');
       return res.status(200).json({ ok: true, pedidos: pendientes });
     }
