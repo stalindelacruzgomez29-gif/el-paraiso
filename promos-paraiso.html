@@ -853,7 +853,14 @@ window.verSeccion=(id)=>{
 function ajustarBarraSecciones(){ const t=document.getElementById('top'), b=document.getElementById('pestanas'); if(t&&b&&t.offsetHeight) b.style.top=t.offsetHeight+'px'; }
 window.addEventListener('resize', ajustarBarraSecciones);
 setTimeout(ajustarBarraSecciones, 400);
-verSeccion(localStorage.getItem('promos_seccion')||'sec-reservas');
+// Se puede abrir directo en un apartado con el enlace: promos-paraiso.html#mesas (modo pantalla TPV)
+const SEC_URL={'#promos':'sec-promos','#mesas':'sec-mesas','#reservas':'sec-reservas','#club':'sec-club','#toque':'sec-toque'}[location.hash];
+verSeccion(SEC_URL||localStorage.getItem('promos_seccion')||'sec-reservas');
+// En la pestaña 🍽 Mesas el refresco es RÁPIDO (cada 12 s): es la pantalla tipo TPV
+setInterval(()=>{
+  const s=document.getElementById('sec-mesas');
+  if(codigo && s && s.style.display!=='none' && !document.hidden) cargarReservas();
+}, 12000);
 window.olvidarCodigo=()=>{ localStorage.removeItem('carta_codigo_editor'); location.reload(); };
 
 // Anclar como app (móvil y ordenador)
