@@ -200,7 +200,7 @@ module.exports = async (req, res) => {
       const pedidosMesa = (datos.pedidosMesa || [])
         .filter(x => x.estado === 'nuevo' || diaMadrid(x.creada) === hoyMadrid)
         .slice(-120)
-        .map(x => ({ id: x.id, mesa: x.mesa, items: x.items || [], total: x.total || 0, nota: x.nota || '', aviso: x.aviso || '', estado: x.estado, creada: x.creada, tpv: !!x.tpv }));
+        .map(x => ({ id: x.id, mesa: x.mesa, items: x.items || [], total: x.total || 0, suplemento: x.suplemento || 0, terrazaPct: x.terrazaPct || 0, nota: x.nota || '', aviso: x.aviso || '', estado: x.estado, creada: x.creada, tpv: !!x.tpv }));
       const { blobs } = await list({ prefix: `pushadmin/${id}/` });
       res.setHeader('Cache-Control', 'no-store');
       // La configuración de reservas, para que la app del admin la enseñe y la edite
@@ -209,7 +209,10 @@ module.exports = async (req, res) => {
         aforo: (datos.config && datos.config.reservasAforo) || 0,
         resenas: (datos.config && datos.config.reservasResenas) || '',
         cerrado: (datos.config && datos.config.reservasCerrado) || '',
-        pedidosMesaActivo: !!(datos.config && datos.config.pedidosMesaActivo)
+        pedidosMesaActivo: !!(datos.config && datos.config.pedidosMesaActivo),
+        mesasTotal: (datos.config && Number(datos.config.mesasTotal)) || 0,
+        mesasTerraza: (datos.config && Number(datos.config.mesasTerraza)) || 0,
+        terrazaPct: (datos.config && Number(datos.config.terrazaPct)) || 0
       };
       return res.status(200).json({ reservas, club, pedidosMesa, avisosAdmin: blobs.length, configReservas });
     }

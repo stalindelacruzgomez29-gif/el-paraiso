@@ -277,17 +277,20 @@ function mesaActual(){
 }
 // ¿Están ENCENDIDOS los pedidos por mesa? (interruptor de la app Promos: se enciende
 // cuando el TPV esté enlazado). Apagado = el cliente ve la carta pero sin botones de pedir.
-let PEDIR_ON=false;
+let PEDIR_ON=false, TERRAZA_INFO=null;
 async function cargarPedirOn(){
   if(!mesaActual()) return;
   try{
     const r=await fetch('/api/equipo',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({accion:'infoReservas',local:'paraiso'})});
     const j=await r.json();
-    const antes=PEDIR_ON; PEDIR_ON=!!j.pedidosMesa;
+    const antes=PEDIR_ON; PEDIR_ON=!!j.pedidosMesa; TERRAZA_INFO=j.terraza||null;
     if(antes!==PEDIR_ON && CARTA_ACTUAL) pintar(CARTA_ACTUAL);
+    pintarBarraCarrito();
   }catch(e){}
 }
+// % de suplemento si la mesa es de terraza (0 si no lo es o no está configurado)
+function pctTerraza(m){ return (TERRAZA_INFO&&m>=TERRAZA_INFO.desde&&m<=TERRAZA_INFO.hasta)?TERRAZA_INFO.pct:0; }
 window.salirMesa=()=>{ localStorage.removeItem('carta_mesa'); localStorage.removeItem('carta_carrito'); CARRITO=[]; pintarBarraCarrito(); cargarCarta(); };
 // La pregunta del cambio de mesa (se enseña nada más cargar, si toca)
 function preguntarCambioMesa(){
@@ -324,12 +327,14 @@ function pintarBarraCarrito(){
   if(!ban||!btn) return;
   if(!m){ ban.style.display='none'; btn.style.display='none'; return; }
   ban.style.display='block';
-  ban.innerHTML='🍽 Estás en la <b>MESA '+m+'</b>'+(PEDIR_ON?' — toca <b>➕ Pedir</b> y te lo llevamos':' — ¡muy pronto podrás pedir desde aquí!')+
+  const pT=pctTerraza(m);
+  ban.innerHTML='🍽 Estás en la <b>MESA '+m+'</b>'+(pT?' · 🌞 terraza (+'+pT+'%)':'')+(PEDIR_ON?' — toca <b>➕ Pedir</b> y te lo llevamos':' — ¡muy pronto podrás pedir desde aquí!')+
     '<button class="salir" onclick="salirMesa()" title="Ya no estoy en esta mesa">✕</button>';
   const n=CARRITO.reduce((s,x)=>s+x.cant,0);
   if(!n||!PEDIR_ON){ btn.style.display='none'; return; }
   btn.style.display='block';
-  btn.textContent='🛎 Enviar pedido · Mesa '+m+' — '+n+(n===1?' artículo':' artículos')+' · '+eur(CARRITO.reduce((s,x)=>s+precioNum(x.precio)*x.cant,0));
+  const base=CARRITO.reduce((s,x)=>s+precioNum(x.precio)*x.cant,0);
+  btn.textContent='🛎 Enviar pedido · Mesa '+m+' — '+n+(n===1?' artículo':' artículos')+' · '+eur(base*(1+pT/100));
 }
 // Botones ➕ Pedir: por delegación, porque la carta se re-pinta sola cada minuto
 document.addEventListener('click',e=>{
@@ -349,7 +354,10 @@ function pintarCarrito(){
       <button class="paso" onclick="masCarrito(${i},1)">+</button>
     </div>`).join('') : '<p style="font-family:Georgia,serif;font-style:italic;color:var(--tinta-suave);padding:8px 0">El pedido está vacío. Cierra esta ventana y toca ➕ Pedir en lo que te apetezca.</p>';
   const t=CARRITO.reduce((s,x)=>s+precioNum(x.precio)*x.cant,0);
-  document.getElementById('carr-total').textContent = CARRITO.length ? 'Total aprox.: '+eur(t) : '';
+  const pT=pctTerraza(m), sup=pT?Math.round(t*pT)/100:0;
+  document.getElementById('carr-total').innerHTML = CARRITO.length
+    ? (pT?'<span style="font-weight:400;font-size:13px;color:var(--tinta-suave)">🌞 Suplemento terraza (+'+pT+'%): +'+eur(sup)+'</span><br>':'')+'Total aprox.: '+eur(t+sup)
+    : '';
   document.getElementById('carr-btn').style.display = CARRITO.length ? 'block' : 'none';
 }
 window.masCarrito=(i,d)=>{

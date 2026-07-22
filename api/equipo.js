@@ -415,6 +415,13 @@ function precioNum(t) {
   return (n >= 0 && n <= 500) ? n : 0;
 }
 function eur(n) { return (Math.round(n * 100) / 100).toFixed(2).replace('.', ',') + ' €'; }
+// ¿La mesa es de TERRAZA? (las últimas N mesas). Devuelve el % de suplemento o null.
+function pctTerrazaDe(datos, mesa) {
+  const c = datos.config || {};
+  const tot = Number(c.mesasTotal) || 0, ter = Number(c.mesasTerraza) || 0, pct = Number(c.terrazaPct) || 0;
+  if (!(tot && ter && pct)) return null;
+  return (mesa > tot - ter && mesa <= tot) ? pct : null;
+}
 
 // El código del editor de la carta es válido si SU carta existe en el repo
 // (el nombre del archivo deriva del código: sin el código correcto no hay archivo)
@@ -814,7 +821,11 @@ module.exports = async (req, res) => {
       const llenas = (aforo && /^\d{4}-\d{2}-\d{2}$/.test(fecha) && horas.length)
         ? horas.filter(h => personasEnHora(datos, fecha, h) >= aforo) : [];
       // La carta también pregunta aquí si los pedidos por mesa están encendidos
-      return res.status(200).json({ ok: true, horas, llenas, pedidosMesa: !!(datos.config && datos.config.pedidosMesaActivo) });
+      // y qué mesas son de terraza (para enseñar el suplemento al cliente)
+      const cT = datos.config || {};
+      const terraza = (Number(cT.mesasTotal) && Number(cT.mesasTerraza) && Number(cT.terrazaPct))
+        ? { desde: Number(cT.mesasTotal) - Number(cT.mesasTerraza) + 1, hasta: Number(cT.mesasTotal), pct: Number(cT.terrazaPct) } : null;
+      return res.status(200).json({ ok: true, horas, llenas, pedidosMesa: !!(datos.config && datos.config.pedidosMesaActivo), terraza });
     }
 
     if (accion === 'verReserva') {
@@ -957,24 +968,32 @@ module.exports = async (req, res) => {
       const hoyES = hoyEspana();
       const otraHoy = datos.pedidosMesa.find(x => x.dev === devH && x.mesa !== mesa && x.estado !== 'anulado' && fechaHoraEspana(x.creada).slice(0, 10) === hoyES);
       const aviso = otraHoy ? '📍 Este móvil pidió antes en la mesa ' + otraHoy.mesa : '';
-      const total = Math.round(items.reduce((s, it) => s + precioNum(it.precio) * it.cant, 0) * 100) / 100;
+      const base = Math.round(items.reduce((s, it) => s + precioNum(it.precio) * it.cant, 0) * 100) / 100;
+      // 🌞 Suplemento de terraza: % configurado sobre las últimas N mesas
+      const pctT = pctTerrazaDe(datos, mesa);
+      const suplemento = pctT ? Math.round(base * pctT) / 100 : 0;
+      const total = Math.round((base + suplemento) * 100) / 100;
       const pid = id();
-      datos.pedidosMesa.push({ id: pid, mesa, items, total, nota, aviso, dev: devH, estado: 'nuevo', creada: ahora(), tpv: false });
+      datos.pedidosMesa.push({ id: pid, mesa, items, total, base, suplemento, terrazaPct: pctT || 0, nota, aviso, dev: devH, estado: 'nuevo', creada: ahora(), tpv: false });
       if (datos.pedidosMesa.length > 700) datos.pedidosMesa = datos.pedidosMesa.slice(-500);
       if (!await guardarDatos(archivoLocal, datos, sha)) continue;
       const lista = items.map(it => it.cant + '× ' + it.nom).join(', ').slice(0, 400);
-      await avisarWhatsApp(`🍽 *${LOCALES[localClave].nombre.toUpperCase()} · MESA ${mesa}*\nPiden: ${lista}\n💶 Total aprox.: ${eur(total)}${nota ? '\n📝 ' + nota : ''}${aviso ? '\n' + aviso : ''}\n(lo tienes en 🍽 Mesas de la app Promos; el TPV lo recoge solo)`);
-      await avisarAdminPush(`🍽 Mesa ${mesa} pide · ${LOCALES[localClave].nombre}`, `${lista} — ${eur(total)}${nota ? ' · 📝 ' + nota : ''}${aviso ? ' · ' + aviso : ''}`);
+      const txtT = pctT ? `\n🌞 Terraza +${pctT}%: +${eur(suplemento)}` : '';
+      await avisarWhatsApp(`🍽 *${LOCALES[localClave].nombre.toUpperCase()} · MESA ${mesa}*\nPiden: ${lista}${txtT}\n💶 Total aprox.: ${eur(total)}${nota ? '\n📝 ' + nota : ''}${aviso ? '\n' + aviso : ''}\n(lo tienes en 🍽 Mesas de la app Promos; el TPV lo recoge solo)`);
+      await avisarAdminPush(`🍽 Mesa ${mesa} pide · ${LOCALES[localClave].nombre}`, `${lista} — ${eur(total)}${pctT ? ' (terraza +' + pctT + '%)' : ''}${nota ? ' · 📝 ' + nota : ''}${aviso ? ' · ' + aviso : ''}`);
       return res.status(200).json({ ok: true, id: pid, mensaje: `¡Marchando! Tu pedido ya está en la caja (mesa ${mesa}). Enseguida te lo llevamos. 🌴` });
     }
 
     if (accion === 'configurarPedidosMesa') {
-      // Encender/apagar los pedidos por mesa (desde la app Promos, con el código del editor)
+      // Interruptor + configuración de mesas: total, cuántas de terraza y % de suplemento
       if (!await codigoCartaOK(p.codigo)) return res.status(403).json({ error: 'Código incorrecto.' });
       datos.config = datos.config || {};
-      datos.config.pedidosMesaActivo = !!p.activo;
+      if (p.activo !== undefined) datos.config.pedidosMesaActivo = !!p.activo;
+      if (p.mesasTotal !== undefined) datos.config.mesasTotal = Math.max(0, Math.min(99, Math.round(Number(p.mesasTotal)) || 0));
+      if (p.mesasTerraza !== undefined) datos.config.mesasTerraza = Math.max(0, Math.min(99, Math.round(Number(p.mesasTerraza)) || 0));
+      if (p.terrazaPct !== undefined) datos.config.terrazaPct = Math.max(0, Math.min(50, Math.round(Number(p.terrazaPct)) || 0));
       if (!await guardarDatos(archivoLocal, datos, sha)) continue;
-      return res.status(200).json({ ok: true, activo: datos.config.pedidosMesaActivo });
+      return res.status(200).json({ ok: true, activo: !!datos.config.pedidosMesaActivo });
     }
 
     if (accion === 'resolverPedidoMesa') {
@@ -995,7 +1014,7 @@ module.exports = async (req, res) => {
       const pendientes = (datos.pedidosMesa || [])
         .filter(x => !x.tpv && x.estado !== 'anulado')
         .slice(-200)
-        .map(x => ({ id: x.id, mesa: x.mesa, items: x.items, total: x.total, nota: x.nota || '', aviso: x.aviso || '', creada: x.creada, estado: x.estado }));
+        .map(x => ({ id: x.id, mesa: x.mesa, items: x.items, total: x.total, base: x.base != null ? x.base : x.total, suplemento: x.suplemento || 0, terrazaPct: x.terrazaPct || 0, nota: x.nota || '', aviso: x.aviso || '', creada: x.creada, estado: x.estado }));
       res.setHeader('Cache-Control', 'no-store');
       return res.status(200).json({ ok: true, pedidos: pendientes });
     }

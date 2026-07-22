@@ -103,13 +103,16 @@
       <button class="btn btn-peq btn-b" id="btn-pedidos-onoff" onclick="alternarPedidosMesa()">Cargando…</button>
       <p class="mini" style="margin-top:4px">Enciéndelo cuando el TPV (Brasa) esté enlazado. Apagado: el cliente escanea el QR y ve la carta con su mesa, pero SIN botones de pedir.</p>
     </div>
+    <div id="resumen-mesas" style="margin-bottom:12px"></div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
       <b style="color:var(--verde);font-size:14px">🗺 Mapa de mesas</b>
       <span class="mini">¿Cuántas tienes?</span>
-      <input id="n-mesas-mapa" type="number" min="1" max="99" style="width:60px;text-align:center" onchange="localStorage.setItem('mesas_total',this.value);pintarMesas()">
+      <input id="n-mesas-mapa" type="number" min="1" max="99" style="width:60px;text-align:center" onchange="guardarConfigMesas()">
       <span class="mini">¿De terraza (las últimas)?</span>
-      <input id="n-terraza-mapa" type="number" min="0" max="99" style="width:60px;text-align:center" onchange="localStorage.setItem('mesas_terraza',this.value);pintarMesas()">
-      <span class="mini">⬜ libre · 🟡 pide AHORA · 🟢 atendida · 🔵 cobrada. Toca una mesa para ver su detalle.</span>
+      <input id="n-terraza-mapa" type="number" min="0" max="99" style="width:60px;text-align:center" onchange="guardarConfigMesas()">
+      <span class="mini">% extra terraza</span>
+      <input id="pct-terraza-mapa" type="number" min="0" max="50" style="width:60px;text-align:center" onchange="guardarConfigMesas()">
+      <span class="mini">⬜ libre · 🟡 pide AHORA · 🟢 atendida · 🔵 cobrada. Toca una mesa para ver su detalle. El % de terraza se le suma solo al pedido del cliente (lo ve avisado en su carta).</span>
     </div>
     <div id="mapa-mesas" style="margin-bottom:14px"></div>
     <div id="lista-mesas" class="mini">Cargando los pedidos…</div>
@@ -227,8 +230,11 @@ async function cargarReservas(){
     const j=await r.json();
     if(!r.ok) throw new Error(j.error||'Error');
     CLUB=j.club||[]; pintarClub();
-    PEDIDOS_MESA=j.pedidosMesa||[]; pintarMesas();
     CONFIG_RESERVAS=j.configReservas||CONFIG_RESERVAS; pintarConfigReservas();
+    // la configuración de mesas del servidor manda (así todos tus aparatos ven lo mismo)
+    if(CONFIG_RESERVAS.mesasTotal){ localStorage.setItem('mesas_total',String(CONFIG_RESERVAS.mesasTotal)); localStorage.setItem('mesas_terraza',String(CONFIG_RESERVAS.mesasTerraza||0)); localStorage.setItem('terraza_pct',String(CONFIG_RESERVAS.terrazaPct||0)); }
+    RESERVAS_APP=j.reservas||[];
+    PEDIDOS_MESA=j.pedidosMesa||[]; pintarMesas();
     const na=j.avisosAdmin||0;
     $('#n-admin').textContent=' · 🔔 '+na+' móvil'+(na===1?'':'es')+' recibe el aviso';
     if(localStorage.getItem('promos_avisos_admin')==='1'){ const b=$('#btn-avisos-admin'); b.textContent='🔔 Este móvil recibe las reservas ✓'; b.disabled=true; }
@@ -280,14 +286,72 @@ window.alternarPedidosMesa=async()=>{
     cargarReservas();
   }catch(e){ aviso('⚠️ '+e.message); }
 };
+// Guardar la configuración de mesas EN EL SERVIDOR (así la carta sabe qué mesas
+// son de terraza y les aplica el % — y todos tus aparatos ven lo mismo)
+window.guardarConfigMesas=async()=>{
+  const tot=Math.max(1,Math.min(99,parseInt($('#n-mesas-mapa').value,10)||25));
+  const ter=Math.max(0,Math.min(tot,parseInt($('#n-terraza-mapa').value,10)||0));
+  const pct=Math.max(0,Math.min(50,parseInt($('#pct-terraza-mapa').value,10)||0));
+  localStorage.setItem('mesas_total',String(tot));
+  localStorage.setItem('mesas_terraza',String(ter));
+  localStorage.setItem('terraza_pct',String(pct));
+  pintarMesas();
+  try{
+    const r=await fetch('/api/equipo',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({accion:'configurarPedidosMesa',local:'paraiso',codigo,mesasTotal:tot,mesasTerraza:ter,terrazaPct:pct})});
+    if(!r.ok) throw new Error();
+    aviso('⚙️ Guardado: '+tot+' mesas, '+ter+' de terraza'+(pct?' con +'+pct+'%':''));
+  }catch(e){ aviso('⚠️ No pude guardar la configuración de mesas. Prueba otra vez.'); }
+};
+// 📊 RESUMEN DEL DÍA: todos los números de un vistazo
+function pintarResumenMesas(porMesa,total){
+  const el=$('#resumen-mesas'); if(!el) return;
+  const validos=PEDIDOS_MESA.filter(x=>x.estado!=='anulado');
+  const suma=a=>a.reduce((s,x)=>s+(Number(x.total)||0),0);
+  const cobrado=suma(validos.filter(x=>x.estado==='cobrado'));
+  const porCobrar=suma(validos.filter(x=>x.estado!=='cobrado'));
+  const vendido=cobrado+porCobrar;
+  const mesasConGente=Object.keys(porMesa).filter(m=>porMesa[m].some(x=>x.estado==='nuevo'||x.estado==='atendido'));
+  const mesasConConsumo=Object.keys(porMesa).filter(m=>porMesa[m].some(x=>x.estado!=='anulado'));
+  const libres=Math.max(0,total-mesasConGente.length);
+  const hoyLocal=new Date().toLocaleDateString('sv-SE');
+  const reservadasHoy=(RESERVAS_APP||[]).filter(r=>r.fecha===hoyLocal&&(r.estado==='confirmada'||r.estado==='pendiente')).length;
+  const ticket=validos.length?vendido/validos.length:0;
+  let mejor='—',mejorTot=0;
+  mesasConConsumo.forEach(m=>{ const c=suma(porMesa[m].filter(x=>x.estado!=='anulado')); if(c>mejorTot){ mejorTot=c; mejor='Mesa '+m; } });
+  let porHora=0;
+  if(validos.length&&mesasConConsumo.length){
+    const primera=Math.min(...validos.map(x=>new Date(x.creada).getTime()));
+    const horas=Math.max(1,(Date.now()-primera)/3600000);
+    porHora=vendido/mesasConConsumo.length/horas;
+  }
+  const dato=(t,v,extra)=>`<div style="background:#fff;border:1px solid var(--linea);border-radius:11px;padding:9px 6px;text-align:center">
+    <div style="font-size:11px;color:var(--mut);font-weight:700">${t}</div>
+    <div style="font-size:16px;font-weight:800;color:var(--verde);margin-top:2px">${v}</div>
+    ${extra?'<div style="font-size:10px;color:var(--mut)">'+extra+'</div>':''}</div>`;
+  el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:7px">
+    ${dato('💰 Cobrado hoy',eurM(cobrado))}
+    ${dato('⏳ Por cobrar',eurM(porCobrar))}
+    ${dato('📈 Vendido hoy',eurM(vendido),validos.length+' pedido'+(validos.length===1?'':'s'))}
+    ${dato('🧾 Ticket medio',eurM(ticket))}
+    ${dato('🟢 Ocupadas',mesasConGente.length+' / '+total)}
+    ${dato('⬜ Libres',libres+' / '+total)}
+    ${dato('📅 Reservadas hoy',reservadasHoy)}
+    ${dato('🏆 Mejor mesa',mejor,mejorTot?eurM(mejorTot):'')}
+    ${dato('⏱ Media €/mesa·hora',eurM(porHora),'desde el 1er pedido')}
+  </div>`;
+}
 // 🗺 El mapa: una casilla por mesa (dentro y terraza), con su color según lo que tenga hoy
 function pintarMapaMesas(porMesa){
   const el=$('#mapa-mesas'); if(!el) return;
-  const inpT=$('#n-mesas-mapa'), inpTe=$('#n-terraza-mapa');
+  const inpT=$('#n-mesas-mapa'), inpTe=$('#n-terraza-mapa'), inpP=$('#pct-terraza-mapa');
   const total=Math.max(1,Math.min(99,parseInt(localStorage.getItem('mesas_total')||'25',10)||25));
   const terraza=Math.max(0,Math.min(total,parseInt(localStorage.getItem('mesas_terraza')==null?'7':localStorage.getItem('mesas_terraza'),10)||0));
+  const pctT=Math.max(0,Math.min(50,parseInt(localStorage.getItem('terraza_pct')||'0',10)||0));
   if(inpT&&document.activeElement!==inpT) inpT.value=total;
   if(inpTe&&document.activeElement!==inpTe) inpTe.value=terraza;
+  if(inpP&&document.activeElement!==inpP) inpP.value=pctT;
+  pintarResumenMesas(porMesa,total);
   const casilla=m=>{
     const lista=porMesa[m]||[];
     const consumo=lista.filter(x=>x.estado!=='anulado').reduce((s,x)=>s+(Number(x.total)||0),0);
@@ -348,7 +412,7 @@ function pintarMesas(){
             <span class="mini">🕗 ${horaDe(pd.creada)}</span>
             <span style="float:right;font-size:11.5px;font-weight:700;border-radius:999px;padding:2px 9px;${CHIP[pd.estado]||''}">${TXT[pd.estado]||esc(pd.estado)}</span>
             ${pd.tpv?'<span style="float:right;font-size:11.5px;margin-right:6px;color:#1a56db">🧾 TPV ✓</span>':''}
-            <br>${esc((pd.items||[]).map(x=>x.cant+'× '+x.nom).join(' · '))} — <b>${eurM(pd.total)}</b>
+            <br>${esc((pd.items||[]).map(x=>x.cant+'× '+x.nom).join(' · '))} — <b>${eurM(pd.total)}</b>${pd.suplemento?' <span class="mini">(🌞 terraza +'+esc(pd.terrazaPct)+'%: +'+eurM(pd.suplemento)+')</span>':''}
             ${pd.nota?'<br>📝 '+esc(pd.nota):''}
             ${pd.aviso?'<br><b style="color:#9b1c1c">'+esc(pd.aviso)+'</b>':''}
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
