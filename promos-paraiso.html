@@ -258,7 +258,7 @@ function horaDe(iso){ try{ return new Date(iso).toLocaleTimeString('es-ES',{hour
 function pintarMapaMesas(porMesa){
   const el=$('#mapa-mesas'); if(!el) return;
   const inp=$('#n-mesas-mapa');
-  const total=Math.max(1,Math.min(99,parseInt(localStorage.getItem('mesas_total')||'12',10)||12));
+  const total=Math.max(1,Math.min(99,parseInt(localStorage.getItem('mesas_total')||'25',10)||25));
   if(inp&&document.activeElement!==inp) inp.value=total;
   // si hay pedidos de una mesa mayor que el total configurado, también se pinta
   const nums=new Set(Array.from({length:total},(_,i)=>i+1));
