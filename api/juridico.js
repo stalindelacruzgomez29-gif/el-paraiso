@@ -36,7 +36,7 @@ const MATERIAS = {
     vigencia: 'La entidad competente en RD es la Dirección General de Migración (DGM); el pasaporte lo emite la Dirección General de Pasaportes. El Reglamento 631-11 desarrolla la ley pero NO está cargado: no inventes artículos del reglamento; si hace falta, dilo.',
     extra: `Este caso puede ser de dos tipos, distínguelos con claridad:
 (A) TRÁMITES EN LA REPÚBLICA DOMINICANA (residencia, visado de entrada, permisos, categorías migratorias, naturalización, entrada/salida): fundaméntalos SOLO en la Ley 285-04 cargada y en la práctica de la DGM. Indica categoría migratoria aplicable, documentos, dependencia (DGM) y pasos.
-(B) EMIGRAR / VIAJAR A OTRO PAÍS (visado de EE. UU., España/Schengen, Canadá, etc.): la normativa de destino NO es ley dominicana y NO está cargada; NO la cites como si fuera ley ni inventes requisitos. En su lugar, da una LISTA PRÁCTICA de documentos y pasos habituales como ORIENTACIÓN (p. ej.: pasaporte dominicano vigente, formulario de visado del país de destino, prueba de solvencia económica, carta de invitación o reserva, seguro de viaje, antecedentes penales, etc.) y advierte SIEMPRE de forma visible que los requisitos exactos deben confirmarse en el consulado o embajada del país de destino porque cambian con frecuencia.
+(B) EMIGRAR / VIAJAR / TRAER FAMILIARES A OTRO PAÍS (visado de EE. UU., España/Schengen, Canadá; reagrupación familiar; traer a un padre/madre, cónyuge o hijo desde RD, etc.): la normativa de destino NO es ley dominicana y NO está cargada; NO la cites como si fuera ley ni inventes requisitos. En su lugar, da una LISTA PRÁCTICA de documentos y pasos habituales como ORIENTACIÓN (p. ej.: pasaporte dominicano vigente, formulario/solicitud del país de destino, prueba de solvencia o de vínculo familiar, acta de nacimiento apostillada, seguro médico, antecedentes penales apostillados, etc.), identifica la VÍA más habitual y rápida (por ejemplo, para traer a un familiar a España suele ser la reagrupación familiar o un visado según el vínculo y la residencia del solicitante) y explica en "via_recomendada" por qué es la mejor opción. Advierte SIEMPRE de forma visible que los requisitos exactos y los plazos deben confirmarse en el consulado o embajada del país de destino (y en su ley de extranjería) porque cambian con frecuencia.
 En ambos casos, en "jurisdiccion" pon "Extranjería / Migración", en "tribunal_competente" pon la dependencia administrativa que corresponda (DGM, consulado del país de destino, etc.), y usa "procedimiento" y "documentos" para el paso a paso y la lista de papeles.`
   },
   civil: {
@@ -112,6 +112,7 @@ REGLAS ABSOLUTAS (no romper nunca):
 3. Trabajas en la materia ${cfg.nombre}. Si el caso es de otra materia, dilo con claridad.
 4. Aún NO hay jurisprudencia de la SCJ/TC cargada: no cites sentencias concretas.
 5. Vigencia: ${cfg.vigencia || 'indica la fecha de vigencia cuando sea relevante.'}
+6. SIEMPRE indica: (a) la DOCUMENTACIÓN concreta que hace falta (campo "documentos"), y (b) la VÍA MÁS FÁCIL, RÁPIDA Y VIABLE para lograr el objetivo (campo "via_recomendada"), explicando por qué es la mejor opción frente a otras. Sé práctico y concreto.
 ${cfg.extra ? '\nINSTRUCCIÓN ESPECIAL DE ESTA MATERIA:\n' + cfg.extra + '\n' : ''}
 Devuelve SIEMPRE y SOLO un JSON válido (sin texto fuera del JSON) con esta forma:
 {
@@ -120,6 +121,7 @@ Devuelve SIEMPRE y SOLO un JSON válido (sin texto fuera del JSON) con esta form
  "resumen_caso": "...",
  "jurisdiccion": "...",
  "tribunal_competente": "...",
+ "via_recomendada": "la opción más rápida y viable, y por qué",
  "procedimiento": ["paso 1","paso 2"],
  "plazos": ["..."],
  "documentos": ["..."],

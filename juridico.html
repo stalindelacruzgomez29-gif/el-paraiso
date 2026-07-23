@@ -283,6 +283,7 @@ function pintarResultado(d){
   // Consulta
   if(d.jurisdiccion) h += seccion('⚖️ Jurisdicción y tribunal',
       '<p><span class="etq">Jurisdicción</span> '+esc(d.jurisdiccion)+'</p>'+(d.tribunal_competente?'<p><span class="etq">Competente</span> '+esc(d.tribunal_competente)+'</p>':''));
+  if(d.via_recomendada) h += '<div class="caja" style="background:linear-gradient(135deg,#13324f,#22527c);border:none;color:#fff"><h2 class="sec" style="color:#fff;border-color:var(--oro)">✅ Vía más rápida y recomendada</h2><p style="color:#eaf1f8;margin:0">'+esc(d.via_recomendada)+'</p></div>';
   if(d.procedimiento && d.procedimiento.length) h += seccion('🪜 Procedimiento paso a paso', lista(d.procedimiento,true));
   if(d.documentos && d.documentos.length) h += seccion('📎 Documentos necesarios', lista(d.documentos));
   if(d.plazos && d.plazos.length) h += seccion('⏱️ Plazos', lista(d.plazos));
