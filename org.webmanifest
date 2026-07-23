@@ -1,0 +1,15 @@
+{
+  "name": "Mis Proyectos · El Paraíso",
+  "short_name": "Mis Proyectos",
+  "description": "Organizador de todos los proyectos de El Paraíso.",
+  "start_url": "/organizador.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#123f2e",
+  "theme_color": "#123f2e",
+  "icons": [
+    { "src": "/org-icono-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/org-icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
