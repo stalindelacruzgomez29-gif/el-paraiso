@@ -282,6 +282,10 @@ async function enviar(){
     if(!r.ok || d.error){ mostrarError(d.error||'No se pudo procesar.'); return; }
     conversacion.push({ rol:'asistente', texto: JSON.stringify(d) });
     pintarResultado(d);
+    // Tras el análisis, genera automáticamente el escrito (2ª llamada, rápida) en materias RD
+    if(estado.modo==='consulta' && paisActual()==='RD' && !d.necesita_mas_datos && !d.texto_libre && d.jurisdiccion){
+      generarEscrito();
+    }
   }catch(e){ mostrarError('Fallo de conexión. Revisa internet e inténtalo otra vez.'); }
   finally{ btn.disabled=false; }
 }
@@ -332,9 +336,24 @@ function pintarResultado(d){
     h += '<div class="caja"><h2 class="sec">📝 Escrito / formulario listo para usar</h2><div class="escrito" id="escrito">'+esc(d.escrito_borrador)+'</div>'+
          '<button class="btn-oro" style="margin-top:10px" onclick="copiar()">📋 Copiar escrito</button></div>';
   }
+  h += '<div id="zonaEscrito"></div>';
   h += avisoBox(d.aviso)+cajaSeguir();
   document.getElementById('salida').innerHTML = h;
   window.scrollTo(0, document.body.scrollHeight);
+}
+
+async function generarEscrito(){
+  const z = document.getElementById('zonaEscrito'); if(!z) return;
+  z.innerHTML = '<div class="caja"><div class="cargando">📝 Preparando el escrito listo para usar<br><span class="punto"></span><span class="punto"></span><span class="punto"></span></div></div>';
+  try{
+    const r = await fetch('/api/juridico', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ materia:estado.materia, modo:'escrito', pais:'RD', conversacion }) });
+    if(!r.ok){ z.innerHTML=''; return; }
+    const d = await r.json();
+    const e = (d.escrito_borrador||'').trim();
+    if(e){ z.innerHTML = '<div class="caja"><h2 class="sec">📝 Escrito / formulario listo para usar</h2><div class="escrito" id="escrito">'+esc(e)+'</div><button class="btn-oro" style="margin-top:10px" onclick="copiar()">📋 Copiar</button></div>'; }
+    else { z.innerHTML=''; }
+  }catch(err){ z.innerHTML=''; }
 }
 
 function avisoBox(a){ return '<div class="aviso-top" style="margin-top:4px">🔒 '+esc(a||'Asistente jurídico — verifica la fuente oficial. No sustituye a un abogado colegiado.')+'</div>'; }

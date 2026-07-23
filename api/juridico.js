@@ -145,13 +145,11 @@ REGLAS ABSOLUTAS (no romper nunca):
 4. Aún NO hay jurisprudencia de la SCJ/TC cargada: no cites sentencias concretas.
 5. Vigencia: ${cfg.vigencia || 'indica la fecha de vigencia cuando sea relevante.'}
 6. SIEMPRE indica: (a) la DOCUMENTACIÓN concreta que hace falta (campo "documentos"), y (b) la VÍA MÁS FÁCIL, RÁPIDA Y VIABLE para lograr el objetivo (campo "via_recomendada"), explicando por qué es la mejor opción frente a otras. Sé práctico y concreto.
-7. GENERA SIEMPRE, RELLENADO Y LISTO PARA USAR, el escrito o formulario que el trámite requiere (según el caso: demanda, querella, instancia, solicitud, acto, recurso, formulario administrativo, etc.). Rellénalo con los datos que el usuario haya dado y usa [CORCHETES] para lo que falte. Debe ajustarse a la ley dominicana y citar los artículos aplicables de las FUENTES.
 ${cfg.extra ? '\nINSTRUCCIÓN ESPECIAL DE ESTA MATERIA:\n' + cfg.extra + '\n' : ''}
-FORMATO DE RESPUESTA (EXACTO):
-Primero, un JSON válido (y NADA más antes) con esta forma:
+Devuelve SIEMPRE y SOLO un JSON válido (sin texto fuera del JSON) con esta forma:
 {
- "necesita_mas_datos": true|false,
- "preguntas": ["..."],
+ "necesita_mas_datos": false,
+ "preguntas": [],
  "resumen_caso": "...",
  "jurisdiccion": "...",
  "tribunal_competente": "...",
@@ -165,10 +163,7 @@ Primero, un JSON válido (y NADA más antes) con esta forma:
  "fundamentos": [ {"fuente":"...","articulo":"75","cita":"texto o síntesis fiel"} ],
  "aviso": "Asistente jurídico — verifica siempre la fuente oficial. No sustituye el criterio de un abogado colegiado."
 }
-Después, en una línea escribe exactamente:
----ESCRITO---
-y debajo, EN TEXTO PLANO (no JSON), el escrito o formulario ya rellenado y listo para usar (con [corchetes] en lo que falte). Si necesita_mas_datos es true, o si el trámite no requiere ningún escrito, escribe solo la palabra NINGUNO debajo de ---ESCRITO---.
-Español claro y profesional. Si necesita_mas_datos es true, en el JSON rellena solo preguntas y resumen_caso.`;
+Sé conciso y práctico. El escrito rellenado se genera en un paso aparte, no lo incluyas aquí.`;
 }
 
 function instruccionesContrato(cfg, titulo) {
@@ -188,6 +183,18 @@ y debajo, de forma breve: la lista de datos entre [corchetes] que hay que comple
 Español jurídico correcto.`;
 }
 
+function instruccionesEscrito(cfg) {
+  return `Eres un asistente jurídico de la República Dominicana. Materia: ${cfg.nombre}. Tarea: redactar YA, RELLENADO y LISTO PARA USAR, el escrito o formulario que el caso requiere (demanda, querella, instancia, solicitud, acto, recurso o formulario administrativo, según corresponda).
+
+REGLAS:
+1. SOLO fundamenta en artículos de "FUENTES DISPONIBLES"; no inventes artículos.
+2. Rellena con los datos que dio el usuario y usa [CORCHETES] para lo que falte, de modo que el abogado solo tenga que sustituir los corchetes.
+3. Estructura formal dominicana: encabezado/destinatario (tribunal u organismo), generales de las partes, exposición de hechos, fundamentos de derecho (citando los artículos aplicables), petitorio/conclusiones, y cierre con lugar, fecha y firma.
+4. Vigencia: ${cfg.vigencia || ''}
+
+RESPONDE EN TEXTO PLANO (NO JSON): solo el escrito, listo para imprimir o presentar. Español jurídico correcto.`;
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -202,7 +209,7 @@ module.exports = async (req, res) => {
   const conversacion = Array.isArray(cuerpo.conversacion) ? cuerpo.conversacion : [];
   if (!conversacion.length) return res.status(400).json({ error: 'Falta el caso (conversacion vacía).' });
 
-  const modo = cuerpo.modo === 'contrato' ? 'contrato' : 'consulta';
+  const modo = ['contrato', 'escrito'].includes(cuerpo.modo) ? cuerpo.modo : 'consulta';
   let materiaKey = cuerpo.materia;
   let tituloContrato = '';
   if (modo === 'contrato') {
@@ -218,18 +225,22 @@ module.exports = async (req, res) => {
   const pais = (cuerpo.pais || '').trim();
   const esRD = !pais || /rep.?blica dominicana|dominican|^rd$|^do$/i.test(normalizar(pais));
 
-  let system, fuentes = '', maxTokens = 5000;
+  let system, fuentes = '', maxTokens = 3500;
   if (!esRD) {
     system = instruccionesPaisExtranjero(pais);
-    maxTokens = 4000;
+    maxTokens = 3500;
   } else if (modo === 'contrato') {
-    fuentes = construirFuentes(materiaKey, textoCaso, 14); // menos artículos = más rápido, evita timeout
+    fuentes = construirFuentes(materiaKey, textoCaso, 14);
     system = instruccionesContrato(cfg, tituloContrato);
     maxTokens = 4096;
+  } else if (modo === 'escrito') {
+    fuentes = construirFuentes(materiaKey, textoCaso, 16);
+    system = instruccionesEscrito(cfg);
+    maxTokens = 4096;
   } else {
-    fuentes = construirFuentes(materiaKey, textoCaso);
+    fuentes = construirFuentes(materiaKey, textoCaso, 18); // análisis conciso = rápido
     system = instruccionesConsulta(cfg);
-    maxTokens = 6000;
+    maxTokens = 3500;
   }
 
   const mensajes = conversacion.map(m => ({ role: m.rol === 'asistente' ? 'assistant' : 'user', content: m.texto }));
@@ -263,7 +274,7 @@ module.exports = async (req, res) => {
     let resultado;
 
     if (modo === 'contrato' && esRD) {
-      // Modo contrato = TEXTO PLANO (robusto, sin cortes de JSON)
+      // Contrato = TEXTO PLANO (robusto)
       if (/^\s*FALTAN DATOS:/i.test(texto)) {
         const preguntas = texto.replace(/^\s*FALTAN DATOS:/i, '').split('\n')
           .map(s => s.replace(/^[\-\d.)\s•]+/, '').trim()).filter(Boolean);
@@ -274,22 +285,11 @@ module.exports = async (req, res) => {
         const notas = (partes[1] || '').split('\n').map(s => s.trim()).filter(Boolean);
         resultado = { documento_borrador: doc, clausulas_clave: notas, aviso: AVISO };
       }
-    } else if (esRD) {
-      // Consulta RD: JSON de análisis + (opcional) escrito en texto plano tras ---ESCRITO---
-      const trozos = texto.split(/---\s*ESCRITO\s*---/i);
-      const jsonParte = trozos[0].trim();
-      const escrito = (trozos.slice(1).join('---ESCRITO---') || '').trim();
-      try { resultado = JSON.parse(jsonParte); }
-      catch (e) {
-        const m = jsonParte.match(/\{[\s\S]*\}/);
-        try { resultado = JSON.parse(m ? m[0] : ''); }
-        catch (e2) { resultado = { texto_libre: jsonParte, aviso: AVISO }; }
-      }
-      if (escrito && !/^ninguno/i.test(escrito) && !resultado.necesita_mas_datos) {
-        resultado.escrito_borrador = escrito;
-      }
+    } else if (modo === 'escrito' && esRD) {
+      // Escrito/formulario = TEXTO PLANO
+      resultado = { escrito_borrador: texto, aviso: AVISO };
     } else {
-      // País extranjero (orientación): JSON simple
+      // Consulta (RD u orientación de otro país) = JSON
       try { resultado = JSON.parse(texto); }
       catch (e) {
         const m = texto.match(/\{[\s\S]*\}/);
