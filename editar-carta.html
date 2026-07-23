@@ -98,6 +98,16 @@
     <button class="btn add btn-peq" onclick="addPromo()">➕ Añadir promoción</button>
   </div>
 
+  <div class="cabecera-form" style="border-color:#4f8cff;background:#eef4ff">
+    <label style="color:#1e40af">🌍 Idiomas de la carta (con IA)</label>
+    <p class="mini" style="margin:4px 0 10px">Traduce toda la carta de golpe. El cliente elige el idioma en la carta con las banderas. Puedes retocar cualquier traducción a mano después.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-peq" style="background:#4f8cff;color:#fff" onclick="traducirCarta('en')">🇬🇧 Traducir al inglés</button>
+      <button class="btn btn-peq" style="background:#4f8cff;color:#fff" onclick="traducirCarta('de')">🇩🇪 Traducir al alemán</button>
+    </div>
+    <div class="mini" id="estado-trad" style="margin-top:6px"></div>
+  </div>
+
   <div id="secciones"></div>
   <button class="btn add" onclick="addSeccion()" style="width:100%;padding:12px">➕ Añadir una sección nueva</button>
 </main>
@@ -194,6 +204,38 @@ window.toggleAlerg=(si,pi,k)=>{
   const p=CARTA.secciones[si].platos[pi]; p.alergenos=Array.isArray(p.alergenos)?p.alergenos:[];
   const idx=p.alergenos.indexOf(k); idx>=0?p.alergenos.splice(idx,1):p.alergenos.push(k);
   pintar();
+};
+
+// ── Traducir toda la carta al inglés o al alemán con IA ──
+window.traducirCarta=async(idioma)=>{
+  const campo = idioma==='en' ? 'en' : 'de';           // dónde se guarda el nombre traducido
+  const campoDesc = idioma==='en' ? 'enDesc' : 'deDesc';
+  const nomIdioma = idioma==='en' ? 'inglés' : 'alemán';
+  // Reunir todos los textos a traducir (nombres + descripciones + títulos de sección)
+  const trabajos=[]; // {set:function}
+  const textos=[];
+  const apunta=(obj,claveDestino,valor)=>{ if(!valor) return; textos.push(valor); trabajos.push(t=>obj[claveDestino]=t); };
+  CARTA.secciones.forEach(s=>{
+    apunta(s, idioma==='en'?'en':'de', s.titulo);
+    (s.platos||[]).forEach(p=>{ apunta(p, campo, p.nom); apunta(p, campoDesc, p.desc); });
+  });
+  (CARTA.promos||[]).forEach(p=>{ apunta(p, campo, p.titulo); apunta(p, campoDesc, p.desc); });
+  if(!textos.length){ aviso('No hay textos que traducir.'); return; }
+  $('#estado-trad').textContent='🌍 Traduciendo al '+nomIdioma+'… ('+textos.length+' textos, tarda unos segundos)';
+  try{
+    // en lotes de 120 para no saturar
+    const trad=[];
+    for(let i=0;i<textos.length;i+=120){
+      const lote=textos.slice(i,i+120);
+      const r=await fetch('/api/traducir',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({textos:lote,idioma})});
+      const j=await r.json(); if(!r.ok) throw new Error(j.error||'Error');
+      trad.push(...j.traducciones);
+    }
+    trad.forEach((t,i)=>trabajos[i] && trabajos[i](t));
+    pintar();
+    $('#estado-trad').innerHTML='✅ Traducido al '+nomIdioma+'. Dale a <b>💾 Guardar cambios</b> para publicarlo.';
+    aviso('✅ Carta traducida al '+nomIdioma+' — recuerda Guardar');
+  }catch(e){ $('#estado-trad').textContent=''; aviso('No se pudo traducir: '+e.message); }
 };
 // ── PROMOCIONES ──
 function pintarPromos(){

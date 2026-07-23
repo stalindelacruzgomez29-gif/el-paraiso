@@ -41,6 +41,9 @@
   .titulo .the{display:block;font-size:.34em;letter-spacing:.55em;color:var(--oro-claro);margin-bottom:.35em;text-transform:uppercase}
   .desde{display:inline-block;margin-top:16px;padding:6px 20px;border:1px solid var(--oro);border-radius:40px;font-size:12px;letter-spacing:.26em;text-transform:uppercase;color:var(--oro-claro);font-family:Georgia,serif}
   .lema{margin-top:16px;font-style:italic;font-size:17px;color:#e9dfc6}
+  .idiomas{margin-top:16px;display:flex;gap:8px;justify-content:center}
+  .bandera{background:rgba(203,161,95,.15);border:1px solid var(--oro);color:var(--oro-claro);padding:6px 13px;border-radius:20px;font-family:-apple-system,sans-serif;font-size:13px;font-weight:600;cursor:pointer}
+  .bandera.act{background:var(--oro);color:#2a1c08}
 
   main{padding:34px 30px 16px}
   /* doble columna para aprovechar el papel */
@@ -401,10 +404,18 @@ function emblemaSVG(){
     <path d="M60 50c10-9 22-11 32-6-9-1-19 2-27 9 11-4 22-2 30 5-10-4-20-3-29 3 9 1 17 6 21 14-8-8-18-11-27-9 4-6 3-13 0-20z" opacity=".8"/>
     <circle cx="60" cy="47" r="4"/></g></svg>`;
 }
+// Idioma elegido por el cliente (es = español, en = inglés, de = alemán)
+let LANG = localStorage.getItem('carta_idioma') || 'es';
+function nomEn(p){ return LANG==='es' ? p.nom : (LANG==='en' ? (p.en||p.nom) : (p.de||p.en||p.nom)); }
+function descEn(p){ return LANG==='es' ? (p.desc||'') : (LANG==='en' ? (p.enDesc||p.desc||'') : (p.deDesc||p.enDesc||p.desc||'')); }
+function tituloEn(s){ return LANG==='es' ? s.titulo : (LANG==='en' ? (s.en||s.titulo) : (s.de||s.en||s.titulo)); }
 function platoHTML(p){
   // En modo mesa (QR de la mesa escaneado y pedidos encendidos), cada plato lleva su botón ➕ Pedir
   const pedir = (mesaActual()&&PEDIR_ON) ? `<div style="text-align:right"><button class="pedir-btn no-print" data-nom="${esc(p.nom)}" data-precio="${esc(p.precio||'')}">➕ Pedir</button></div>` : '';
-  const filaTxt = `<div class="fila"><div><div class="pl-nom">${esc(p.nom)}${p.en?' <span class="pl-en">· '+esc(p.en)+'</span>':''}</div>${p.desc?'<div class="pl-desc">'+esc(p.desc)+'</div>':''}${alergHTML(p.alergenos)}</div>
+  const nombre = nomEn(p), descr = descEn(p);
+  // En español mostramos también el nombre en inglés al lado (bilingüe clásico); en otros idiomas, solo ese idioma
+  const segundo = LANG==='es' && p.en ? ' <span class="pl-en">· '+esc(p.en)+'</span>' : '';
+  const filaTxt = `<div class="fila"><div><div class="pl-nom">${esc(nombre)}${segundo}</div>${descr?'<div class="pl-desc">'+esc(descr)+'</div>':''}${alergHTML(p.alergenos)}</div>
     <div class="pl-precio">${esc(p.precio)}</div></div>`;
   if(p.foto) return `<div class="plato"><div class="con-foto"><img class="foto" src="${p.foto}" alt="${esc(p.nom)}">${filaTxt}</div>${pedir}</div>`;
   return `<div class="plato">${filaTxt}${pedir}</div>`;
@@ -424,13 +435,16 @@ function leyendaAlergHTML(c){
 }
 function seccionHTML(s){
   const clase = s.estilo==='premium'?'seccion premium':(s.estilo==='kids'?'seccion kids':'seccion');
+  const tit = tituloEn(s);
+  const subt = LANG==='es' && s.en ? '<span class="en">'+esc(s.en)+'</span>' : '';
   return `<section class="${clase}">
     ${s.nota?'<span class="estrella">'+esc(s.nota)+'</span>':''}
-    <div class="cab"><h2>${esc(s.titulo)}${s.en?'<span class="en">'+esc(s.en)+'</span>':''}</h2></div>
+    <div class="cab"><h2>${esc(tit)}${subt}</h2></div>
     ${(s.platos||[]).map(platoHTML).join('')}
   </section>`;
 }
 let CARTA_ACTUAL = window.CARTA_DEFECTO;
+window.cambiarIdioma=(l)=>{ LANG=l; localStorage.setItem('carta_idioma',l); pintar(CARTA_ACTUAL); };
 function pintar(c){
   CARTA_ACTUAL = c;
   document.title = 'Carta · '+(c.nombre||'El Paraíso');
@@ -440,6 +454,11 @@ function pintar(c){
       <h1 class="titulo"><span class="the">El</span>${esc((c.nombre||'El Paraíso').replace(/^El\s+/i,'').toUpperCase())}</h1>
       <div class="desde">Desde ${esc(c.desde||'1968')}</div>
       <p class="lema">${esc(c.lema||'')}</p>
+      <div class="idiomas no-print">
+        <button class="bandera${LANG==='es'?' act':''}" onclick="cambiarIdioma('es')">🇪🇸 ES</button>
+        <button class="bandera${LANG==='en'?' act':''}" onclick="cambiarIdioma('en')">🇬🇧 EN</button>
+        <button class="bandera${LANG==='de'?' act':''}" onclick="cambiarIdioma('de')">🇩🇪 DE</button>
+      </div>
     </header>
     ${promosHTML(c.promos)}
     <main><div class="cols">${(c.secciones||[]).map(seccionHTML).join('')}</div></main>

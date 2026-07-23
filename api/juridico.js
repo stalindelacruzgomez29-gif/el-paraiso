@@ -36,16 +36,27 @@ function recuperar(arts, claves, etiqueta, tope) {
   return puntuados.map(x => `${etiqueta}, Art. ${x.a.n}: ${x.a.t}`);
 }
 
+// Artículos transversales que SIEMPRE deben estar disponibles en materia laboral,
+// aunque el buscador por palabras no los encuentre (son críticos para no perder derechos):
+//  - 480-482: competencia de los juzgados de trabajo
+//  - 586-587: intento de conciliación previo / demanda
+//  - 701-704: PLAZOS DE PRESCRIPCIÓN de las acciones laborales (despido, desahucio, etc.)
+const NUCLEO_LABORAL = ['480', '481', '482', '701', '702', '703', '704'];
+const NUCLEO_CONSTI = ['62', '68', '69', '74']; // derecho al trabajo + tutela judicial/debido proceso
+
+function articulos(arts, nums, etiqueta) {
+  return arts.filter(a => nums.includes(a.n)).map(a => `${etiqueta}, Art. ${a.n}: ${a.t}`);
+}
+
 function construirFuentes(textoCaso) {
   const claves = palabrasClave(textoCaso);
-  const lab = recuperar(LEYES.laboral, claves, 'Código de Trabajo (Ley 16-92)', 40);
-  const con = recuperar(LEYES.constitucion, claves, 'Constitución de la República Dominicana (2024)', 10);
-  // Núcleo siempre presente: debido proceso / tutela judicial (arts. 68, 69, 74)
-  const nucleo = LEYES.constitucion
-    .filter(a => ['68', '69', '74'].includes(a.n))
-    .map(a => `Constitución de la República Dominicana (2024), Art. ${a.n}: ${a.t}`);
+  const lab = recuperar(LEYES.laboral, claves, 'Código de Trabajo (Ley 16-92)', 38);
+  const con = recuperar(LEYES.constitucion, claves, 'Constitución de la República Dominicana (2024)', 8);
+  const nucleoLab = articulos(LEYES.laboral, NUCLEO_LABORAL, 'Código de Trabajo (Ley 16-92)');
+  const nucleoCon = articulos(LEYES.constitucion, NUCLEO_CONSTI, 'Constitución de la República Dominicana (2024)');
+  // El núcleo va primero para que nunca se pierda; luego lo recuperado por palabras clave
   const vistos = new Set();
-  return [...nucleo, ...con, ...lab].filter(x => {
+  return [...nucleoCon, ...nucleoLab, ...con, ...lab].filter(x => {
     if (vistos.has(x)) return false; vistos.add(x); return true;
   }).join('\n\n');
 }
