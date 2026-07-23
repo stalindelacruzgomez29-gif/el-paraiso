@@ -1,22 +1,66 @@
 // ────────────────────────────────────────────────────────────
-//  ASISTENTE JURÍDICO DOMINICANO · Servidor de IA
-//  Materia inicial: DERECHO LABORAL (Código de Trabajo Ley 16-92)
-//  + Constitución 2024. La IA SOLO puede citar los artículos que
-//  este servidor le entrega (recuperados de la biblioteca real).
+//  ASISTENTE JURÍDICO DOMINICANO · Servidor de IA (multi-materia)
+//  Materias: Laboral, Penal, Inmobiliario/Alquileres, Extranjería,
+//  Civil/Contratos. Dos modos: consultar un caso o redactar un
+//  contrato. La IA SOLO puede citar los artículos que este
+//  servidor le entrega (recuperados de la biblioteca real).
 //  Clave de Anthropic en variable de entorno CLAVE_API_CLAUDE.
 // ────────────────────────────────────────────────────────────
 
 const LEYES = require('../juridico-leyes.js');
 
-// Quita acentos y pasa a minúsculas para comparar palabras
+// Configuración de cada materia: qué leyes usa, qué artículos van siempre, y avisos de vigencia.
+const MATERIAS = {
+  laboral: {
+    nombre: 'Laboral',
+    leyes: [['laboral', 'Código de Trabajo (Ley 16-92)']],
+    nucleo: { laboral: ['480', '481', '482', '701', '702', '703', '704'] },
+    vigencia: 'La competencia es de los Juzgados de Trabajo. Recuerda los plazos de prescripción (arts. 701-704).'
+  },
+  penal: {
+    nombre: 'Penal',
+    leyes: [['penal', 'Código Penal (vigente hasta agosto de 2026)']],
+    nucleo: {},
+    vigencia: 'MUY IMPORTANTE: el Código Penal cargado es el VIGENTE HASTA AGOSTO DE 2026. La Ley 74-25 (nuevo Código Penal) entra en vigor en agosto de 2026 y aún no está cargada; si el caso ocurre o se juzga desde esa fecha, avísalo expresamente y recomienda verificar el texto nuevo. El proceso penal se rige además por el Código Procesal Penal (Ley 76-02), que aún no está cargado: no inventes sus artículos.'
+  },
+  inmobiliario: {
+    nombre: 'Inmobiliario / Alquileres',
+    leyes: [['alquiler', 'Ley 85-25 sobre Alquileres de Bienes Inmuebles y Desahucios'], ['civil', 'Código Civil']],
+    nucleo: {},
+    vigencia: 'La Ley 85-25 (2025, vigente) es el marco NUEVO de alquileres: derogó el Decreto 4807 de 1959 y la Ley 4314. Usa la Ley 85-25 como norma principal y el Código Civil (arrendamiento, arts. 1708 y ss.) como complemento.'
+  },
+  extranjeria: {
+    nombre: 'Extranjería / Migración',
+    leyes: [['migracion', 'Ley General de Migración 285-04']],
+    nucleo: {},
+    vigencia: 'La entidad competente en RD es la Dirección General de Migración (DGM); el pasaporte lo emite la Dirección General de Pasaportes. El Reglamento 631-11 desarrolla la ley pero NO está cargado: no inventes artículos del reglamento; si hace falta, dilo.',
+    extra: `Este caso puede ser de dos tipos, distínguelos con claridad:
+(A) TRÁMITES EN LA REPÚBLICA DOMINICANA (residencia, visado de entrada, permisos, categorías migratorias, naturalización, entrada/salida): fundaméntalos SOLO en la Ley 285-04 cargada y en la práctica de la DGM. Indica categoría migratoria aplicable, documentos, dependencia (DGM) y pasos.
+(B) EMIGRAR / VIAJAR A OTRO PAÍS (visado de EE. UU., España/Schengen, Canadá, etc.): la normativa de destino NO es ley dominicana y NO está cargada; NO la cites como si fuera ley ni inventes requisitos. En su lugar, da una LISTA PRÁCTICA de documentos y pasos habituales como ORIENTACIÓN (p. ej.: pasaporte dominicano vigente, formulario de visado del país de destino, prueba de solvencia económica, carta de invitación o reserva, seguro de viaje, antecedentes penales, etc.) y advierte SIEMPRE de forma visible que los requisitos exactos deben confirmarse en el consulado o embajada del país de destino porque cambian con frecuencia.
+En ambos casos, en "jurisdiccion" pon "Extranjería / Migración", en "tribunal_competente" pon la dependencia administrativa que corresponda (DGM, consulado del país de destino, etc.), y usa "procedimiento" y "documentos" para el paso a paso y la lista de papeles.`
+  },
+  civil: {
+    nombre: 'Civil / Contratos',
+    leyes: [['civil', 'Código Civil']],
+    nucleo: {},
+    vigencia: ''
+  }
+};
+// Para redactar contratos, qué materia base usar según el tipo:
+const CONTRATOS = {
+  trabajo: { materia: 'laboral', titulo: 'Contrato de trabajo' },
+  'alquiler-vivienda': { materia: 'inmobiliario', titulo: 'Contrato de alquiler de vivienda' },
+  'alquiler-vacacional': { materia: 'inmobiliario', titulo: 'Contrato de alquiler vacacional / turístico' },
+  compraventa: { materia: 'civil', titulo: 'Contrato de compraventa' },
+  prestamo: { materia: 'civil', titulo: 'Contrato de préstamo' }
+};
+
 function normalizar(s) {
   return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
-
 const VACIAS = new Set(('de la el los las un una unos unas y o u que en con por para del al se su sus lo le les me mi ' +
   'no si es son fue ha he han sido ser estar como mas pero este esta esto ese esa aquel cuando donde quien cual ' +
   'porque sobre entre desde hasta muy ya asi todo toda tambien nos ustedes ellos ellas hay tiene tienen').split(' '));
-
 function palabrasClave(texto) {
   const set = new Set();
   normalizar(texto).replace(/[^a-z0-9ñ ]/g, ' ').split(/\s+/).forEach(p => {
@@ -24,70 +68,93 @@ function palabrasClave(texto) {
   });
   return [...set];
 }
-
-// Puntúa cada artículo por cuántas palabras clave del caso contiene
 function recuperar(arts, claves, etiqueta, tope) {
-  const puntuados = arts.map(a => {
-    const t = normalizar(a.t);
-    let p = 0;
+  return arts.map(a => {
+    const t = normalizar(a.t); let p = 0;
     for (const c of claves) if (t.includes(c)) p++;
     return { a, p };
-  }).filter(x => x.p > 0).sort((x, y) => y.p - x.p).slice(0, tope);
-  return puntuados.map(x => `${etiqueta}, Art. ${x.a.n}: ${x.a.t}`);
+  }).filter(x => x.p > 0).sort((x, y) => y.p - x.p).slice(0, tope)
+    .map(x => `${etiqueta}, Art. ${x.a.n}: ${x.a.t}`);
+}
+function articulos(clave, nums, etiqueta) {
+  return (LEYES[clave] || []).filter(a => nums.includes(a.n)).map(a => `${etiqueta}, Art. ${a.n}: ${a.t}`);
 }
 
-// Artículos transversales que SIEMPRE deben estar disponibles en materia laboral,
-// aunque el buscador por palabras no los encuentre (son críticos para no perder derechos):
-//  - 480-482: competencia de los juzgados de trabajo
-//  - 586-587: intento de conciliación previo / demanda
-//  - 701-704: PLAZOS DE PRESCRIPCIÓN de las acciones laborales (despido, desahucio, etc.)
-const NUCLEO_LABORAL = ['480', '481', '482', '701', '702', '703', '704'];
-const NUCLEO_CONSTI = ['62', '68', '69', '74']; // derecho al trabajo + tutela judicial/debido proceso
+// Constitución: derecho al trabajo/propiedad + tutela judicial y debido proceso siempre disponibles
+const NUCLEO_CONSTI = ['51', '62', '68', '69', '74'];
 
-function articulos(arts, nums, etiqueta) {
-  return arts.filter(a => nums.includes(a.n)).map(a => `${etiqueta}, Art. ${a.n}: ${a.t}`);
-}
-
-function construirFuentes(textoCaso) {
+function construirFuentes(materiaKey, textoCaso) {
+  const cfg = MATERIAS[materiaKey] || MATERIAS.laboral;
   const claves = palabrasClave(textoCaso);
-  const lab = recuperar(LEYES.laboral, claves, 'Código de Trabajo (Ley 16-92)', 38);
-  const con = recuperar(LEYES.constitucion, claves, 'Constitución de la República Dominicana (2024)', 8);
-  const nucleoLab = articulos(LEYES.laboral, NUCLEO_LABORAL, 'Código de Trabajo (Ley 16-92)');
-  const nucleoCon = articulos(LEYES.constitucion, NUCLEO_CONSTI, 'Constitución de la República Dominicana (2024)');
-  // El núcleo va primero para que nunca se pierda; luego lo recuperado por palabras clave
+  const partes = [];
+  // Núcleo constitucional
+  partes.push(...articulos('constitucion', NUCLEO_CONSTI, 'Constitución de la República Dominicana (2024)'));
+  // Núcleo específico de la materia
+  for (const [clave, nums] of Object.entries(cfg.nucleo || {})) {
+    const et = (cfg.leyes.find(l => l[0] === clave) || [null, clave])[1];
+    partes.push(...articulos(clave, nums, et));
+  }
+  // Recuperación por palabras clave en cada ley de la materia
+  const tope = cfg.leyes.length > 1 ? 22 : 38;
+  for (const [clave, etiqueta] of cfg.leyes) {
+    partes.push(...recuperar(LEYES[clave] || [], claves, etiqueta, tope));
+  }
   const vistos = new Set();
-  return [...nucleoCon, ...nucleoLab, ...con, ...lab].filter(x => {
-    if (vistos.has(x)) return false; vistos.add(x); return true;
-  }).join('\n\n');
+  return partes.filter(x => { if (vistos.has(x)) return false; vistos.add(x); return true; }).join('\n\n');
 }
 
-const INSTRUCCIONES = `Eres un asistente jurídico profesional especializado EXCLUSIVAMENTE en Derecho de la República Dominicana. Por ahora dominas la materia LABORAL (Código de Trabajo, Ley 16-92) y la Constitución de 2024. Ayudas a un estudiante de Derecho que trabaja en un bufete.
+function instruccionesConsulta(cfg) {
+  return `Eres un asistente jurídico profesional especializado EXCLUSIVAMENTE en Derecho de la República Dominicana. Materia actual: ${cfg.nombre}. Ayudas a un estudiante de Derecho que trabaja en un bufete.
 
 REGLAS ABSOLUTAS (no romper nunca):
-1. SOLO puedes citar artículos que aparezcan en la sección "FUENTES DISPONIBLES". Está PROHIBIDO inventar números de artículo, leyes o sentencias, o citar de memoria. Si un dato no está en las fuentes, dilo con claridad ("no tengo ese texto cargado") en vez de inventarlo.
-2. Si los hechos son insuficientes para dar una estrategia seria, NO la des todavía: primero devuelve preguntas concretas para aclarar el caso.
-3. Trabajas SOLO en materia laboral por ahora. Si el caso es de otra materia (penal, civil, etc.), dilo y explica que esa materia aún no está cargada.
-4. Aún NO hay jurisprudencia de la SCJ/TC cargada: no cites sentencias concretas; puedes explicar el criterio legal, pero avisa de que conviene verificar la jurisprudencia más reciente.
-5. Ten presente la vigencia: si algo depende de una reforma con fecha, indícalo.
-
-Devuelve SIEMPRE y SOLO un objeto JSON válido (sin texto fuera del JSON, sin comentarios) con esta forma exacta:
+1. SOLO puedes citar artículos que aparezcan en "FUENTES DISPONIBLES". PROHIBIDO inventar números de artículo, leyes o sentencias, o citar de memoria. Si un dato no está, dilo ("no tengo ese texto cargado") en vez de inventarlo.
+2. Si los hechos son insuficientes, NO des estrategia todavía: primero devuelve preguntas concretas.
+3. Trabajas en la materia ${cfg.nombre}. Si el caso es de otra materia, dilo con claridad.
+4. Aún NO hay jurisprudencia de la SCJ/TC cargada: no cites sentencias concretas.
+5. Vigencia: ${cfg.vigencia || 'indica la fecha de vigencia cuando sea relevante.'}
+${cfg.extra ? '\nINSTRUCCIÓN ESPECIAL DE ESTA MATERIA:\n' + cfg.extra + '\n' : ''}
+Devuelve SIEMPRE y SOLO un JSON válido (sin texto fuera del JSON) con esta forma:
 {
-  "necesita_mas_datos": true|false,
-  "preguntas": ["..."],                     // preguntas para aclarar (vacío si no hacen falta)
-  "resumen_caso": "...",                     // cómo has entendido el caso, en 1-2 frases
-  "jurisdiccion": "...",                     // p.ej. "Laboral"
-  "tribunal_competente": "...",              // qué tribunal conoce y por qué
-  "procedimiento": ["paso 1", "paso 2"],     // procedimiento paso a paso
-  "plazos": ["..."],                         // plazos procesales relevantes con su base legal
-  "documentos": ["..."],                     // documentos necesarios
-  "recursos": ["..."],                       // recursos procedentes
-  "riesgos": ["..."],                        // riesgos procesales / estratégicos
-  "estrategia": "...",                       // recomendación estratégica
-  "fundamentos": [ {"fuente":"Código de Trabajo (Ley 16-92)", "articulo":"75", "cita":"texto o síntesis fiel"} ],
-  "escrito_borrador": "...",                 // borrador de escrito si procede ("" si aún no procede)
-  "aviso": "Asistente jurídico — verifica siempre la fuente oficial. No sustituye el criterio de un abogado colegiado."
+ "necesita_mas_datos": true|false,
+ "preguntas": ["..."],
+ "resumen_caso": "...",
+ "jurisdiccion": "...",
+ "tribunal_competente": "...",
+ "procedimiento": ["paso 1","paso 2"],
+ "plazos": ["..."],
+ "documentos": ["..."],
+ "recursos": ["..."],
+ "riesgos": ["..."],
+ "estrategia": "...",
+ "fundamentos": [ {"fuente":"...","articulo":"75","cita":"texto o síntesis fiel"} ],
+ "escrito_borrador": "",
+ "aviso": "Asistente jurídico — verifica siempre la fuente oficial. No sustituye el criterio de un abogado colegiado."
 }
-Escribe en español claro y profesional. Si necesita_mas_datos es true, puedes dejar vacíos los campos de estrategia y rellenar solo preguntas/resumen_caso.`;
+Español claro y profesional. Si necesita_mas_datos es true, rellena solo preguntas y resumen_caso.`;
+}
+
+function instruccionesContrato(cfg, titulo) {
+  return `Eres un asistente jurídico profesional especializado EXCLUSIVAMENTE en Derecho de la República Dominicana. Tarea: REDACTAR un ${titulo} conforme a la ley dominicana vigente. Materia: ${cfg.nombre}.
+
+REGLAS ABSOLUTAS:
+1. El contrato debe ajustarse a la ley dominicana. SOLO puedes fundamentar en artículos de "FUENTES DISPONIBLES"; no inventes artículos.
+2. Si faltan datos esenciales (partes, objeto, precio, plazo, etc.), primero PREGUNTA: pon necesita_mas_datos=true y la lista de preguntas.
+3. En el borrador, para los datos que el usuario no dio, usa marcadores claros entre corchetes, p. ej. [NOMBRE DEL ARRENDATARIO], [MONTO EN RD$], [FECHA].
+4. Vigencia: ${cfg.vigencia || ''}
+
+Devuelve SIEMPRE y SOLO un JSON válido con esta forma:
+{
+ "necesita_mas_datos": true|false,
+ "preguntas": ["..."],
+ "resumen_caso": "...",
+ "documento_borrador": "TEXTO COMPLETO DEL CONTRATO, con encabezado, comparecientes, cláusulas numeradas y cierre para firmas",
+ "campos_a_completar": ["[NOMBRE...]","[MONTO...]"],
+ "clausulas_clave": ["explicación breve de las cláusulas o requisitos legales importantes"],
+ "fundamentos": [ {"fuente":"...","articulo":"...","cita":"..."} ],
+ "aviso": "Asistente jurídico — verifica siempre la fuente oficial. No sustituye el criterio de un abogado colegiado."
+}
+Español jurídico correcto. Si necesita_mas_datos es true, deja documento_borrador en "" y rellena solo preguntas.`;
+}
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -103,15 +170,21 @@ module.exports = async (req, res) => {
   const conversacion = Array.isArray(cuerpo.conversacion) ? cuerpo.conversacion : [];
   if (!conversacion.length) return res.status(400).json({ error: 'Falta el caso (conversacion vacía).' });
 
-  // Reúne todo lo que ha dicho el usuario para recuperar los artículos relevantes
-  const textoCaso = conversacion.filter(m => m.rol === 'usuario').map(m => m.texto).join('\n');
-  const fuentes = construirFuentes(textoCaso);
+  const modo = cuerpo.modo === 'contrato' ? 'contrato' : 'consulta';
+  let materiaKey = cuerpo.materia;
+  let tituloContrato = '';
+  if (modo === 'contrato') {
+    const c = CONTRATOS[cuerpo.tipoContrato] || CONTRATOS.trabajo;
+    materiaKey = c.materia; tituloContrato = c.titulo;
+  }
+  if (!MATERIAS[materiaKey]) materiaKey = 'laboral';
+  const cfg = MATERIAS[materiaKey];
 
-  const mensajes = conversacion.map(m => ({
-    role: m.rol === 'asistente' ? 'assistant' : 'user',
-    content: m.texto
-  }));
-  // Adjunta las fuentes al último mensaje del usuario
+  const textoCaso = conversacion.filter(m => m.rol === 'usuario').map(m => m.texto).join('\n');
+  const fuentes = construirFuentes(materiaKey, textoCaso);
+  const system = modo === 'contrato' ? instruccionesContrato(cfg, tituloContrato) : instruccionesConsulta(cfg);
+
+  const mensajes = conversacion.map(m => ({ role: m.rol === 'asistente' ? 'assistant' : 'user', content: m.texto }));
   for (let i = mensajes.length - 1; i >= 0; i--) {
     if (mensajes[i].role === 'user') {
       mensajes[i] = {
@@ -124,38 +197,26 @@ module.exports = async (req, res) => {
     }
   }
 
-  const peticion = {
-    model: process.env.MODELO_IA || 'claude-opus-4-8',
-    max_tokens: 5000,
-    system: INSTRUCCIONES,
-    messages: mensajes
-  };
+  const peticion = { model: process.env.MODELO_IA || 'claude-opus-4-8', max_tokens: 6000, system, messages: mensajes };
 
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': clave,
-        'anthropic-version': '2023-06-01'
-      },
+      headers: { 'Content-Type': 'application/json', 'x-api-key': clave, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify(peticion)
     });
     const datos = await r.json();
     if (!r.ok) return res.status(r.status).json({ error: (datos.error && datos.error.message) || 'Error de la IA.' });
-
     let texto = (datos.content && datos.content[0] && datos.content[0].text) || '';
-    // Limpia posibles vallas ```json
     texto = texto.trim().replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```$/, '').trim();
     let resultado;
-    try {
-      resultado = JSON.parse(texto);
-    } catch (e) {
-      // Plan B: intenta extraer el primer bloque { ... }
+    try { resultado = JSON.parse(texto); }
+    catch (e) {
       const m = texto.match(/\{[\s\S]*\}/);
       try { resultado = JSON.parse(m ? m[0] : ''); }
       catch (e2) { resultado = { texto_libre: texto, aviso: 'Asistente jurídico — verifica la fuente oficial. No sustituye a un abogado.' }; }
     }
+    resultado._materia = cfg.nombre; resultado._modo = modo;
     return res.status(200).json(resultado);
   } catch (e) {
     return res.status(502).json({ error: 'No se pudo contactar con el servicio de IA.' });
