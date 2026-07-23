@@ -3,7 +3,7 @@
 //  URL pública, para pasarlo del ordenador al móvil con un QR y
 //  subirlo a las historias/estados desde el teléfono.
 // ────────────────────────────────────────────────────────────
-const { put, list, del } = require('@vercel/blob');
+const { put } = require('@vercel/blob');
 const crypto = require('crypto');
 
 module.exports = async (req, res) => {
@@ -19,18 +19,11 @@ module.exports = async (req, res) => {
   if (!limpio || limpio.length > 8 * 1024 * 1024) return res.status(400).json({ error: 'Imagen no válida.' });
 
   try {
-    // Borrar carteles viejos (más de 2 días) para no acumular
-    try {
-      const { blobs } = await list({ prefix: 'cartel/' });
-      const limite = Date.now() - 2 * 24 * 3600 * 1000;
-      for (const b of blobs) { if (new Date(b.uploadedAt).getTime() < limite) await del(b.url).catch(() => {}); }
-    } catch (e) { /* da igual si falla la limpieza */ }
-
     const id = crypto.randomBytes(8).toString('hex');
     const buf = Buffer.from(limpio, 'base64');
-    const r = await put(`cartel/${id}.jpg`, buf, { access: 'public', addRandomSuffix: false, contentType: 'image/jpeg', cacheControlMaxAge: 172800 });
+    const r = await put(`cartel/${id}.jpg`, buf, { access: 'public', addRandomSuffix: false, contentType: 'image/jpeg' });
     return res.status(200).json({ ok: true, url: r.url });
   } catch (e) {
-    return res.status(500).json({ error: 'No pude guardar el cartel.' });
+    return res.status(500).json({ error: 'No pude guardar el cartel: ' + (e.message || 'error') });
   }
 };
