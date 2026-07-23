@@ -246,7 +246,8 @@ module.exports = async (req, res) => {
     }
   }
 
-  const peticion = { model: process.env.MODELO_IA || 'claude-opus-4-8', max_tokens: maxTokens, system, messages: mensajes };
+  // Modelo rápido para el asistente jurídico (Opus tardaba >60s y daba timeout 504).
+  const peticion = { model: process.env.MODELO_IA_JURIDICO || 'claude-sonnet-5', max_tokens: maxTokens, system, messages: mensajes };
 
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
