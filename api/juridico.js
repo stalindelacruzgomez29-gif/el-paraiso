@@ -83,7 +83,7 @@ function articulos(clave, nums, etiqueta) {
 // Constitución: derecho al trabajo/propiedad + tutela judicial y debido proceso siempre disponibles
 const NUCLEO_CONSTI = ['51', '62', '68', '69', '74'];
 
-function construirFuentes(materiaKey, textoCaso) {
+function construirFuentes(materiaKey, textoCaso, topeOverride) {
   const cfg = MATERIAS[materiaKey] || MATERIAS.laboral;
   const claves = palabrasClave(textoCaso);
   const partes = [];
@@ -95,12 +95,44 @@ function construirFuentes(materiaKey, textoCaso) {
     partes.push(...articulos(clave, nums, et));
   }
   // Recuperación por palabras clave en cada ley de la materia
-  const tope = cfg.leyes.length > 1 ? 22 : 38;
+  const tope = topeOverride || (cfg.leyes.length > 1 ? 22 : 38);
   for (const [clave, etiqueta] of cfg.leyes) {
     partes.push(...recuperar(LEYES[clave] || [], claves, etiqueta, tope));
   }
   const vistos = new Set();
   return partes.filter(x => { if (vistos.has(x)) return false; vistos.add(x); return true; }).join('\n\n');
+}
+
+// Modo ORIENTACIÓN para países distintos a RD: no tenemos su ley cargada, así que se
+// da orientación general honesta, sin inventar artículos, remitiendo a la fuente oficial.
+function instruccionesPaisExtranjero(pais) {
+  return `Eres un asistente jurídico que da ORIENTACIÓN sobre trámites y normativa de ${pais}. NO tienes cargado el texto oficial de las leyes de ${pais}.
+
+REGLAS ABSOLUTAS:
+1. Deja MUY CLARO que esto es ORIENTACIÓN GENERAL, no un texto de ley cargado ni asesoría oficial, y que debe verificarse en la fuente oficial de ${pais} (ministerio, boletín oficial, consulado o embajada) porque la normativa cambia.
+2. NO inventes números de artículo, leyes ni sentencias de ${pais}. Si mencionas una norma, di su nombre solo si estás razonablemente seguro y añade "(verificar vigencia y texto oficial)". Ante la duda, no cites número.
+3. Sé práctico y útil: indica la DOCUMENTACIÓN concreta que suele pedirse y la VÍA más rápida y viable (campo via_recomendada), y el organismo competente.
+4. Si faltan datos clave (situación de la persona, tipo de trámite, plazos), primero PREGUNTA.
+
+Devuelve SIEMPRE y SOLO un JSON válido con esta forma:
+{
+ "necesita_mas_datos": true|false,
+ "preguntas": ["..."],
+ "resumen_caso": "...",
+ "jurisdiccion": "Orientación · ${pais}",
+ "tribunal_competente": "organismo o autoridad competente en ${pais}",
+ "via_recomendada": "la opción más rápida y viable, y por qué",
+ "procedimiento": ["paso 1","paso 2"],
+ "plazos": ["orientativos; verificar"],
+ "documentos": ["..."],
+ "recursos": [],
+ "riesgos": ["..."],
+ "estrategia": "...",
+ "fundamentos": [ {"fuente":"Fuente oficial a consultar en ${pais}","articulo":"","cita":"dónde verificarlo (web/organismo)"} ],
+ "escrito_borrador": "",
+ "aviso": "ORIENTACIÓN GENERAL sobre ${pais}: no proviene de leyes cargadas. Verifica SIEMPRE en la fuente oficial / consulado de ${pais}. No sustituye a un abogado del país."
+}
+Español claro y práctico.`;
 }
 
 function instruccionesConsulta(cfg) {
@@ -183,23 +215,40 @@ module.exports = async (req, res) => {
   const cfg = MATERIAS[materiaKey];
 
   const textoCaso = conversacion.filter(m => m.rol === 'usuario').map(m => m.texto).join('\n');
-  const fuentes = construirFuentes(materiaKey, textoCaso);
-  const system = modo === 'contrato' ? instruccionesContrato(cfg, tituloContrato) : instruccionesConsulta(cfg);
+
+  // ¿El caso es de República Dominicana (leyes cargadas) o de otro país (orientación)?
+  const pais = (cuerpo.pais || '').trim();
+  const esRD = !pais || /rep.?blica dominicana|dominican|^rd$|^do$/i.test(normalizar(pais));
+
+  let system, fuentes = '', maxTokens = 5000;
+  if (!esRD) {
+    system = instruccionesPaisExtranjero(pais);
+    maxTokens = 4000;
+  } else if (modo === 'contrato') {
+    fuentes = construirFuentes(materiaKey, textoCaso, 14); // menos artículos = más rápido, evita timeout
+    system = instruccionesContrato(cfg, tituloContrato);
+    maxTokens = 4096;
+  } else {
+    fuentes = construirFuentes(materiaKey, textoCaso);
+    system = instruccionesConsulta(cfg);
+    maxTokens = 5000;
+  }
 
   const mensajes = conversacion.map(m => ({ role: m.rol === 'asistente' ? 'assistant' : 'user', content: m.texto }));
-  for (let i = mensajes.length - 1; i >= 0; i--) {
-    if (mensajes[i].role === 'user') {
-      mensajes[i] = {
-        role: 'user',
-        content: mensajes[i].content +
-          '\n\n===== FUENTES DISPONIBLES (solo puedes citar de aquí) =====\n' +
-          (fuentes || '(No se encontraron artículos relevantes en la biblioteca cargada.)')
-      };
-      break;
+  if (fuentes) {
+    for (let i = mensajes.length - 1; i >= 0; i--) {
+      if (mensajes[i].role === 'user') {
+        mensajes[i] = {
+          role: 'user',
+          content: mensajes[i].content +
+            '\n\n===== FUENTES DISPONIBLES (solo puedes citar de aquí) =====\n' + fuentes
+        };
+        break;
+      }
     }
   }
 
-  const peticion = { model: process.env.MODELO_IA || 'claude-opus-4-8', max_tokens: 6000, system, messages: mensajes };
+  const peticion = { model: process.env.MODELO_IA || 'claude-opus-4-8', max_tokens: maxTokens, system, messages: mensajes };
 
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
