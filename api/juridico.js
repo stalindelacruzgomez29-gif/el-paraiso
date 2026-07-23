@@ -9,6 +9,16 @@
 
 const LEYES = require('../juridico-leyes.js');
 
+// Nombre bonito de cada cuerpo legal cargado (para el buscador y la biblioteca)
+const NOMBRES_CODIGO = {
+  laboral: 'Código de Trabajo (Ley 16-92)',
+  constitucion: 'Constitución de la República (2024)',
+  penal: 'Código Penal (vigente hasta ago-2026)',
+  civil: 'Código Civil',
+  migracion: 'Ley General de Migración 285-04',
+  alquiler: 'Ley 85-25 de Alquileres y Desahucios'
+};
+
 // Configuración de cada materia: qué leyes usa, qué artículos van siempre, y avisos de vigencia.
 const MATERIAS = {
   laboral: {
@@ -201,6 +211,43 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
+
+  // ── Funciones rápidas SIN IA (leen la biblioteca real cargada) ──
+  const b0 = req.body || {};
+
+  if (b0.modo === 'biblioteca') {
+    const codigos = Object.keys(LEYES).map(k => ({ clave: k, nombre: NOMBRES_CODIGO[k] || k, num: (LEYES[k] || []).length }));
+    return res.status(200).json({ ok: true, codigos });
+  }
+  if (b0.modo === 'codigo') {
+    const k = b0.clave;
+    if (!LEYES[k]) return res.status(400).json({ error: 'Código no encontrado.' });
+    return res.status(200).json({ ok: true, clave: k, nombre: NOMBRES_CODIGO[k] || k, articulos: (LEYES[k] || []).map(a => ({ n: a.n, t: a.t })) });
+  }
+  if (b0.modo === 'buscar') {
+    const q = String(b0.q || '').trim();
+    if (!q) return res.status(400).json({ error: 'Escribe qué buscar (un número de artículo o una palabra).' });
+    const soloNum = /^\d+$/.test(q);
+    const qn = normalizar(q);
+    const claves = palabrasClave(q);
+    const filtroCod = LEYES[b0.clave] ? b0.clave : null;   // opcional: buscar solo en un código
+    const out = [];
+    for (const k of Object.keys(LEYES)) {
+      if (filtroCod && k !== filtroCod) continue;
+      for (const a of LEYES[k]) {
+        let score = 0;
+        if (soloNum) { if (a.n === q) score = 100; }
+        else {
+          const tn = normalizar(a.t);
+          if (tn.includes(qn)) score += 10;
+          for (const c of claves) if (tn.includes(c)) score += 1;
+        }
+        if (score > 0) out.push({ codigo: NOMBRES_CODIGO[k] || k, clave: k, n: a.n, t: a.t, score });
+      }
+    }
+    out.sort((x, y) => y.score - x.score);
+    return res.status(200).json({ ok: true, total: out.length, resultados: out.slice(0, 40) });
+  }
 
   const clave = process.env.CLAVE_API_CLAUDE;
   if (!clave) return res.status(503).json({ sin_clave: true, error: 'Falta la clave de la IA en el servidor.' });

@@ -164,6 +164,40 @@
       </div>
     </div>
   </div>
+
+  <!-- BUSCADOR DE LEYES (instantáneo, cita el texto real) -->
+  <div id="pantallaBuscar" style="display:none">
+    <button class="volver" onclick="irInicio()">‹ Volver</button>
+    <div class="intro" style="margin-top:0">
+      <h2>🔎 Buscar en las leyes</h2>
+      <p>Escribe un número de artículo (ej. <b>80</b>) o una palabra (ej. <b>cesantía</b>, <b>desalojo</b>).</p>
+    </div>
+    <div class="caja">
+      <div style="display:flex;gap:8px">
+        <input id="qBuscar" placeholder="Nº de artículo o palabra…" style="flex:1;border:1px solid var(--linea);border-radius:10px;padding:12px;font-size:16px;font-family:inherit" onkeydown="if(event.key==='Enter')hacerBusqueda()">
+        <button class="btn-primario" style="width:auto;margin:0;padding:12px 18px" onclick="hacerBusqueda()">Buscar</button>
+      </div>
+      <div class="hint">Solo muestra el texto real de las leyes cargadas. Nada inventado.</div>
+    </div>
+    <div id="resBuscar"></div>
+  </div>
+
+  <!-- BIBLIOTECA LEGAL (navegar los códigos cargados) -->
+  <div id="pantallaBiblioteca" style="display:none">
+    <button class="volver" onclick="irInicio()">‹ Volver</button>
+    <div class="intro" style="margin-top:0">
+      <h2>📚 Biblioteca legal</h2>
+      <p>Los cuerpos legales dominicanos cargados. Toca uno para leerlo.</p>
+    </div>
+    <div id="listaCodigos"></div>
+    <div id="verCodigo" style="display:none">
+      <button class="btn-sec" onclick="volverBiblioteca()" style="margin-bottom:10px">‹ Todos los códigos</button>
+      <div class="caja">
+        <input id="filtroArts" placeholder="Filtrar por palabra o nº de artículo…" style="width:100%;border:1px solid var(--linea);border-radius:10px;padding:11px;font-size:15px;font-family:inherit" oninput="filtrarArts()">
+      </div>
+      <div id="artsCodigo"></div>
+    </div>
+  </div>
 </div>
 
 <!-- Membrete de bufete para imprimir escritos y contratos en limpio -->
@@ -242,6 +276,8 @@ function paisActual(){ return paisSel==='RD' ? 'RD' : (document.getElementById('
     h += `<div class="card" onclick="abrirMateria('${k}')"><div class="ico">${m.icono}</div><h3>${m.nombre}</h3><p>${m.desc}</p></div>`;
   }
   h += `<div class="card destacada" onclick="abrirContratos()"><div class="ico">📄</div><h3>Redactar contrato</h3><p>Trabajo, alquiler, compraventa, préstamo…</p></div>`;
+  h += `<div class="card" onclick="verBuscar()"><div class="ico">🔎</div><h3>Buscar en las leyes</h3><p>Por número de artículo o palabra</p></div>`;
+  h += `<div class="card" onclick="verBiblioteca()"><div class="ico">📚</div><h3>Biblioteca legal</h3><p>Lee los códigos y leyes cargados</p></div>`;
   r.innerHTML = h;
 })();
 
@@ -355,8 +391,7 @@ function guardarCasoActual(){
   alert('Expediente guardado ✅');
 }
 function verExpedientes(){
-  document.getElementById('inicio').style.display='none';
-  document.getElementById('pantallaCaso').style.display='none';
+  ocultarPantallas();
   document.getElementById('pantallaExpedientes').style.display='block';
   renderExpedientes(); window.scrollTo(0,0);
 }
@@ -433,6 +468,89 @@ function imprimirDoc(btn){
   document.body.classList.add('imprimiendo'); window.print();
   setTimeout(()=>document.body.classList.remove('imprimiendo'),600);
 }
+
+// ───────────── BUSCADOR DE LEYES Y BIBLIOTECA (texto real, sin IA) ─────────────
+let BUSCAR_RES = [];
+let CODIGO_ACTUAL = { clave:'', nombre:'', arts:[] };
+const CLAVE_A_MATERIA = { laboral:'laboral', penal:'penal', civil:'civil', alquiler:'inmobiliario', migracion:'extranjeria', constitucion:'civil' };
+
+function ocultarPantallas(){
+  ['inicio','pantallaCaso','pantallaExpedientes','pantallaBuscar','pantallaBiblioteca'].forEach(id=>{ const e=document.getElementById(id); if(e) e.style.display='none'; });
+}
+function artCard(nombre,n,t,ref){
+  return '<div class="caja"><h2 class="sec">'+esc(nombre)+' · Art. '+esc(n)+'</h2>'+
+    '<div class="escrito">'+esc(t)+'</div>'+
+    '<div class="doc-acciones"><button class="btn-oro" onclick="copiar(this)">📋 Copiar</button>'+
+    '<button class="btn-sec" onclick="consultarRef(\''+ref+'\')">⚖️ Consultar sobre esto</button></div></div>';
+}
+function consultarRef(ref){
+  let a, clave, nombre;
+  if(ref[0]==='B'){ a=BUSCAR_RES[+ref.slice(1)]; clave=a&&a.clave; nombre=a&&a.codigo; }
+  else { a=CODIGO_ACTUAL.arts[+ref.slice(1)]; clave=CODIGO_ACTUAL.clave; nombre=CODIGO_ACTUAL.nombre; }
+  if(!a) return;
+  abrirMateria(CLAVE_A_MATERIA[clave] || 'civil');
+  document.getElementById('hechos').value = 'Explícame en detalle el Art. '+a.n+' de '+(nombre||'la ley')+' y en qué casos se aplica, con un ejemplo práctico.';
+  document.getElementById('hechos').focus();
+}
+function verBuscar(){
+  ocultarPantallas();
+  document.getElementById('pantallaBuscar').style.display='block';
+  document.getElementById('resBuscar').innerHTML='';
+  const q=document.getElementById('qBuscar'); q.value=''; q.focus();
+  window.scrollTo(0,0);
+}
+function hacerBusqueda(){
+  const q=document.getElementById('qBuscar').value.trim(); if(!q) return;
+  const cont=document.getElementById('resBuscar');
+  cont.innerHTML='<div class="cargando">Buscando en las leyes<br><span class="punto"></span><span class="punto"></span><span class="punto"></span></div>';
+  fetch('/api/juridico',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({modo:'buscar',q})})
+    .then(r=>r.json()).then(d=>{
+      if(!d.ok){ cont.innerHTML='<div class="error">⚠️ '+esc(d.error||'No se pudo buscar.')+'</div>'; return; }
+      BUSCAR_RES=d.resultados||[];
+      if(!BUSCAR_RES.length){ cont.innerHTML='<div class="exp-vacio">No encontré nada con «'+esc(q)+'» en las leyes cargadas.</div>'; return; }
+      const aviso='<div class="hint" style="margin:0 0 10px">'+(d.total>BUSCAR_RES.length?('Mostrando '+BUSCAR_RES.length+' de '+d.total+' resultados — afina si hace falta.'):(d.total+' resultado'+(d.total===1?'':'s')+'.'))+'</div>';
+      cont.innerHTML=aviso+BUSCAR_RES.map((a,i)=>artCard(a.codigo,a.n,a.t,'B'+i)).join('');
+    }).catch(()=>{ cont.innerHTML='<div class="error">⚠️ Fallo de conexión.</div>'; });
+}
+function verBiblioteca(){
+  ocultarPantallas();
+  document.getElementById('pantallaBiblioteca').style.display='block';
+  document.getElementById('verCodigo').style.display='none';
+  const cont=document.getElementById('listaCodigos'); cont.style.display='block';
+  cont.innerHTML='<div class="cargando">Cargando biblioteca…</div>';
+  fetch('/api/juridico',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({modo:'biblioteca'})})
+    .then(r=>r.json()).then(d=>{
+      if(!d.ok){ cont.innerHTML='<div class="error">⚠️ No se pudo cargar.</div>'; return; }
+      cont.innerHTML=d.codigos.map(c=>'<div class="exp-item" style="cursor:pointer" onclick="abrirCodigo(\''+c.clave+'\')"><h3>'+esc(c.nombre)+'</h3><div class="exp-meta">'+c.num+' artículos cargados · toca para leer</div></div>').join('');
+    }).catch(()=>{ cont.innerHTML='<div class="error">⚠️ Fallo de conexión.</div>'; });
+  window.scrollTo(0,0);
+}
+function abrirCodigo(clave){
+  document.getElementById('listaCodigos').style.display='none';
+  document.getElementById('verCodigo').style.display='block';
+  document.getElementById('filtroArts').value='';
+  const cont=document.getElementById('artsCodigo'); cont.innerHTML='<div class="cargando">Cargando…</div>';
+  fetch('/api/juridico',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({modo:'codigo',clave})})
+    .then(r=>r.json()).then(d=>{
+      if(!d.ok){ cont.innerHTML='<div class="error">⚠️ '+esc(d.error||'Error')+'</div>'; return; }
+      CODIGO_ACTUAL={ clave, nombre:d.nombre, arts:d.articulos||[] };
+      pintarArts(CODIGO_ACTUAL.arts);
+    }).catch(()=>{ cont.innerHTML='<div class="error">⚠️ Fallo de conexión.</div>'; });
+  window.scrollTo(0,0);
+}
+function pintarArts(arts){
+  const cont=document.getElementById('artsCodigo');
+  if(!arts.length){ cont.innerHTML='<div class="exp-vacio">Sin resultados.</div>'; return; }
+  cont.innerHTML=arts.map(a=>artCard(CODIGO_ACTUAL.nombre,a.n,a.t,'C'+CODIGO_ACTUAL.arts.indexOf(a))).join('');
+}
+function filtrarArts(){
+  const q=document.getElementById('filtroArts').value.trim().toLowerCase();
+  if(!q){ pintarArts(CODIGO_ACTUAL.arts); return; }
+  const soloNum=/^\d+$/.test(q);
+  const f=CODIGO_ACTUAL.arts.filter(a=> soloNum ? a.n===q : (a.t||'').toLowerCase().includes(q));
+  pintarArts(f.slice(0,80));
+}
+function volverBiblioteca(){ document.getElementById('verCodigo').style.display='none'; document.getElementById('listaCodigos').style.display='block'; window.scrollTo(0,0); }
 
 async function enviar(){
   const ta = document.getElementById('hechos');
