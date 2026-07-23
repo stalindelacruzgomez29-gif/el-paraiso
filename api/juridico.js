@@ -170,24 +170,17 @@ Español claro y profesional. Si necesita_mas_datos es true, rellena solo pregun
 function instruccionesContrato(cfg, titulo) {
   return `Eres un asistente jurídico profesional especializado EXCLUSIVAMENTE en Derecho de la República Dominicana. Tarea: REDACTAR un ${titulo} conforme a la ley dominicana vigente. Materia: ${cfg.nombre}.
 
-REGLAS ABSOLUTAS:
-1. El contrato debe ajustarse a la ley dominicana. SOLO puedes fundamentar en artículos de "FUENTES DISPONIBLES"; no inventes artículos.
-2. Si faltan datos esenciales (partes, objeto, precio, plazo, etc.), primero PREGUNTA: pon necesita_mas_datos=true y la lista de preguntas.
-3. En el borrador, para los datos que el usuario no dio, usa marcadores claros entre corchetes, p. ej. [NOMBRE DEL ARRENDATARIO], [MONTO EN RD$], [FECHA].
-4. Vigencia: ${cfg.vigencia || ''}
+REGLAS:
+1. El contrato debe ajustarse a la ley dominicana. SOLO fundamenta en artículos de "FUENTES DISPONIBLES"; no inventes artículos.
+2. Para los datos que el usuario no dio, usa marcadores claros entre corchetes: [NOMBRE], [CÉDULA], [MONTO EN RD$], [FECHA], etc.
+3. Vigencia: ${cfg.vigencia || ''}
 
-Devuelve SIEMPRE y SOLO un JSON válido con esta forma:
-{
- "necesita_mas_datos": true|false,
- "preguntas": ["..."],
- "resumen_caso": "...",
- "documento_borrador": "TEXTO COMPLETO DEL CONTRATO, con encabezado, comparecientes, cláusulas numeradas y cierre para firmas",
- "campos_a_completar": ["[NOMBRE...]","[MONTO...]"],
- "clausulas_clave": ["explicación breve de las cláusulas o requisitos legales importantes"],
- "fundamentos": [ {"fuente":"...","articulo":"...","cita":"..."} ],
- "aviso": "Asistente jurídico — verifica siempre la fuente oficial. No sustituye el criterio de un abogado colegiado."
-}
-Español jurídico correcto. Si necesita_mas_datos es true, deja documento_borrador en "" y rellena solo preguntas.`;
+RESPONDE EN TEXTO PLANO (NO uses JSON), con esta estructura EXACTA:
+- Si faltan datos ESENCIALES para redactar, escribe SOLO una lista que empiece por la línea "FALTAN DATOS:" y debajo las preguntas (una por línea). No escribas contrato en ese caso.
+- Si puedes redactar, escribe el CONTRATO COMPLETO (título, comparecientes, cláusulas numeradas, y cierre con lugar, fecha y espacio de firmas). Después, en una línea escribe exactamente:
+---NOTAS---
+y debajo, de forma breve: los datos que quedaron entre [corchetes] por completar, y las cláusulas o requisitos legales clave (citando artículos de las FUENTES si aplica).
+Español jurídico correcto.`;
 }
 
 module.exports = async (req, res) => {
@@ -260,12 +253,28 @@ module.exports = async (req, res) => {
     if (!r.ok) return res.status(r.status).json({ error: (datos.error && datos.error.message) || 'Error de la IA.' });
     let texto = (datos.content && datos.content[0] && datos.content[0].text) || '';
     texto = texto.trim().replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```$/, '').trim();
+    const AVISO = 'Asistente jurídico — verifica siempre la fuente oficial. No sustituye el criterio de un abogado colegiado.';
     let resultado;
-    try { resultado = JSON.parse(texto); }
-    catch (e) {
-      const m = texto.match(/\{[\s\S]*\}/);
-      try { resultado = JSON.parse(m ? m[0] : ''); }
-      catch (e2) { resultado = { texto_libre: texto, aviso: 'Asistente jurídico — verifica la fuente oficial. No sustituye a un abogado.' }; }
+
+    if (modo === 'contrato' && esRD) {
+      // Modo contrato = TEXTO PLANO (robusto, sin cortes de JSON)
+      if (/^\s*FALTAN DATOS:/i.test(texto)) {
+        const preguntas = texto.replace(/^\s*FALTAN DATOS:/i, '').split('\n')
+          .map(s => s.replace(/^[\-\d.)\s•]+/, '').trim()).filter(Boolean);
+        resultado = { necesita_mas_datos: true, preguntas, aviso: AVISO };
+      } else {
+        const partes = texto.split(/---\s*NOTAS\s*---/i);
+        const doc = (partes[0] || '').trim();
+        const notas = (partes[1] || '').split('\n').map(s => s.trim()).filter(Boolean);
+        resultado = { documento_borrador: doc, clausulas_clave: notas, aviso: AVISO };
+      }
+    } else {
+      try { resultado = JSON.parse(texto); }
+      catch (e) {
+        const m = texto.match(/\{[\s\S]*\}/);
+        try { resultado = JSON.parse(m ? m[0] : ''); }
+        catch (e2) { resultado = { texto_libre: texto, aviso: AVISO }; }
+      }
     }
     resultado._materia = cfg.nombre; resultado._modo = modo;
     return res.status(200).json(resultado);
