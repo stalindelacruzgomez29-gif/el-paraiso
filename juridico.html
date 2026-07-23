@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f2740">
+<title>Asistente Jurídico RD</title>
+<link rel="apple-touch-icon" href="juridico-icono-180.png">
+<link rel="manifest" href="juridico.webmanifest">
+<style>
+  :root{ --azul:#0f2740; --azul2:#1b3c5e; --oro:#c8a24a; --oro2:#e0c073;
+         --fondo:#f4f1ea; --tinta:#22303f; --gris:#6b7785; --linea:#e2ddd0; }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body{ margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+        background:var(--fondo); color:var(--tinta); line-height:1.5; }
+  header{ background:linear-gradient(135deg,var(--azul),var(--azul2)); color:#fff;
+          padding:18px 16px calc(16px + env(safe-area-inset-top)); text-align:center; }
+  header .marca{ font-size:13px; letter-spacing:2px; color:var(--oro2); text-transform:uppercase; }
+  header h1{ margin:4px 0 2px; font-size:21px; font-weight:700; }
+  header .sub{ font-size:12.5px; opacity:.85; }
+  .wrap{ max-width:760px; margin:0 auto; padding:16px; }
+  .aviso-top{ background:#fff7e6; border:1px solid #f0dca6; color:#7a5c14; border-radius:12px;
+              padding:10px 12px; font-size:12.5px; margin-bottom:14px; }
+  .caja{ background:#fff; border:1px solid var(--linea); border-radius:14px; padding:14px; margin-bottom:14px;
+         box-shadow:0 1px 3px rgba(15,39,64,.05); }
+  label{ font-weight:600; font-size:14px; display:block; margin-bottom:6px; }
+  textarea{ width:100%; min-height:120px; border:1px solid var(--linea); border-radius:10px; padding:12px;
+            font-size:16px; font-family:inherit; resize:vertical; color:var(--tinta); }
+  textarea:focus{ outline:none; border-color:var(--oro); }
+  .hint{ font-size:12px; color:var(--gris); margin-top:6px; }
+  button{ font-family:inherit; cursor:pointer; border:none; border-radius:10px; font-weight:600; }
+  .btn-primario{ background:linear-gradient(135deg,var(--azul),var(--azul2)); color:#fff;
+                 padding:14px 20px; font-size:16px; width:100%; margin-top:12px; }
+  .btn-primario:disabled{ opacity:.5; }
+  .btn-sec{ background:#eef2f6; color:var(--azul); padding:9px 14px; font-size:13px; }
+  .btn-oro{ background:var(--oro); color:#3a2c07; padding:9px 14px; font-size:13px; }
+  h2.sec{ font-size:15px; color:var(--azul); margin:0 0 8px; display:flex; align-items:center; gap:8px;
+          border-bottom:2px solid var(--oro); padding-bottom:6px; }
+  ol,ul{ margin:0; padding-left:20px; }
+  ol li,ul li{ margin-bottom:7px; }
+  .etq{ display:inline-block; background:var(--azul); color:#fff; font-size:11px; font-weight:700;
+        padding:3px 9px; border-radius:20px; margin-right:6px; }
+  .fund{ background:#f7f5ef; border-left:3px solid var(--oro); border-radius:0 8px 8px 0;
+         padding:8px 10px; margin-bottom:8px; font-size:13.5px; }
+  .fund b{ color:var(--azul); }
+  .escrito{ white-space:pre-wrap; background:#fbfaf6; border:1px dashed var(--oro); border-radius:10px;
+            padding:12px; font-size:13.5px; font-family:"SF Mono",Menlo,monospace; }
+  .preg{ background:#eaf2fb; border:1px solid #cfe0f4; border-radius:12px; padding:14px; }
+  .preg li{ margin-bottom:9px; font-size:14.5px; }
+  .cargando{ text-align:center; color:var(--gris); padding:26px 10px; }
+  .punto{ display:inline-block; width:9px; height:9px; margin:0 3px; background:var(--oro); border-radius:50%;
+          animation:reb 1s infinite; }
+  .punto:nth-child(2){ animation-delay:.15s } .punto:nth-child(3){ animation-delay:.3s }
+  @keyframes reb{ 0%,80%,100%{ transform:scale(.5); opacity:.4 } 40%{ transform:scale(1); opacity:1 } }
+  .caso-usuario{ background:var(--azul); color:#fff; border-radius:12px 12px 4px 12px; padding:10px 13px;
+                 margin:0 0 14px auto; max-width:88%; font-size:14px; }
+  .error{ background:#fdecec; border:1px solid #f5c2c2; color:#a12b2b; border-radius:12px; padding:12px; font-size:14px; }
+  .pie{ text-align:center; color:var(--gris); font-size:11.5px; padding:20px 16px 40px; }
+  .chip{ display:inline-block; background:#eef2f6; color:var(--azul); font-size:12px; border-radius:20px;
+         padding:5px 11px; margin:4px 4px 0 0; }
+</style>
+</head>
+<body>
+<header>
+  <div class="marca">⚖️ Derecho Dominicano</div>
+  <h1>Asistente Jurídico</h1>
+  <div class="sub">Materia disponible: <b>Laboral</b> · fuentes reales cargadas</div>
+</header>
+
+<div class="wrap">
+  <div class="aviso-top">
+    ⚠️ <b>Asistente para abogados y estudiantes.</b> Cita solo textos legales reales cargados (Código de Trabajo Ley 16-92 y Constitución 2024). Verifica siempre la fuente oficial. <b>No sustituye el criterio de un abogado colegiado.</b>
+  </div>
+
+  <div class="caja" id="cajaEntrada">
+    <label for="hechos">Cuéntame los hechos del caso</label>
+    <textarea id="hechos" placeholder="Ej.: A un trabajador con 3 años en la empresa lo despidieron sin explicación el pasado 10 de julio. Trabajaba de lunes a sábado. No le han pagado prestaciones. ¿Qué puede hacer?"></textarea>
+    <div class="hint">Cuanto más detalle (fechas, antigüedad, salario, tipo de contrato), mejor será la respuesta. La IA te hará preguntas si le falta algo.</div>
+    <button class="btn-primario" id="btnAnalizar" onclick="analizar()">Analizar el caso ⚖️</button>
+    <div style="margin-top:10px">
+      <span class="chip" onclick="ejemplo(this)">Despido injustificado</span>
+      <span class="chip" onclick="ejemplo(this)">No me pagan horas extras</span>
+      <span class="chip" onclick="ejemplo(this)">Dimisión por falta de pago</span>
+    </div>
+  </div>
+
+  <div id="conversa"></div>
+  <div id="salida"></div>
+</div>
+
+<div class="pie">
+  Asistente Jurídico Dominicano · versión de prueba (Fase 1 · Laboral)<br>
+  Biblioteca: Constitución 2024 · Código de Trabajo (Ley 16-92)
+</div>
+
+<script>
+const EJEMPLOS = {
+  'Despido injustificado':'A un trabajador con 3 años de antigüedad lo despidieron el 10 de julio de 2026 sin darle ninguna causa. Ganaba 25,000 pesos al mes, contrato por tiempo indefinido, trabajaba de lunes a viernes. No le han pagado prestaciones laborales. ¿Qué procede?',
+  'No me pagan horas extras':'Una trabajadora lleva 2 años haciendo 10 horas diarias de lunes a sábado pero solo le pagan las 8 horas normales, nunca le han pagado las horas extras. Quiere reclamar. ¿Cómo procede?',
+  'Dimisión por falta de pago':'Un trabajador lleva 3 meses sin cobrar su salario completo. Quiere irse de la empresa pero que le paguen todo lo que le corresponde. ¿Puede dimitir con responsabilidad para el empleador?'
+};
+function ejemplo(el){ document.getElementById('hechos').value = EJEMPLOS[el.textContent] || ''; document.getElementById('hechos').focus(); }
+
+let conversacion = [];  // [{rol:'usuario'|'asistente', texto}]
+
+function esc(s){ return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+async function analizar(){
+  const ta = document.getElementById('hechos');
+  const texto = ta.value.trim();
+  if(!texto){ ta.focus(); return; }
+  conversacion.push({ rol:'usuario', texto });
+  pintarConversa();
+  ta.value = '';
+  document.getElementById('cajaEntrada').style.display = 'none';
+  const btn = document.getElementById('btnAnalizar'); btn.disabled = true;
+  document.getElementById('salida').innerHTML =
+    '<div class="cargando">Analizando con la ley dominicana<br><span class="punto"></span><span class="punto"></span><span class="punto"></span></div>';
+  window.scrollTo(0, document.body.scrollHeight);
+
+  try{
+    const r = await fetch('/api/juridico', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ conversacion })
+    });
+    const d = await r.json();
+    if(!r.ok || d.error){ mostrarError(d.error || 'No se pudo analizar el caso.'); return; }
+    conversacion.push({ rol:'asistente', texto: JSON.stringify(d) });
+    pintarResultado(d);
+  }catch(e){ mostrarError('Fallo de conexión. Revisa internet e inténtalo otra vez.'); }
+  finally{ btn.disabled = false; }
+}
+
+function pintarConversa(){
+  const c = document.getElementById('conversa');
+  c.innerHTML = conversacion.filter(m=>m.rol==='usuario')
+    .map(m=>'<div class="caso-usuario">'+esc(m.texto)+'</div>').join('');
+}
+
+function mostrarError(msg){
+  document.getElementById('salida').innerHTML = '<div class="error">⚠️ '+esc(msg)+'</div>' + cajaSeguir('Reformular o añadir datos');
+}
+
+function lista(arr, ord){
+  if(!arr || !arr.length) return '';
+  const tag = ord ? 'ol' : 'ul';
+  return '<'+tag+'>'+arr.map(x=>'<li>'+esc(typeof x==='string'?x:JSON.stringify(x))+'</li>').join('')+'</'+tag+'>';
+}
+function seccion(titulo, contenido){
+  if(!contenido) return '';
+  return '<div class="caja"><h2 class="sec">'+titulo+'</h2>'+contenido+'</div>';
+}
+
+function pintarResultado(d){
+  if(d.texto_libre){
+    document.getElementById('salida').innerHTML = seccion('📋 Respuesta','<div style="white-space:pre-wrap">'+esc(d.texto_libre)+'</div>') + avisoBox(d.aviso) + cajaSeguir('Añadir datos o preguntar');
+    return;
+  }
+  let h = '';
+  if(d.resumen_caso) h += seccion('📌 Cómo entiendo el caso', '<p>'+esc(d.resumen_caso)+'</p>');
+
+  if(d.necesita_mas_datos && d.preguntas && d.preguntas.length){
+    h += '<div class="caja preg"><h2 class="sec">❓ Necesito que me aclares</h2><ol>'+
+         d.preguntas.map(p=>'<li>'+esc(p)+'</li>').join('')+'</ol>'+
+         '<p style="font-size:13px;color:#3a5" >Responde abajo y sigo con el análisis.</p></div>';
+    document.getElementById('salida').innerHTML = h + avisoBox(d.aviso) + cajaSeguir('Responder / añadir datos');
+    window.scrollTo(0, document.body.scrollHeight); return;
+  }
+
+  if(d.jurisdiccion) h += seccion('⚖️ Jurisdicción y tribunal',
+      '<p><span class="etq">Jurisdicción</span> '+esc(d.jurisdiccion)+'</p>'+
+      (d.tribunal_competente?'<p><span class="etq">Tribunal</span> '+esc(d.tribunal_competente)+'</p>':''));
+  if(d.procedimiento && d.procedimiento.length) h += seccion('🪜 Procedimiento paso a paso', lista(d.procedimiento, true));
+  if(d.plazos && d.plazos.length) h += seccion('⏱️ Plazos', lista(d.plazos));
+  if(d.documentos && d.documentos.length) h += seccion('📎 Documentos necesarios', lista(d.documentos));
+  if(d.recursos && d.recursos.length) h += seccion('↩️ Recursos procedentes', lista(d.recursos));
+  if(d.riesgos && d.riesgos.length) h += seccion('⚠️ Riesgos', lista(d.riesgos));
+  if(d.estrategia) h += seccion('🎯 Estrategia', '<p>'+esc(d.estrategia)+'</p>');
+
+  if(d.fundamentos && d.fundamentos.length){
+    h += seccion('📚 Fundamento legal', d.fundamentos.map(f=>
+      '<div class="fund"><b>'+esc(f.fuente||'')+(f.articulo?' · Art. '+esc(f.articulo):'')+'</b><br>'+esc(f.cita||'')+'</div>'
+    ).join(''));
+  }
+  if(d.escrito_borrador && d.escrito_borrador.trim()){
+    h += '<div class="caja"><h2 class="sec">✍️ Borrador de escrito</h2>'+
+         '<div class="escrito" id="escrito">'+esc(d.escrito_borrador)+'</div>'+
+         '<button class="btn-oro" style="margin-top:10px" onclick="copiarEscrito()">📋 Copiar escrito</button></div>';
+  }
+  h += avisoBox(d.aviso);
+  h += cajaSeguir('Añadir datos, pedir otro escrito o preguntar');
+  document.getElementById('salida').innerHTML = h;
+  window.scrollTo(0, document.body.scrollHeight);
+}
+
+function avisoBox(a){
+  return '<div class="aviso-top" style="margin-top:4px">🔒 '+esc(a||'Asistente jurídico — verifica la fuente oficial. No sustituye a un abogado colegiado.')+'</div>';
+}
+function cajaSeguir(placeholder){
+  return '<div class="caja"><label for="seguir">Seguir con este caso</label>'+
+    '<textarea id="seguir" placeholder="'+esc(placeholder)+'..."></textarea>'+
+    '<button class="btn-primario" onclick="continuar()">Enviar ⚖️</button>'+
+    '<button class="btn-sec" style="margin-top:8px;width:100%" onclick="nuevoCaso()">Empezar un caso nuevo</button></div>';
+}
+function continuar(){
+  const t = document.getElementById('seguir');
+  if(!t || !t.value.trim()) return;
+  document.getElementById('hechos').value = t.value.trim();
+  analizar();
+}
+function nuevoCaso(){
+  conversacion = [];
+  document.getElementById('conversa').innerHTML = '';
+  document.getElementById('salida').innerHTML = '';
+  const ce = document.getElementById('cajaEntrada'); ce.style.display = 'block';
+  document.getElementById('hechos').value = '';
+  window.scrollTo(0,0);
+}
+function copiarEscrito(){
+  const el = document.getElementById('escrito');
+  if(!el) return;
+  const txt = el.textContent;
+  if(navigator.clipboard){ navigator.clipboard.writeText(txt).then(()=>alert('Escrito copiado ✅')); }
+  else { const r=document.createRange(); r.selectNode(el); getSelection().removeAllRanges(); getSelection().addRange(r); }
+}
+</script>
+</body>
+</html>

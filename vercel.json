@@ -3,7 +3,8 @@
     { "path": "/api/equipo", "schedule": "0 6 * * *" }
   ],
   "functions": {
-    "api/clonar.js": { "maxDuration": 60 }
+    "api/clonar.js": { "maxDuration": 60 },
+    "api/juridico.js": { "maxDuration": 60 }
   },
   "headers": [
     {
