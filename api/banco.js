@@ -10,17 +10,43 @@
 //    DATOS_SYNC_CODIGO    el código de sincronización de la contabilidad
 //  La contraseña del BANCO no existe aquí: los bancos solo mandan correos.
 // ────────────────────────────────────────────────────────────
-const { put, list } = require('@vercel/blob');
 const crypto = require('crypto');
+
+// Guardamos en GitHub (repo privado), no en Vercel Blob: el Blob gratuito
+// se suspende al superar el límite y GitHub es gratis, sin caché y estable.
+const REPO_DATOS = 'stalindelacruzgomez29-gif/el-paraiso-equipo-datos';
+async function gh(metodo, ruta, cuerpo) {
+  return fetch('https://api.github.com' + ruta, {
+    method: metodo,
+    headers: {
+      'Authorization': 'Bearer ' + process.env.EQUIPO_GITHUB_TOKEN,
+      'Accept': 'application/vnd.github+json', 'Cache-Control': 'no-cache',
+      'User-Agent': 'el-paraiso-banco', ...(cuerpo ? { 'Content-Type': 'application/json' } : {})
+    },
+    body: cuerpo ? JSON.stringify(cuerpo) : undefined
+  });
+}
 
 function rutaBanco(codigo) {
   return 'banco/' + crypto.createHash('sha256').update('banco:' + codigo).digest('hex') + '.json';
 }
 async function leerGuardados(ruta) {
-  const { blobs } = await list({ prefix: ruta });
-  const b = blobs.find(x => x.pathname === ruta);
-  if (!b) return [];
-  try { const r = await fetch(b.url + '?t=' + Date.now()); return await r.json(); } catch (e) { return []; }
+  const r = await gh('GET', `/repos/${REPO_DATOS}/contents/${ruta}?ref=main&t=${Date.now()}`);
+  if (!r.ok) return [];
+  try {
+    const j = await r.json();
+    const lista = JSON.parse(Buffer.from(j.content, 'base64').toString('utf8'));
+    return Array.isArray(lista) ? lista : [];
+  } catch (e) { return []; }
+}
+async function guardarBanco(ruta, lista) {
+  const previo = await gh('GET', `/repos/${REPO_DATOS}/contents/${ruta}?ref=main&t=${Date.now()}`);
+  const sha = previo.ok ? (await previo.json()).sha : undefined;
+  const r = await gh('PUT', `/repos/${REPO_DATOS}/contents/${ruta}`, {
+    message: 'movimientos del banco', branch: 'main',
+    content: Buffer.from(JSON.stringify(lista)).toString('base64'), ...(sha ? { sha } : {})
+  });
+  return r.ok;
 }
 
 // Texto plano aproximado de un correo (quita HTML y descifra el "quoted-printable")
@@ -65,7 +91,7 @@ module.exports = async (req, res) => {
   if (req.method === 'POST') {
     const codigo = req.body && req.body.codigo;
     if (!codigo || String(codigo).length < 4) return res.status(400).json({ error: 'Falta el código de sincronización.' });
-    if (!process.env.BLOB_READ_WRITE_TOKEN) return res.status(503).json({ error: 'Sin almacenamiento configurado.' });
+    if (!process.env.EQUIPO_GITHUB_TOKEN) return res.status(503).json({ error: 'Sin almacenamiento configurado.' });
     const lista = await leerGuardados(rutaBanco(String(codigo)));
     return res.status(200).json({ ok: true, movimientos: lista.map(x => ({ fecha: x.fecha, concepto: x.concepto, importe: x.importe })) });
   }
@@ -120,7 +146,7 @@ module.exports = async (req, res) => {
 
     if (nuevos || sinEntender) {
       const recorte = guardados.slice(-3000);
-      await put(ruta, JSON.stringify(recorte), { access: 'public', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json' });
+      await guardarBanco(ruta, recorte);
     }
     return res.status(200).json({ ok: true, correosDeBancos: deBancos, movimientosNuevos: nuevos, sinEntender });
   } catch (e) {

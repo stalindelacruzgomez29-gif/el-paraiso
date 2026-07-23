@@ -1,11 +1,13 @@
 // ────────────────────────────────────────────────────────────
 //  EL PARAÍSO · Sincronización en la nube
-//  Guarda y devuelve los datos del negocio en Vercel Blob, para
-//  que se vean iguales en el móvil, el ordenador y para el socio.
+//  Guarda y devuelve los datos del negocio en GitHub (repo privado),
+//  para que se vean iguales en el móvil, el ordenador y para el socio.
 //  Cada negocio usa un "código de sincronización" secreto que NO
 //  está en el código público: sin él no se puede leer ni escribir.
+//
+//  Antes esto usaba Vercel Blob, pero el almacén gratuito se suspende
+//  al superar el límite. GitHub es gratis, sin caché y no se suspende.
 // ────────────────────────────────────────────────────────────
-const { put, list } = require('@vercel/blob');
 const crypto = require('crypto');
 
 function rutaDe(codigo) {
@@ -13,19 +15,13 @@ function rutaDe(codigo) {
   const hash = crypto.createHash('sha256').update('paraiso:' + codigo).digest('hex');
   return `negocios/${hash}.json`;
 }
-
-// La carta pública usa OTRO nombre distinto: enseñar la carta no debe
-// dar ninguna pista del archivo privado del negocio
 function idCartaDe(codigo) {
   return crypto.createHash('sha256').update('carta:' + codigo).digest('hex');
 }
-// La carta-web del restaurante (estructura rica: secciones bilingües). El id público
-// deriva del código secreto, así se puede leer sin exponer la clave de edición.
 function idCartaWebDe(codigo) {
   return crypto.createHash('sha256').update('cartaweb:' + codigo).digest('hex');
 }
-// La carta-web se guarda en GitHub (no en Blob) para que los cambios se vean AL INSTANTE
-// (el Blob de Vercel tiene caché CDN y retrasaba las lecturas).
+
 const REPO_CARTA = 'stalindelacruzgomez29-gif/el-paraiso-equipo-datos';
 async function ghCarta(metodo, ruta, cuerpo) {
   return fetch('https://api.github.com' + ruta, {
@@ -33,10 +29,29 @@ async function ghCarta(metodo, ruta, cuerpo) {
     headers: {
       'Authorization': 'Bearer ' + process.env.EQUIPO_GITHUB_TOKEN,
       'Accept': 'application/vnd.github+json', 'Cache-Control': 'no-cache',
-      'User-Agent': 'el-paraiso-carta', ...(cuerpo ? { 'Content-Type': 'application/json' } : {})
+      'User-Agent': 'el-paraiso-datos', ...(cuerpo ? { 'Content-Type': 'application/json' } : {})
     },
     body: cuerpo ? JSON.stringify(cuerpo) : undefined
   });
+}
+// Lee un archivo del repo. Devuelve { existe, contenido(texto), sha } (sin caché).
+async function ghLeer(archivo) {
+  const r = await ghCarta('GET', `/repos/${REPO_CARTA}/contents/${archivo}?ref=main&t=${Date.now()}`);
+  if (r.status === 404) return { existe: false };
+  if (!r.ok) throw new Error('lectura ' + r.status);
+  const j = await r.json();
+  return { existe: true, contenido: Buffer.from(j.content, 'base64').toString('utf8'), sha: j.sha };
+}
+// Escribe (crea o actualiza) un archivo del repo con el texto dado.
+async function ghGuardar(archivo, texto, mensaje) {
+  const previo = await ghCarta('GET', `/repos/${REPO_CARTA}/contents/${archivo}?ref=main&t=${Date.now()}`);
+  const sha = previo.ok ? (await previo.json()).sha : undefined;
+  const r = await ghCarta('PUT', `/repos/${REPO_CARTA}/contents/${archivo}`, {
+    message: mensaje || 'actualización', branch: 'main',
+    content: Buffer.from(texto).toString('base64'), ...(sha ? { sha } : {})
+  });
+  if (!r.ok) throw new Error('guardado ' + r.status);
+  return true;
 }
 
 module.exports = async (req, res) => {
@@ -45,7 +60,7 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  if (!process.env.EQUIPO_GITHUB_TOKEN) {
     return res.status(503).json({ error: 'La sincronización no está configurada en el servidor.' });
   }
 
@@ -54,14 +69,10 @@ module.exports = async (req, res) => {
     const id = String(req.query.carta);
     if (!/^[a-f0-9]{64}$/.test(id)) return res.status(400).json({ error: 'Enlace de carta no válido.' });
     try {
-      const ruta = `carta/${id}.json`;
-      const { blobs } = await list({ prefix: ruta });
-      const blob = blobs.find(b => b.pathname === ruta);
-      if (!blob) return res.status(200).json({ existe: false });
-      const r = await fetch(blob.url + '?t=' + Date.now());
-      const carta = await r.json();
-      res.setHeader('Cache-Control', 'public, max-age=60');
-      return res.status(200).json({ existe: true, carta });
+      const f = await ghLeer(`carta/${id}.json`);
+      if (!f.existe) return res.status(200).json({ existe: false });
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(200).json({ existe: true, carta: JSON.parse(f.contenido) });
     } catch (e) { return res.status(500).json({ error: 'No pude leer la carta.' }); }
   }
 
@@ -70,13 +81,10 @@ module.exports = async (req, res) => {
     const id = String(req.query.cartaweb);
     if (!/^[a-f0-9]{64}$/.test(id)) return res.status(400).json({ error: 'Enlace no válido.' });
     try {
-      const r = await ghCarta('GET', `/repos/${REPO_CARTA}/contents/cartaweb/${id}.json?ref=main&t=${Date.now()}`);
-      if (r.status === 404) return res.status(200).json({ existe: false });
-      if (!r.ok) return res.status(200).json({ existe: false });
-      const j = await r.json();
-      const carta = JSON.parse(Buffer.from(j.content, 'base64').toString('utf8'));
+      const f = await ghLeer(`cartaweb/${id}.json`);
+      if (!f.existe) return res.status(200).json({ existe: false });
       res.setHeader('Cache-Control', 'no-store');
-      return res.status(200).json({ existe: true, carta });
+      return res.status(200).json({ existe: true, carta: JSON.parse(f.contenido) });
     } catch (e) { return res.status(500).json({ error: 'No pude leer la carta.' }); }
   }
 
@@ -87,10 +95,9 @@ module.exports = async (req, res) => {
     const id = String(req.query.cartafeed);
     if (!/^[a-f0-9]{64}$/.test(id)) return res.status(400).json({ error: 'Enlace no válido.' });
     try {
-      const r = await ghCarta('GET', `/repos/${REPO_CARTA}/contents/cartaweb/${id}.json?ref=main&t=${Date.now()}`);
-      if (!r.ok) return res.status(200).json({ existe: false, secciones: [] });
-      const j = await r.json();
-      const c = JSON.parse(Buffer.from(j.content, 'base64').toString('utf8'));
+      const f = await ghLeer(`cartaweb/${id}.json`);
+      if (!f.existe) return res.status(200).json({ existe: false, secciones: [] });
+      const c = JSON.parse(f.contenido);
       const precioNum = (p) => {
         const m = String(p || '').replace(/\./g, '').replace(',', '.').match(/[\d.]+/);
         return m ? Number(m[0]) : 0;
@@ -124,13 +131,14 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === 'GET') {
-      // Buscamos el archivo de este código
-      const { blobs } = await list({ prefix: ruta });
-      const blob = blobs.find(b => b.pathname === ruta);
-      if (!blob) return res.status(200).json({ existe: false });
-      const r = await fetch(blob.url);
-      const datos = await r.json();
-      return res.status(200).json({ existe: true, actualizado: blob.uploadedAt, datos });
+      // Leemos el archivo privado de este negocio
+      const f = await ghLeer(ruta);
+      if (!f.existe) return res.status(200).json({ existe: false });
+      const guardado = JSON.parse(f.contenido);
+      // Se guarda envuelto { actualizado, datos } para conservar la fecha
+      const datos = guardado && guardado.datos ? guardado.datos : guardado;
+      const actualizado = (guardado && guardado.actualizado) || null;
+      return res.status(200).json({ existe: true, actualizado, datos });
     }
 
     if (req.method === 'POST' && req.body && req.body.carta) {
@@ -151,9 +159,7 @@ module.exports = async (req, res) => {
         })).filter(p => p.nombre && p.precio > 0)
       };
       const id = idCartaDe(String(codigo));
-      await put(`carta/${id}.json`, JSON.stringify(carta), {
-        access: 'public', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json'
-      });
+      await ghGuardar(`carta/${id}.json`, JSON.stringify(carta), 'carta del negocio');
       return res.status(200).json({ publicada: true, id, platos: carta.platos.length });
     }
 
@@ -164,14 +170,9 @@ module.exports = async (req, res) => {
       const cadena = JSON.stringify(c);
       if (cadena.length > 8 * 1024 * 1024) return res.status(400).json({ error: 'La carta con fotos es demasiado grande. Usa fotos más ligeras.' });
       const id = idCartaWebDe(String(codigo));
-      const rutaGh = `/repos/${REPO_CARTA}/contents/cartaweb/${id}.json`;
-      const actual = await ghCarta('GET', rutaGh + '?ref=main&t=' + Date.now());
-      const sha = actual.ok ? (await actual.json()).sha : undefined;
-      const guardado = await ghCarta('PUT', rutaGh, {
-        message: 'carta actualizada', branch: 'main',
-        content: Buffer.from(cadena).toString('base64'), ...(sha ? { sha } : {})
-      });
-      if (!guardado.ok) return res.status(500).json({ error: 'No pude guardar la carta (código ' + guardado.status + ').' });
+      try {
+        await ghGuardar(`cartaweb/${id}.json`, cadena, 'carta actualizada');
+      } catch (e) { return res.status(500).json({ error: 'No pude guardar la carta.' }); }
       const platos = c.secciones.reduce((n, s) => n + ((s.platos && s.platos.length) || 0), 0);
       return res.status(200).json({ publicada: true, id, platos });
     }
@@ -181,13 +182,9 @@ module.exports = async (req, res) => {
       if (!datos || typeof datos !== 'object') {
         return res.status(400).json({ error: 'No se recibieron datos para guardar.' });
       }
-      const resultado = await put(ruta, JSON.stringify(datos), {
-        access: 'public',          // URL imposible de adivinar (deriva del código secreto)
-        addRandomSuffix: false,
-        allowOverwrite: true,
-        contentType: 'application/json'
-      });
-      return res.status(200).json({ guardado: true, actualizado: new Date().toISOString(), url: resultado.url });
+      const actualizado = new Date().toISOString();
+      await ghGuardar(ruta, JSON.stringify({ actualizado, datos }), 'datos del negocio');
+      return res.status(200).json({ guardado: true, actualizado });
     }
 
     return res.status(405).json({ error: 'Método no permitido' });
