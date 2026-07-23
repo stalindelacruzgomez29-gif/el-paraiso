@@ -329,7 +329,7 @@ function pintarResultado(d){
     h += seccion('📚 Fundamento legal', d.fundamentos.map(f=>'<div class="fund"><b>'+esc(f.fuente||'')+(f.articulo?' · Art. '+esc(f.articulo):'')+'</b><br>'+esc(f.cita||'')+'</div>').join(''));
   }
   if(d.escrito_borrador && d.escrito_borrador.trim()){
-    h += '<div class="caja"><h2 class="sec">✍️ Borrador de escrito</h2><div class="escrito" id="escrito">'+esc(d.escrito_borrador)+'</div>'+
+    h += '<div class="caja"><h2 class="sec">📝 Escrito / formulario listo para usar</h2><div class="escrito" id="escrito">'+esc(d.escrito_borrador)+'</div>'+
          '<button class="btn-oro" style="margin-top:10px" onclick="copiar()">📋 Copiar escrito</button></div>';
   }
   h += avisoBox(d.aviso)+cajaSeguir();

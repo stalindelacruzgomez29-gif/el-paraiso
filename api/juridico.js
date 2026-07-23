@@ -145,8 +145,10 @@ REGLAS ABSOLUTAS (no romper nunca):
 4. Aún NO hay jurisprudencia de la SCJ/TC cargada: no cites sentencias concretas.
 5. Vigencia: ${cfg.vigencia || 'indica la fecha de vigencia cuando sea relevante.'}
 6. SIEMPRE indica: (a) la DOCUMENTACIÓN concreta que hace falta (campo "documentos"), y (b) la VÍA MÁS FÁCIL, RÁPIDA Y VIABLE para lograr el objetivo (campo "via_recomendada"), explicando por qué es la mejor opción frente a otras. Sé práctico y concreto.
+7. GENERA SIEMPRE, RELLENADO Y LISTO PARA USAR, el escrito o formulario que el trámite requiere (según el caso: demanda, querella, instancia, solicitud, acto, recurso, formulario administrativo, etc.). Rellénalo con los datos que el usuario haya dado y usa [CORCHETES] para lo que falte. Debe ajustarse a la ley dominicana y citar los artículos aplicables de las FUENTES.
 ${cfg.extra ? '\nINSTRUCCIÓN ESPECIAL DE ESTA MATERIA:\n' + cfg.extra + '\n' : ''}
-Devuelve SIEMPRE y SOLO un JSON válido (sin texto fuera del JSON) con esta forma:
+FORMATO DE RESPUESTA (EXACTO):
+Primero, un JSON válido (y NADA más antes) con esta forma:
 {
  "necesita_mas_datos": true|false,
  "preguntas": ["..."],
@@ -161,10 +163,12 @@ Devuelve SIEMPRE y SOLO un JSON válido (sin texto fuera del JSON) con esta form
  "riesgos": ["..."],
  "estrategia": "...",
  "fundamentos": [ {"fuente":"...","articulo":"75","cita":"texto o síntesis fiel"} ],
- "escrito_borrador": "",
  "aviso": "Asistente jurídico — verifica siempre la fuente oficial. No sustituye el criterio de un abogado colegiado."
 }
-Español claro y profesional. Si necesita_mas_datos es true, rellena solo preguntas y resumen_caso.`;
+Después, en una línea escribe exactamente:
+---ESCRITO---
+y debajo, EN TEXTO PLANO (no JSON), el escrito o formulario ya rellenado y listo para usar (con [corchetes] en lo que falte). Si necesita_mas_datos es true, o si el trámite no requiere ningún escrito, escribe solo la palabra NINGUNO debajo de ---ESCRITO---.
+Español claro y profesional. Si necesita_mas_datos es true, en el JSON rellena solo preguntas y resumen_caso.`;
 }
 
 function instruccionesContrato(cfg, titulo) {
@@ -225,7 +229,7 @@ module.exports = async (req, res) => {
   } else {
     fuentes = construirFuentes(materiaKey, textoCaso);
     system = instruccionesConsulta(cfg);
-    maxTokens = 5000;
+    maxTokens = 6000;
   }
 
   const mensajes = conversacion.map(m => ({ role: m.rol === 'asistente' ? 'assistant' : 'user', content: m.texto }));
@@ -269,7 +273,22 @@ module.exports = async (req, res) => {
         const notas = (partes[1] || '').split('\n').map(s => s.trim()).filter(Boolean);
         resultado = { documento_borrador: doc, clausulas_clave: notas, aviso: AVISO };
       }
+    } else if (esRD) {
+      // Consulta RD: JSON de análisis + (opcional) escrito en texto plano tras ---ESCRITO---
+      const trozos = texto.split(/---\s*ESCRITO\s*---/i);
+      const jsonParte = trozos[0].trim();
+      const escrito = (trozos.slice(1).join('---ESCRITO---') || '').trim();
+      try { resultado = JSON.parse(jsonParte); }
+      catch (e) {
+        const m = jsonParte.match(/\{[\s\S]*\}/);
+        try { resultado = JSON.parse(m ? m[0] : ''); }
+        catch (e2) { resultado = { texto_libre: jsonParte, aviso: AVISO }; }
+      }
+      if (escrito && !/^ninguno/i.test(escrito) && !resultado.necesita_mas_datos) {
+        resultado.escrito_borrador = escrito;
+      }
     } else {
+      // País extranjero (orientación): JSON simple
       try { resultado = JSON.parse(texto); }
       catch (e) {
         const m = texto.match(/\{[\s\S]*\}/);
