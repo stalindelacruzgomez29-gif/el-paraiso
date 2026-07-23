@@ -257,8 +257,8 @@ module.exports = async (req, res) => {
     }
   }
 
-  // Modelo rápido para el asistente jurídico (Opus tardaba >60s y daba timeout 504).
-  const peticion = { model: process.env.MODELO_IA_JURIDICO || 'claude-sonnet-5', max_tokens: maxTokens, system, messages: mensajes };
+  // Opus (sin "razonamiento" por defecto). El timeout se evita separando análisis y escrito en llamadas cortas.
+  const peticion = { model: process.env.MODELO_IA_JURIDICO || 'claude-opus-4-8', max_tokens: maxTokens, system, messages: mensajes };
 
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -267,11 +267,6 @@ module.exports = async (req, res) => {
       body: JSON.stringify(peticion)
     });
     const datos = await r.json();
-    if (cuerpo.debug) return res.status(200).json({
-      ok: r.ok, status: r.status, model: datos.model, stop: datos.stop_reason,
-      tipos: (datos.content || []).map(b => b && b.type), error: datos.error || null,
-      primerTexto: ((datos.content || []).find(b => b && b.type === 'text') || {}).text ? 'hay texto' : 'sin texto'
-    });
     if (!r.ok) return res.status(r.status).json({ error: (datos.error && datos.error.message) || 'Error de la IA.' });
     // Toma TODOS los bloques de texto (el modelo puede incluir antes un bloque de razonamiento)
     let texto = Array.isArray(datos.content)
