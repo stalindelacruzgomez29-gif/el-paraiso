@@ -206,6 +206,35 @@
       <div id="artsCodigo"></div>
     </div>
   </div>
+
+  <!-- CALCULADORA DE PRESTACIONES LABORALES (Código de Trabajo 16-92) -->
+  <div id="pantallaPrestaciones" style="display:none">
+    <button class="volver" onclick="irInicio()">‹ Volver</button>
+    <div class="intro" style="margin-top:0">
+      <h2>🧮 Calculadora de prestaciones</h2>
+      <p>Cálculo laboral dominicano (Código de Trabajo 16-92). Estimación para orientar; verifícala.</p>
+    </div>
+    <div class="caja">
+      <label for="pSalario">Salario mensual (RD$)</label>
+      <input id="pSalario" inputmode="decimal" placeholder="Ej.: 25000" style="width:100%;border:1px solid var(--linea);border-radius:10px;padding:12px;font-size:16px;font-family:inherit">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+        <div style="flex:1;min-width:140px"><label for="pEntrada">Fecha de entrada</label>
+          <input id="pEntrada" type="date" style="width:100%;border:1px solid var(--linea);border-radius:10px;padding:11px;font-size:15px;font-family:inherit"></div>
+        <div style="flex:1;min-width:140px"><label for="pSalida">Fecha de salida</label>
+          <input id="pSalida" type="date" style="width:100%;border:1px solid var(--linea);border-radius:10px;padding:11px;font-size:15px;font-family:inherit"></div>
+      </div>
+      <label for="pTipo" style="margin-top:12px">Motivo de la salida</label>
+      <select id="pTipo" style="width:100%;border:1px solid var(--linea);border-radius:10px;padding:12px;font-size:15px;font-family:inherit;background:#fff">
+        <option value="desahucio">Desahucio (el empleador termina sin causa)</option>
+        <option value="injustificado">Despido injustificado</option>
+        <option value="dimision-justa">Dimisión justificada (con causa)</option>
+        <option value="renuncia">Renuncia / dimisión sin causa</option>
+        <option value="despido-justo">Despido justificado</option>
+      </select>
+      <button class="btn-primario" onclick="calcularPrestaciones()">Calcular ⚖️</button>
+    </div>
+    <div id="resPrestaciones"></div>
+  </div>
 </div>
 
 <!-- Membrete de bufete para imprimir escritos y contratos en limpio -->
@@ -286,6 +315,7 @@ function paisActual(){ return paisSel==='RD' ? 'RD' : (document.getElementById('
   h += `<div class="card destacada" onclick="abrirContratos()"><div class="ico">📄</div><h3>Redactar contrato</h3><p>Trabajo, alquiler, compraventa, préstamo…</p></div>`;
   h += `<div class="card" onclick="verBuscar()"><div class="ico">🔎</div><h3>Buscar en las leyes</h3><p>Por número de artículo o palabra</p></div>`;
   h += `<div class="card" onclick="verBiblioteca()"><div class="ico">📚</div><h3>Biblioteca legal</h3><p>Lee los códigos y leyes cargados</p></div>`;
+  h += `<div class="card destacada" onclick="verPrestaciones()"><div class="ico">🧮</div><h3>Calcular prestaciones</h3><p>Preaviso, cesantía, vacaciones, Navidad</p></div>`;
   r.innerHTML = h;
 })();
 
@@ -511,7 +541,74 @@ let CODIGO_ACTUAL = { clave:'', nombre:'', arts:[] };
 const CLAVE_A_MATERIA = { laboral:'laboral', penal:'penal', civil:'civil', alquiler:'inmobiliario', migracion:'extranjeria', constitucion:'civil' };
 
 function ocultarPantallas(){
-  ['inicio','pantallaCaso','pantallaExpedientes','pantallaBuscar','pantallaBiblioteca'].forEach(id=>{ const e=document.getElementById(id); if(e) e.style.display='none'; });
+  ['inicio','pantallaCaso','pantallaExpedientes','pantallaBuscar','pantallaBiblioteca','pantallaPrestaciones'].forEach(id=>{ const e=document.getElementById(id); if(e) e.style.display='none'; });
+}
+// ───────────── CALCULADORA DE PRESTACIONES (Código de Trabajo 16-92) ─────────────
+function verPrestaciones(){
+  ocultarPantallas();
+  document.getElementById('pantallaPrestaciones').style.display='block';
+  document.getElementById('resPrestaciones').innerHTML='';
+  if(!document.getElementById('pSalida').value){ document.getElementById('pSalida').value=new Date().toISOString().slice(0,10); }
+  window.scrollTo(0,0);
+}
+function rd(n){ return 'RD$'+(Math.round((n||0)*100)/100).toLocaleString('es-DO',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function diasPreaviso(y){ if(y<0.25) return 0; if(y<0.5) return 7; if(y<1) return 14; return 28; }        // Art. 76
+function diasCesantia(y){                                                                                    // Art. 80
+  if(y<0.25) return 0;
+  if(y<0.5) return 6;
+  if(y<1) return 13;
+  let d=0; const full=Math.floor(y);
+  for(let a=1;a<=full;a++) d += (a<=5)?21:23;
+  const frac=y-full; d += frac*((full+1<=5)?21:23);   // parte proporcional del año en curso
+  return d;
+}
+function diasVacacionBase(y){ return y>=5 ? 18 : 14; }                                                       // Art. 177
+function calcularPrestaciones(){
+  const salario=parseFloat(String(document.getElementById('pSalario').value).replace(/[^\d.]/g,''))||0;
+  const fe=document.getElementById('pEntrada').value, fs=document.getElementById('pSalida').value;
+  const tipo=document.getElementById('pTipo').value;
+  const cont=document.getElementById('resPrestaciones');
+  if(!salario || !fe || !fs){ cont.innerHTML='<div class="error">⚠️ Pon el salario, la fecha de entrada y la de salida.</div>'; return; }
+  const ent=new Date(fe), sal=new Date(fs);
+  const dias=(sal-ent)/86400000;
+  if(!(dias>0)){ cont.innerHTML='<div class="error">⚠️ La fecha de salida debe ser posterior a la de entrada.</div>'; return; }
+  const years=dias/365.25;
+  const sd=salario/23.83;                       // salario diario (divisor legal de uso en RD)
+  const antigTxt = (Math.floor(years)+' año'+(Math.floor(years)===1?'':'s')+' y '+Math.round((years-Math.floor(years))*12)+' mes'+(Math.round((years-Math.floor(years))*12)===1?'':'es'));
+
+  const pagaPreCes = (tipo==='desahucio'||tipo==='injustificado'||tipo==='dimision-justa');
+  const dPre = pagaPreCes ? diasPreaviso(years) : 0;
+  const dCes = pagaPreCes ? diasCesantia(years) : 0;
+  // Vacaciones no disfrutadas: proporcional a la fracción del último año (derecho adquirido, siempre)
+  const fracAno = years - Math.floor(years);
+  const dVac = diasVacacionBase(years) * (Math.floor(years)>=1 ? fracAno : years);
+  // Salario de Navidad: 1/12 del salario ordinario por los meses de ESTE año trabajados (siempre)
+  const anio=sal.getFullYear();
+  const ini = (ent.getFullYear()===anio)? ent : new Date(anio,0,1);
+  const mesesNav = Math.max(0, Math.min(12, (sal-ini)/86400000/30.4));
+  const navidad = salario/12*mesesNav;
+
+  const filas=[];
+  if(pagaPreCes){
+    filas.push(['Preaviso', dPre.toFixed(0)+' días', sd*dPre, 'Art. 76']);
+    filas.push(['Auxilio de cesantía', dCes.toFixed(1)+' días', sd*dCes, 'Art. 80']);
+  }
+  filas.push(['Vacaciones no disfrutadas', dVac.toFixed(1)+' días', sd*dVac, 'Art. 177']);
+  filas.push(['Salario de Navidad (proporcional)', mesesNav.toFixed(1)+' meses', navidad, 'Art. 219']);
+  const total=filas.reduce((s,f)=>s+f[2],0);
+
+  let h='<div class="caja"><div class="ref">Estimación · Emitida el '+new Date().toLocaleDateString('es-DO',{day:'2-digit',month:'long',year:'numeric'})+'</div>'+
+    '<h2 class="sec">🧮 Resultado</h2>'+
+    '<p style="margin:0 0 6px"><span class="etq">Antigüedad</span> '+antigTxt+'</p>'+
+    '<p style="margin:0 0 10px;font-size:13px;color:var(--gris)">Salario diario: '+rd(sd)+' (salario ÷ 23.83)</p>'+
+    '<div class="escrito" style="font-family:var(--serif)">';
+  filas.forEach(f=>{ h+='<div style="display:flex;justify-content:space-between;gap:10px;padding:4px 0"><span>'+f[0]+' <small style="color:#888">('+f[3]+', '+f[1]+')</small></span><b>'+rd(f[2])+'</b></div>'; });
+  h+='<div style="display:flex;justify-content:space-between;border-top:2px solid var(--oro);margin-top:6px;padding-top:8px;font-size:16px"><b>TOTAL</b><b>'+rd(total)+'</b></div></div>';
+  if(tipo==='injustificado') h+='<div class="aviso-top" style="margin-top:10px">➕ En despido <b>injustificado</b>, el tribunal puede condenar además a los <b>salarios caídos</b> (indemnización procesal, Art. 95 ord. 3): hasta 6 meses de salario. No se suma aquí porque depende de la sentencia.</div>';
+  if(tipo==='renuncia'||tipo==='despido-justo') h+='<div class="aviso-top" style="margin-top:10px">ℹ️ En este caso <b>no</b> corresponden preaviso ni cesantía; solo los derechos adquiridos (vacaciones y salario de Navidad).</div>';
+  h+='<div class="caja" style="margin-top:10px"><p class="hint" style="margin:0">⚠️ <b>Estimación orientativa</b> según el Código de Trabajo 16-92. No incluye descuentos (TSS/ISR) ni la participación en los beneficios (Art. 223, depende de las utilidades de la empresa). Verifícala con el cálculo del Ministerio de Trabajo y el criterio del abogado.</p></div>';
+  cont.innerHTML=h;
+  window.scrollTo(0, document.body.scrollHeight);
 }
 function artCard(nombre,n,t,ref){
   return '<div class="caja"><h2 class="sec">'+esc(nombre)+' · Art. '+esc(n)+'</h2>'+
