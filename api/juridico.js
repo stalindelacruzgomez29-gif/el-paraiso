@@ -163,7 +163,7 @@ Devuelve SIEMPRE y SOLO un JSON válido (sin texto fuera del JSON) con esta form
  "fundamentos": [ {"fuente":"...","articulo":"75","cita":"texto o síntesis fiel"} ],
  "aviso": "Asistente jurídico — verifica siempre la fuente oficial. No sustituye el criterio de un abogado colegiado."
 }
-Sé conciso y práctico. El escrito rellenado se genera en un paso aparte, no lo incluyas aquí.`;
+SÉ MUY BREVE (la respuesta debe caber holgadamente): "procedimiento" máximo 6 pasos cortos; "fundamentos" máximo 5, con "cita" de UNA sola frase; los demás campos en frases cortas. No repitas. El escrito rellenado se genera en un paso aparte, NO lo incluyas aquí.`;
 }
 
 function instruccionesContrato(cfg, titulo) {
@@ -240,7 +240,7 @@ module.exports = async (req, res) => {
   } else {
     fuentes = construirFuentes(materiaKey, textoCaso, 18); // análisis conciso = rápido
     system = instruccionesConsulta(cfg);
-    maxTokens = 3500;
+    maxTokens = 4500;
   }
 
   const mensajes = conversacion.map(m => ({ role: m.rol === 'asistente' ? 'assistant' : 'user', content: m.texto }));
