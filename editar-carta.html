@@ -115,6 +115,23 @@
 <input type="file" id="fileFoto" accept="image/*" style="display:none">
 <div class="aviso" id="aviso"></div>
 
+<!-- Modal para pasar el cartel al móvil (desde el ordenador) -->
+<div id="modal-cartel" style="display:none;position:fixed;inset:0;background:rgba(18,63,46,.85);z-index:80;align-items:center;justify-content:center;padding:18px">
+  <div style="background:#fff;border-radius:18px;max-width:420px;width:100%;padding:20px;text-align:center;max-height:92vh;overflow:auto">
+    <h3 style="color:var(--verde);font-size:18px;margin-bottom:6px">📱 Súbelo a tus historias</h3>
+    <p style="font-size:13.5px;color:var(--mut);margin-bottom:12px">Las historias/estados solo se suben desde el móvil. <b>Escanea este QR con tu teléfono</b> para descargar el cartel y subirlo a Instagram, TikTok o WhatsApp.</p>
+    <img id="qr-cartel" style="width:190px;height:190px;margin:0 auto;display:block" alt="QR">
+    <img id="prev-cartel" style="width:150px;border-radius:10px;margin:12px auto 0;display:block;box-shadow:0 4px 14px rgba(0,0,0,.2)" alt="cartel">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:14px">
+      <a id="dl-cartel" class="btn btn-g btn-peq" download="promo-historia.jpg">⬇️ Descargar aquí</a>
+      <a href="https://www.instagram.com/" target="_blank" class="btn btn-b btn-peq">📷 Instagram</a>
+      <a href="https://www.tiktok.com/upload" target="_blank" class="btn btn-b btn-peq">🎵 TikTok</a>
+      <a href="https://web.whatsapp.com/" target="_blank" class="btn btn-b btn-peq">💬 WhatsApp</a>
+    </div>
+    <button class="btn btn-b btn-peq" style="margin-top:12px" onclick="document.getElementById('modal-cartel').style.display='none'">Cerrar</button>
+  </div>
+</div>
+
 <script src="carta-datos.js"></script>
 <script>
 const ID_CARTA = "4244bca40f5248ee217447ae96196df2b63dd8d0c83bad2e01995251a87329ba";
@@ -345,18 +362,33 @@ window.compartirPromo=async(i)=>{
       await navigator.share({files:[file], text:texto, title:'Promoción · El Paraíso'});
       return;
     }
-    // Sin compartir nativo (ordenador): descargar el cartel + copiar el texto
-    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='promo-estado-el-paraiso.jpg'; document.body.appendChild(a); a.click(); a.remove();
+    // Desde el ORDENADOR: subir el cartel a la nube y mostrar un QR para pasarlo al móvil
     try{ await navigator.clipboard.writeText(texto); }catch(e){}
-    setTimeout(()=>{
-      if(confirm('✅ Cartel de la promo descargado (formato historia/estado) y texto copiado.\n\nAhora súbelo como ESTADO en WhatsApp e HISTORIA en Instagram/Facebook — el QR de la carta ya va dentro.\n\n¿Abrir tus redes para subirlo?')){
-        window.open('https://www.instagram.com/','_blank');
-        window.open('https://www.facebook.com/','_blank');
-      }
-    },400);
+    aviso('📤 Subiendo el cartel para pasarlo al móvil…');
+    const dataUrl=await blobADataURL(blob);
+    let urlCartel=null;
+    try{
+      const r=await fetch('/api/cartel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imagen:dataUrl})});
+      const j=await r.json(); if(r.ok) urlCartel=j.url;
+    }catch(e){}
+    const dl=document.getElementById('dl-cartel'); dl.href=URL.createObjectURL(blob);
+    document.getElementById('prev-cartel').src=URL.createObjectURL(blob);
+    if(urlCartel){
+      document.getElementById('qr-cartel').src='https://api.qrserver.com/v1/create-qr-code/?size=380x380&margin=8&data='+encodeURIComponent(urlCartel);
+      document.getElementById('qr-cartel').style.display='block';
+    } else {
+      document.getElementById('qr-cartel').style.display='none';
+    }
+    document.getElementById('modal-cartel').style.display='flex';
   }catch(e){ aviso('No se pudo compartir: '+e.message); }
 };
 
+// Blob → base64 SIN FileReader (el iPhone no lo tiene)
+async function blobADataURL(blob){
+  const bytes=new Uint8Array(await blob.arrayBuffer());
+  let bin=''; for(let i=0;i<bytes.length;i+=0x8000) bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000));
+  return 'data:image/jpeg;base64,'+btoa(bin);
+}
 window.borrarPromo=i=>{if(confirm('¿Quitar la promoción "'+(CARTA.promos[i].titulo||'sin título')+'"?')){CARTA.promos.splice(i,1);pintarPromos();}};
 window.moverPromo=(i,d)=>{const j=i+d;if(j<0||j>=CARTA.promos.length)return;const t=CARTA.promos[i];CARTA.promos[i]=CARTA.promos[j];CARTA.promos[j]=t;pintarPromos();};
 window.avisarPromo=async i=>{
