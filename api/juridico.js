@@ -176,10 +176,11 @@ REGLAS:
 3. Vigencia: ${cfg.vigencia || ''}
 
 RESPONDE EN TEXTO PLANO (NO uses JSON), con esta estructura EXACTA:
-- Si faltan datos ESENCIALES para redactar, escribe SOLO una lista que empiece por la línea "FALTAN DATOS:" y debajo las preguntas (una por línea). No escribas contrato en ese caso.
-- Si puedes redactar, escribe el CONTRATO COMPLETO (título, comparecientes, cláusulas numeradas, y cierre con lugar, fecha y espacio de firmas). Después, en una línea escribe exactamente:
+- REDACTA SIEMPRE EL CONTRATO. Para cualquier dato que el usuario no haya dado, NO preguntes: pon un marcador [ENTRE CORCHETES] y sigue. El objetivo es entregar un borrador listo para completar.
+- Usa la línea "FALTAN DATOS:" (y debajo preguntas) ÚNICAMENTE si es imposible saber el tipo de contrato o quiénes son las partes. En casi todos los casos NO uses esto: redacta el contrato con corchetes.
+- Escribe el CONTRATO COMPLETO: título, comparecientes con sus generales, objeto, cláusulas numeradas (precio, plazo, depósito, obligaciones, resolución, etc.), y cierre con lugar, fecha y espacio de firmas. Después, en una línea escribe exactamente:
 ---NOTAS---
-y debajo, de forma breve: los datos que quedaron entre [corchetes] por completar, y las cláusulas o requisitos legales clave (citando artículos de las FUENTES si aplica).
+y debajo, de forma breve: la lista de datos entre [corchetes] que hay que completar, y las cláusulas o requisitos legales clave (citando artículos de las FUENTES si aplica).
 Español jurídico correcto.`;
 }
 
