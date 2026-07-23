@@ -1,35 +1,62 @@
 // ────────────────────────────────────────────────────────────
 //  EL PARAÍSO · Avisos al móvil (notificaciones de la carta)
-//  Guarda las suscripciones de los clientes en Vercel Blob y
-//  envía el aviso push cuando Stalin publica una promoción.
+//  Guarda las suscripciones de los clientes en GitHub (repo privado)
+//  y envía el aviso push cuando Stalin publica una promoción.
 //  ENVIAR solo funciona con el código secreto del editor:
 //  el id de las suscripciones deriva de ese código, igual que
 //  la carta (sha256 de 'cartaweb:' + código).
+//
+//  Antes usaba Vercel Blob (un archivo por suscripción/voto), pero el
+//  Blob gratuito se suspende al superar el límite. Ahora todo va en
+//  GitHub y en UN solo archivo por lista, mucho más ligero y estable.
 // ────────────────────────────────────────────────────────────
-const { put, list, del } = require('@vercel/blob');
 const crypto = require('crypto');
 const webpush = require('web-push');
 
 const sha = t => crypto.createHash('sha256').update(t).digest('hex');
 const ID_OK = /^[a-f0-9]{64}$/;
-
-// El código del editor se verifica comprobando que SU carta existe en GitHub
-// (el id deriva del código: sin el código correcto no hay carta que encontrar)
 const REPO_DATOS = 'stalindelacruzgomez29-gif/el-paraiso-equipo-datos';
-async function ghLeer(ruta) {
-  return fetch('https://api.github.com/repos/' + REPO_DATOS + '/contents/' + ruta + '?ref=main&t=' + Date.now(), {
+
+async function gh(metodo, ruta, cuerpo) {
+  return fetch('https://api.github.com/repos/' + REPO_DATOS + '/contents/' + ruta + (metodo === 'GET' ? '?ref=main&t=' + Date.now() : ''), {
+    method: metodo,
     headers: {
       'Authorization': 'Bearer ' + process.env.EQUIPO_GITHUB_TOKEN,
       'Accept': 'application/vnd.github+json', 'Cache-Control': 'no-cache',
-      'User-Agent': 'el-paraiso-avisos'
-    }
+      'User-Agent': 'el-paraiso-avisos', ...(cuerpo ? { 'Content-Type': 'application/json' } : {})
+    },
+    body: cuerpo ? JSON.stringify(cuerpo) : undefined
   });
+}
+// Lee un JSON del repo → { valor, sha }.  Si no existe, valor = porDefecto.
+async function leerJson(ruta, porDefecto) {
+  const r = await gh('GET', ruta);
+  if (!r.ok) return { valor: porDefecto, sha: undefined };
+  try {
+    const j = await r.json();
+    return { valor: JSON.parse(Buffer.from(j.content, 'base64').toString('utf8')), sha: j.sha };
+  } catch (e) { return { valor: porDefecto, sha: undefined }; }
+}
+// Modifica un JSON con reintento si otro guardado entra a la vez (conflicto 409).
+async function actualizarJson(ruta, porDefecto, cambiar, mensaje) {
+  for (let intento = 0; intento < 3; intento++) {
+    const { valor, sha } = await leerJson(ruta, porDefecto);
+    const nuevo = cambiar(valor);
+    if (nuevo === null) return valor; // sin cambios
+    const r = await gh('PUT', ruta, {
+      message: mensaje || 'avisos', branch: 'main',
+      content: Buffer.from(JSON.stringify(nuevo)).toString('base64'), ...(sha ? { sha } : {})
+    });
+    if (r.ok) return nuevo;
+    if (r.status !== 409) throw new Error('guardado ' + r.status);
+  }
+  throw new Error('no pude guardar (conflicto)');
 }
 async function verificarCodigo(codigo) {
   codigo = String(codigo || '');
   if (codigo.length < 4) return null;
   const id = sha('cartaweb:' + codigo);
-  const r = await ghLeer('cartaweb/' + id + '.json');
+  const r = await gh('GET', 'cartaweb/' + id + '.json');
   return r.ok ? id : null;
 }
 
@@ -39,33 +66,46 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  if (!process.env.EQUIPO_GITHUB_TOKEN) {
     return res.status(503).json({ error: 'Los avisos no están configurados en el servidor.' });
   }
 
   try {
+    // ── Servir un documento subido (para abrirlo/compartirlo por WhatsApp) ──
+    if (req.method === 'GET' && req.query && req.query.doc) {
+      const clave = String(req.query.doc).replace(/[^a-f0-9]/g, '');
+      if (clave.length < 8) return res.status(400).send('Enlace no válido');
+      const r = await gh('GET', 'docs/' + clave + '.json');
+      if (!r.ok) return res.status(404).send('No encontrado');
+      const j = await r.json();
+      const meta = JSON.parse(Buffer.from(j.content, 'base64').toString('utf8'));
+      const buf = Buffer.from(meta.base64, 'base64');
+      res.setHeader('Content-Type', meta.tipo || 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="' + (meta.nombre || 'documento') + '"');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      return res.status(200).send(buf);
+    }
+
     // ── ¿Cuántos móviles tienen los avisos activados? (lo enseña el editor) ──
     if (req.method === 'GET' && req.query && req.query.cuantos) {
       const id = String(req.query.cuantos);
       if (!ID_OK.test(id)) return res.status(400).json({ error: 'Id no válido.' });
-      const { blobs } = await list({ prefix: `push/${id}/` });
+      const { valor } = await leerJson('push/' + id + '.json', {});
       res.setHeader('Cache-Control', 'no-store');
-      return res.status(200).json({ cuantos: blobs.length });
+      return res.status(200).json({ cuantos: Object.keys(valor).length });
     }
 
-    // ── Contadores de "me gusta" y "me interesa" de las promos (público, los ve la carta) ──
+    // ── Contadores de "me gusta" y "me interesa" de las promos (público) ──
     if (req.method === 'GET' && req.query && req.query.votos) {
       const id = String(req.query.votos);
       if (!ID_OK.test(id)) return res.status(400).json({ error: 'Id no válido.' });
-      const { blobs } = await list({ prefix: `votos/${id}/`, limit: 1000 });
+      const { valor } = await leerJson('votos/' + id + '.json', {});
       const votos = {};
-      for (const bl of blobs) {
-        // ruta: votos/<id>/<clave-promo>/<gusta|interesa>-<dispositivo>.json
-        const partes = bl.pathname.split('/');
-        const clave = partes[2] || '', tipo = (partes[3] || '').split('-')[0];
-        if (!clave || (tipo !== 'gusta' && tipo !== 'interesa')) continue;
-        votos[clave] = votos[clave] || { gusta: 0, interesa: 0 };
-        votos[clave][tipo]++;
+      for (const clave of Object.keys(valor)) {
+        votos[clave] = {
+          gusta: (valor[clave].gusta || []).length,
+          interesa: (valor[clave].interesa || []).length
+        };
       }
       res.setHeader('Cache-Control', 'no-store');
       return res.status(200).json({ votos });
@@ -82,14 +122,15 @@ module.exports = async (req, res) => {
       if (!s || !s.endpoint || !s.keys || !s.keys.p256dh || !s.keys.auth) {
         return res.status(400).json({ error: 'Suscripción incompleta.' });
       }
-      await put(`push/${id}/${sha(String(s.endpoint))}.json`, JSON.stringify({
-        endpoint: String(s.endpoint), p256dh: String(s.keys.p256dh), auth: String(s.keys.auth),
-        alta: new Date().toISOString()
-      }), { access: 'public', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json' });
+      const clave = sha(String(s.endpoint));
+      await actualizarJson('push/' + id + '.json', {}, (m) => {
+        m[clave] = { endpoint: String(s.endpoint), p256dh: String(s.keys.p256dh), auth: String(s.keys.auth), alta: new Date().toISOString() };
+        return m;
+      }, 'nueva suscripción push');
       return res.status(200).json({ guardada: true });
     }
 
-    // ── Un cliente toca "me gusta" o "me interesa" en una promo (1 voto por móvil y promo) ──
+    // ── Un cliente toca "me gusta" o "me interesa" (1 voto por móvil y promo) ──
     if (b.accion === 'promo-voto') {
       const id = String(b.carta || '');
       if (!ID_OK.test(id)) return res.status(400).json({ error: 'Carta no válida.' });
@@ -98,28 +139,33 @@ module.exports = async (req, res) => {
       const tipo = b.tipo === 'interesa' ? 'interesa' : 'gusta';
       const dev = String(b.dev || '');
       if (dev.length < 8 || dev.length > 64) return res.status(400).json({ error: 'Falta el identificador.' });
-      // mismo móvil + misma promo + mismo tipo = mismo archivo → no se puede votar dos veces
-      await put(`votos/${id}/${clave}/${tipo}-${sha(dev).slice(0, 24)}.json`,
-        JSON.stringify({ t: new Date().toISOString() }),
-        { access: 'public', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json' });
+      const devH = sha(dev).slice(0, 24);
+      await actualizarJson('votos/' + id + '.json', {}, (m) => {
+        m[clave] = m[clave] || { gusta: [], interesa: [] };
+        if (!m[clave][tipo].includes(devH)) m[clave][tipo].push(devH);
+        else return null; // ya había votado: nada que cambiar
+        return m;
+      }, 'voto de promo');
       return res.status(200).json({ ok: true });
     }
 
-    // ── El admin sube un documento y recibe un enlace para compartirlo (WhatsApp/correo) ──
+    // ── El admin sube un documento y recibe un enlace para compartirlo ──
     if (b.accion === 'subir-doc') {
       const id = await verificarCodigo(b.codigo);
       if (!id) return res.status(403).json({ error: 'Código incorrecto.' });
       const nombre = (String(b.nombre || 'documento.pdf').replace(/[^\w. ()-]/g, '').slice(0, 80)) || 'documento.pdf';
-      const datos = Buffer.from(String(b.base64 || ''), 'base64');
-      if (!datos.length || datos.length > 4 * 1024 * 1024) {
+      const base64 = String(b.base64 || '');
+      if (!base64 || base64.length > 6 * 1024 * 1024) {
         return res.status(400).json({ error: 'Archivo vacío o demasiado grande (máximo 4 MB).' });
       }
-      // addRandomSuffix: el enlace lleva un código aleatorio → solo lo abre quien lo reciba
-      const subido = await put(`docs/${id}/${nombre}`, datos, {
-        access: 'public', addRandomSuffix: true,
-        contentType: String(b.tipo || 'application/pdf').slice(0, 60)
+      const clave = crypto.randomBytes(16).toString('hex'); // enlace imposible de adivinar
+      const r = await gh('PUT', 'docs/' + clave + '.json', {
+        message: 'documento', branch: 'main',
+        content: Buffer.from(JSON.stringify({ nombre, tipo: String(b.tipo || 'application/pdf').slice(0, 60), base64 })).toString('base64')
       });
-      return res.status(200).json({ ok: true, url: subido.url });
+      if (!r.ok) return res.status(500).json({ error: 'No pude guardar el documento.' });
+      const base = 'https://' + (req.headers.host || 'el-paraiso-eight.vercel.app');
+      return res.status(200).json({ ok: true, url: base + '/api/avisos?doc=' + clave });
     }
 
     // ── Stalin envía un aviso a todos (requiere el código del editor) ──
@@ -129,12 +175,11 @@ module.exports = async (req, res) => {
       }
       const codigo = String(b.codigo || '');
       if (codigo.length < 4) return res.status(400).json({ error: 'Falta el código del editor.' });
-      const id = sha('cartaweb:' + codigo); // sin el código correcto, la carpeta está vacía
+      const id = sha('cartaweb:' + codigo); // sin el código correcto, la lista está vacía
 
       webpush.setVapidDetails(
         process.env.VAPID_SUBJECT || 'mailto:info@elparaiso.com',
-        process.env.VAPID_PUBLIC_KEY,
-        process.env.VAPID_PRIVATE_KEY
+        process.env.VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY
       );
       const payload = JSON.stringify({
         titulo: String(b.titulo || 'El Paraíso').slice(0, 80),
@@ -142,26 +187,26 @@ module.exports = async (req, res) => {
         url: String(b.url || '/carta-paraiso.html').slice(0, 200)
       });
 
-      const { blobs } = await list({ prefix: `push/${id}/` });
-      let enviadas = 0, caducadas = 0;
-      await Promise.all(blobs.map(async bl => {
+      const { valor } = await leerJson('push/' + id + '.json', {});
+      const claves = Object.keys(valor);
+      let enviadas = 0; const caducadas = [];
+      await Promise.all(claves.map(async k => {
+        const s = valor[k];
         try {
-          const r = await fetch(bl.url + '?t=' + Date.now());
-          const s = await r.json();
           await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload);
           enviadas++;
         } catch (err) {
-          // móvil que borró la app o quitó el permiso: limpiamos su suscripción
-          if (err && (err.statusCode === 404 || err.statusCode === 410)) {
-            await del(bl.url).catch(() => {});
-            caducadas++;
-          }
+          if (err && (err.statusCode === 404 || err.statusCode === 410)) caducadas.push(k);
         }
       }));
-      return res.status(200).json({ ok: true, enviadas, caducadas, total: blobs.length });
+      // Limpiamos de una vez las suscripciones caducadas
+      if (caducadas.length) {
+        await actualizarJson('push/' + id + '.json', {}, (m) => { caducadas.forEach(k => delete m[k]); return m; }, 'limpiar caducadas').catch(() => {});
+      }
+      return res.status(200).json({ ok: true, enviadas, caducadas: caducadas.length, total: claves.length });
     }
 
-    // ── El ADMIN apunta su móvil para recibir aviso de cada reserva (requiere el código) ──
+    // ── El ADMIN apunta su móvil para recibir aviso de cada reserva ──
     if (b.accion === 'suscribir-admin') {
       const id = await verificarCodigo(b.codigo);
       if (!id) return res.status(403).json({ error: 'Código incorrecto.' });
@@ -169,10 +214,11 @@ module.exports = async (req, res) => {
       if (!s || !s.endpoint || !s.keys || !s.keys.p256dh || !s.keys.auth) {
         return res.status(400).json({ error: 'Suscripción incompleta.' });
       }
-      await put(`pushadmin/${id}/${sha(String(s.endpoint))}.json`, JSON.stringify({
-        endpoint: String(s.endpoint), p256dh: String(s.keys.p256dh), auth: String(s.keys.auth),
-        alta: new Date().toISOString()
-      }), { access: 'public', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json' });
+      const clave = sha(String(s.endpoint));
+      await actualizarJson('pushadmin/' + id + '.json', {}, (m) => {
+        m[clave] = { endpoint: String(s.endpoint), p256dh: String(s.keys.p256dh), auth: String(s.keys.auth), alta: new Date().toISOString() };
+        return m;
+      }, 'suscripción admin');
       return res.status(200).json({ guardada: true });
     }
 
@@ -180,7 +226,7 @@ module.exports = async (req, res) => {
     if (b.accion === 'reservas') {
       const id = await verificarCodigo(b.codigo);
       if (!id) return res.status(403).json({ error: 'Código incorrecto.' });
-      const r = await ghLeer('datos.json');
+      const r = await gh('GET', 'datos.json');
       if (!r.ok) return res.status(200).json({ reservas: [], avisosAdmin: 0 });
       const j = await r.json();
       const datos = JSON.parse(Buffer.from(j.content, 'base64').toString('utf8'));
@@ -190,20 +236,17 @@ module.exports = async (req, res) => {
         .sort((a, c) => (a.fecha + a.hora).localeCompare(c.fecha + c.hora))
         .slice(0, 60)
         .map(rv => ({ id: rv.id, nombre: rv.nombre, telefono: rv.telefono, personas: rv.personas, fecha: rv.fecha, hora: rv.hora, nota: rv.nota || '', platos: rv.platos || [], alerta: rv.alerta || '', estado: rv.estado, origen: rv.origen || '' }));
-      // El club de clientes (se apuntan desde la carta y aceptan recibir promociones)
       const club = (datos.club || []).slice(-500).map(c => ({
         id: c.id, nombre: c.nombre, telefono: c.telefono, email: c.email || '', alta: c.alta
       }));
-      // 🍽 Pedidos por mesa (QR de cada mesa): los de HOY, para el apartado Mesas de la app
       const hoyMadrid = new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Madrid' }).slice(0, 10);
       const diaMadrid = iso => { try { return new Date(iso).toLocaleString('sv-SE', { timeZone: 'Europe/Madrid' }).slice(0, 10); } catch (e) { return ''; } };
       const pedidosMesa = (datos.pedidosMesa || [])
         .filter(x => x.estado === 'nuevo' || diaMadrid(x.creada) === hoyMadrid)
         .slice(-120)
         .map(x => ({ id: x.id, mesa: x.mesa, items: x.items || [], total: x.total || 0, suplemento: x.suplemento || 0, terrazaPct: x.terrazaPct || 0, nota: x.nota || '', aviso: x.aviso || '', estado: x.estado, creada: x.creada, tpv: !!x.tpv }));
-      const { blobs } = await list({ prefix: `pushadmin/${id}/` });
+      const { valor: admins } = await leerJson('pushadmin/' + id + '.json', {});
       res.setHeader('Cache-Control', 'no-store');
-      // La configuración de reservas, para que la app del admin la enseñe y la edite
       const configReservas = {
         franjas: (datos.config && datos.config.reservasFranjas) || '',
         aforo: (datos.config && datos.config.reservasAforo) || 0,
@@ -214,7 +257,7 @@ module.exports = async (req, res) => {
         mesasTerraza: (datos.config && Number(datos.config.mesasTerraza)) || 0,
         terrazaPct: (datos.config && Number(datos.config.terrazaPct)) || 0
       };
-      return res.status(200).json({ reservas, club, pedidosMesa, avisosAdmin: blobs.length, configReservas });
+      return res.status(200).json({ reservas, club, pedidosMesa, avisosAdmin: Object.keys(admins).length, configReservas });
     }
 
     return res.status(400).json({ error: 'Acción desconocida.' });

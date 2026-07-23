@@ -274,23 +274,24 @@ async function avisarWhatsApp(msg) {
 // sin romper nada si falla: la reserva queda guardada igual.
 const CARTA_PUB_ID = '4244bca40f5248ee217447ae96196df2b63dd8d0c83bad2e01995251a87329ba';
 async function avisarAdminPush(titulo, cuerpo) {
-  if (!process.env.VAPID_PRIVATE_KEY || !process.env.VAPID_PUBLIC_KEY || !process.env.BLOB_READ_WRITE_TOKEN) return;
+  if (!process.env.VAPID_PRIVATE_KEY || !process.env.VAPID_PUBLIC_KEY || !process.env.EQUIPO_GITHUB_TOKEN) return;
   try {
     const webpush = require('web-push');
-    const { list, del } = require('@vercel/blob');
     webpush.setVapidDetails(
       process.env.VAPID_SUBJECT || 'mailto:info@elparaiso.com',
       process.env.VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY
     );
     const payload = JSON.stringify({ titulo, cuerpo, url: '/promos-paraiso.html' });
-    const { blobs } = await list({ prefix: `pushadmin/${CARTA_PUB_ID}/` });
-    await Promise.all(blobs.map(async bl => {
+    // Las suscripciones del admin viven en UN archivo de GitHub (avisos.js lo mantiene)
+    const r = await gh('GET', `/repos/${REPO_DATOS}/contents/pushadmin/${CARTA_PUB_ID}.json?ref=main&t=${Date.now()}`);
+    if (!r.ok) return;
+    const j = await r.json();
+    const subs = JSON.parse(Buffer.from(j.content, 'base64').toString('utf8'));
+    await Promise.all(Object.keys(subs).map(async k => {
+      const s = subs[k];
       try {
-        const s = await (await fetch(bl.url + '?t=' + Date.now())).json();
         await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload);
-      } catch (err) {
-        if (err && (err.statusCode === 404 || err.statusCode === 410)) await del(bl.url).catch(() => {});
-      }
+      } catch (err) { /* suscripción caducada: la limpiará avisos.js al enviar promos */ }
     }));
   } catch (e) { /* el aviso es un extra: nunca frena la reserva */ }
 }
