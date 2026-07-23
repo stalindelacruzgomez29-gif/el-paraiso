@@ -461,6 +461,34 @@ function restaurarCopia(){
   document.getElementById('zonaRestaurar').style.display='none'; document.getElementById('txtRestaurar').value='';
   alert('Restaurados '+add+' expediente'+(add===1?'':'s')+' ✅');
 }
+// Rellenador automático: convierte los [corchetes] del documento en casillas;
+// según escribes, el documento se completa solo (así sale rellenado, sin huecos).
+function activarRellenos(scope){
+  (scope||document).querySelectorAll('.escrito').forEach(el=>{
+    if(el.dataset.rell==='1') return;
+    const tpl = el.textContent;
+    const tokens = [...new Set((tpl.match(/\[[^\]\r\n]{1,70}\]/g)||[]))];
+    if(!tokens.length) return;
+    el.dataset.rell='1'; el.dataset.tpl=tpl;
+    const caja = el.closest('.caja'); if(!caja) return;
+    const panel = document.createElement('div'); panel.className='panel-relleno';
+    panel.innerHTML =
+      '<div style="font-weight:700;color:var(--azul);margin:14px 0 4px;font-family:var(--serif)">✍️ Completa los datos ('+tokens.length+')</div>'+
+      '<div class="hint" style="margin-top:0">Escribe lo que sepas y el documento se rellena solo. Lo que dejes vacío se queda marcado.</div>'+
+      tokens.map(t=>'<div style="margin-top:8px"><label style="font-size:12.5px;font-weight:600;display:block;margin-bottom:3px">'+esc(t.replace(/^\[|\]$/g,''))+'</label>'+
+        '<input class="in-rell" data-tok="'+esc(t)+'" oninput="aplicarRelleno(this)" style="width:100%;border:1px solid var(--linea);border-radius:8px;padding:9px;font-size:15px;font-family:inherit"></div>').join('');
+    caja.appendChild(panel);
+  });
+}
+function aplicarRelleno(inp){
+  const caja=inp.closest('.caja'); const el=caja.querySelector('.escrito'); const panel=caja.querySelector('.panel-relleno');
+  let txt = el.dataset.tpl || el.textContent;
+  panel.querySelectorAll('.in-rell').forEach(i=>{
+    const v=i.value.trim(); if(!v) return;
+    txt = txt.split(i.getAttribute('data-tok')).join(v);
+  });
+  el.textContent = txt;
+}
 function imprimirDoc(btn){
   const caja=btn.closest('.caja'); const el=caja?caja.querySelector('.escrito'):document.getElementById('escrito'); if(!el) return;
   document.querySelector('#areaImpresion .doc-cuerpo').textContent=el.textContent;
@@ -634,6 +662,7 @@ function pintarResultado(d){
   h += '<div id="zonaEscrito"></div>';
   h += avisoBox(d.aviso)+cajaSeguir();
   document.getElementById('salida').innerHTML = h;
+  activarRellenos(document.getElementById('salida'));
   window.scrollTo(0, document.body.scrollHeight);
 }
 
@@ -646,7 +675,7 @@ async function generarEscrito(){
     if(!r.ok){ z.innerHTML=''; return; }
     const d = await r.json();
     const e = (d.escrito_borrador||'').trim();
-    if(e){ z.innerHTML = '<div class="caja"><h2 class="sec">📝 Escrito / formulario listo para usar</h2><div class="escrito">'+esc(e)+'</div><div class="doc-acciones"><button class="btn-oro" onclick="copiar(this)">📋 Copiar</button><button class="btn-sec" onclick="imprimirDoc(this)">🖨️ Imprimir / PDF</button></div></div>'; }
+    if(e){ z.innerHTML = '<div class="caja"><h2 class="sec">📝 Escrito / formulario listo para usar</h2><div class="escrito">'+esc(e)+'</div><div class="doc-acciones"><button class="btn-oro" onclick="copiar(this)">📋 Copiar</button><button class="btn-sec" onclick="imprimirDoc(this)">🖨️ Imprimir / PDF</button></div></div>'; activarRellenos(z); }
     else { z.innerHTML=''; }
   }catch(err){ z.innerHTML=''; }
 }
