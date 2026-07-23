@@ -80,6 +80,41 @@ module.exports = async (req, res) => {
     } catch (e) { return res.status(500).json({ error: 'No pude leer la carta.' }); }
   }
 
+  // ── Feed de carta para el TPV BRASA (formato limpio y estable) ──
+  //    GET /api/datos?cartafeed=<id>  → menú normalizado, siempre lo último (sin caché).
+  //    Alex lee esta URL y cuando Stalin edita la carta, se refleja al momento.
+  if (req.method === 'GET' && req.query && req.query.cartafeed) {
+    const id = String(req.query.cartafeed);
+    if (!/^[a-f0-9]{64}$/.test(id)) return res.status(400).json({ error: 'Enlace no válido.' });
+    try {
+      const r = await ghCarta('GET', `/repos/${REPO_CARTA}/contents/cartaweb/${id}.json?ref=main&t=${Date.now()}`);
+      if (!r.ok) return res.status(200).json({ existe: false, secciones: [] });
+      const j = await r.json();
+      const c = JSON.parse(Buffer.from(j.content, 'base64').toString('utf8'));
+      const precioNum = (p) => {
+        const m = String(p || '').replace(/\./g, '').replace(',', '.').match(/[\d.]+/);
+        return m ? Number(m[0]) : 0;
+      };
+      const secciones = (c.secciones || []).map((s, si) => ({
+        id: 'sec-' + si,
+        nombre: s.titulo || '', nombre_en: s.en || '', nombre_de: s.de || '',
+        platos: (s.platos || []).map((p, pi) => ({
+          id: 'p-' + si + '-' + pi,
+          nombre: p.nom || '', nombre_en: p.en || '', nombre_de: p.de || '',
+          descripcion: p.desc || '',
+          precio: precioNum(p.precio),          // número: 31.9
+          precio_texto: p.precio || '',         // como se muestra: "31,90 €"
+          alergenos: Array.isArray(p.alergenos) ? p.alergenos : []
+        }))
+      }));
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(200).json({
+        existe: true, negocio: c.nombre || 'El Paraíso',
+        actualizado: c.actualizado || null, secciones
+      });
+    } catch (e) { return res.status(500).json({ error: 'No pude leer la carta.' }); }
+  }
+
   // El código viene en la query (?codigo=...) o en el cuerpo
   const codigo = (req.query && req.query.codigo) || (req.body && req.body.codigo);
   if (!codigo || String(codigo).length < 4) {
