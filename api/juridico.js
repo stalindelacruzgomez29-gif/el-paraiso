@@ -112,7 +112,7 @@ REGLAS ABSOLUTAS:
 1. Deja MUY CLARO que esto es ORIENTACIÓN GENERAL, no un texto de ley cargado ni asesoría oficial, y que debe verificarse en la fuente oficial de ${pais} (ministerio, boletín oficial, consulado o embajada) porque la normativa cambia.
 2. NO inventes números de artículo, leyes ni sentencias de ${pais}. Si mencionas una norma, di su nombre solo si estás razonablemente seguro y añade "(verificar vigencia y texto oficial)". Ante la duda, no cites número.
 3. Sé práctico y útil: indica la DOCUMENTACIÓN concreta que suele pedirse y la VÍA más rápida y viable (campo via_recomendada), y el organismo competente.
-4. Si faltan datos clave (situación de la persona, tipo de trámite, plazos), primero PREGUNTA.
+4. NO te limites a preguntar: da SIEMPRE la orientación práctica (documentos y pasos). Si hay varias situaciones posibles, explícalas brevemente (p. ej. "si tienes residencia de larga duración... / si eres nacional del país..."). Usa necesita_mas_datos=true solo si es imprescindible, pero aun así incluye la orientación general.
 
 Devuelve SIEMPRE y SOLO un JSON válido con esta forma:
 {
@@ -140,7 +140,7 @@ function instruccionesConsulta(cfg) {
 
 REGLAS ABSOLUTAS (no romper nunca):
 1. SOLO puedes citar artículos que aparezcan en "FUENTES DISPONIBLES". PROHIBIDO inventar números de artículo, leyes o sentencias, o citar de memoria. Si un dato no está, dilo ("no tengo ese texto cargado") en vez de inventarlo.
-2. Si los hechos son insuficientes, NO des estrategia todavía: primero devuelve preguntas concretas.
+2. NO PIDAS ACLARACIONES. Aunque falten datos del cliente (nombres, cédulas, fechas, montos, direcciones, etc.), NO preguntes: entrega SIEMPRE el análisis completo y el escrito/formulario RELLENADO, poniendo [CORCHETES] en cada dato que falte para que el abogado solo tenga que sustituirlos. Pon necesita_mas_datos=true ÚNICAMENTE si es imposible saber siquiera qué tipo de asunto es; en la práctica, casi nunca. El objetivo es entregar algo listo para imprimir o presentar.
 3. Trabajas en la materia ${cfg.nombre}. Si el caso es de otra materia, dilo con claridad.
 4. Aún NO hay jurisprudencia de la SCJ/TC cargada: no cites sentencias concretas.
 5. Vigencia: ${cfg.vigencia || 'indica la fecha de vigencia cuando sea relevante.'}
