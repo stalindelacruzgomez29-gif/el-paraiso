@@ -268,7 +268,10 @@ module.exports = async (req, res) => {
     });
     const datos = await r.json();
     if (!r.ok) return res.status(r.status).json({ error: (datos.error && datos.error.message) || 'Error de la IA.' });
-    let texto = (datos.content && datos.content[0] && datos.content[0].text) || '';
+    // Toma TODOS los bloques de texto (el modelo puede incluir antes un bloque de razonamiento)
+    let texto = Array.isArray(datos.content)
+      ? datos.content.filter(b => b && b.type === 'text' && typeof b.text === 'string').map(b => b.text).join('')
+      : '';
     texto = texto.trim().replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```$/, '').trim();
     const AVISO = 'Asistente jurídico — verifica siempre la fuente oficial. No sustituye el criterio de un abogado colegiado.';
     let resultado;
