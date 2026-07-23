@@ -42,6 +42,9 @@
   .dia.on{background:var(--verde);border-color:var(--verde);color:#fff}
   .mini{font-size:12px;color:var(--mut)}
   .add{background:#eaf3ec;color:var(--verde);border:1px dashed var(--verde)}
+  .alerg-edit{margin-top:8px;font-size:12.5px;color:var(--mut);display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+  .chip-al{width:30px;height:30px;border:1px solid var(--linea);background:#fff;border-radius:8px;font-size:15px;cursor:pointer;opacity:.4;filter:grayscale(.6)}
+  .chip-al.on{opacity:1;filter:none;border-color:var(--oro);background:#fbf6ea}
   /* login */
   .lock{position:fixed;inset:0;background:var(--papel);z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px}
   .lock h1{color:var(--verde);font-size:22px}
@@ -175,9 +178,23 @@ function platoForm(si,pi,p){
         <input placeholder="Precio (ej. 12,90 €)" value="${esc(p.precio)}" onchange="CARTA.secciones[${si}].platos[${pi}].precio=this.value">
         <button class="btn quitar btn-peq" onclick="borrarPlato(${si},${pi})">🗑 Quitar</button>
       </div>
+      <div class="alerg-edit">🥗 Alérgenos: ${alergChips(si,pi,p)}</div>
     </div>
   </div>`;
 }
+// Los 14 alérgenos oficiales de la UE con su icono
+const ALERGENOS=[['gluten','🌾','Gluten'],['crustaceos','🦐','Crustáceos'],['huevo','🥚','Huevo'],['pescado','🐟','Pescado'],
+  ['cacahuete','🥜','Cacahuetes'],['soja','🌱','Soja'],['lacteos','🥛','Lácteos'],['frutoscascara','🌰','Frutos de cáscara'],
+  ['apio','🥬','Apio'],['mostaza','🟡','Mostaza'],['sesamo','⚪','Sésamo'],['sulfitos','🍷','Sulfitos'],['altramuces','🫘','Altramuces'],['moluscos','🐚','Moluscos']];
+function alergChips(si,pi,p){
+  const marc=Array.isArray(p.alergenos)?p.alergenos:[];
+  return ALERGENOS.map(([k,ico,nom])=>`<button type="button" class="chip-al${marc.includes(k)?' on':''}" title="${nom}" onclick="toggleAlerg(${si},${pi},'${k}')">${ico}</button>`).join('');
+}
+window.toggleAlerg=(si,pi,k)=>{
+  const p=CARTA.secciones[si].platos[pi]; p.alergenos=Array.isArray(p.alergenos)?p.alergenos:[];
+  const idx=p.alergenos.indexOf(k); idx>=0?p.alergenos.splice(idx,1):p.alergenos.push(k);
+  pintar();
+};
 // ── PROMOCIONES ──
 function pintarPromos(){
   CARTA.promos=CARTA.promos||[];

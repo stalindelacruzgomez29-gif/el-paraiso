@@ -59,6 +59,9 @@
   .pl-nom{font-size:15.5px;color:var(--tinta)}
   .pl-en{font-family:Georgia,serif;font-style:italic;font-size:11.5px;color:var(--tinta-suave)}
   .pl-desc{font-family:Georgia,serif;font-size:11.5px;color:var(--tinta-suave);line-height:1.4;margin-top:1px}
+  .pl-alerg{margin-top:3px;font-size:13px;line-height:1;letter-spacing:2px}
+  .leyenda-alerg{max-width:640px;margin:16px auto 0;font-family:-apple-system,sans-serif;font-size:11px;color:#cdbf9f;text-align:center;line-height:1.7}
+  .leyenda-alerg b{color:var(--oro-claro);font-weight:600}
   .pl-precio{font-size:14.5px;color:var(--verde);font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right}
   .pl-precio .multi{font-size:11px;color:var(--oro);font-weight:400}
   /* plato con foto */
@@ -401,10 +404,23 @@ function emblemaSVG(){
 function platoHTML(p){
   // En modo mesa (QR de la mesa escaneado y pedidos encendidos), cada plato lleva su botón ➕ Pedir
   const pedir = (mesaActual()&&PEDIR_ON) ? `<div style="text-align:right"><button class="pedir-btn no-print" data-nom="${esc(p.nom)}" data-precio="${esc(p.precio||'')}">➕ Pedir</button></div>` : '';
-  const filaTxt = `<div class="fila"><div><div class="pl-nom">${esc(p.nom)}${p.en?' <span class="pl-en">· '+esc(p.en)+'</span>':''}</div>${p.desc?'<div class="pl-desc">'+esc(p.desc)+'</div>':''}</div>
+  const filaTxt = `<div class="fila"><div><div class="pl-nom">${esc(p.nom)}${p.en?' <span class="pl-en">· '+esc(p.en)+'</span>':''}</div>${p.desc?'<div class="pl-desc">'+esc(p.desc)+'</div>':''}${alergHTML(p.alergenos)}</div>
     <div class="pl-precio">${esc(p.precio)}</div></div>`;
   if(p.foto) return `<div class="plato"><div class="con-foto"><img class="foto" src="${p.foto}" alt="${esc(p.nom)}">${filaTxt}</div>${pedir}</div>`;
   return `<div class="plato">${filaTxt}${pedir}</div>`;
+}
+const ALERG_ICO={gluten:['🌾','Gluten'],crustaceos:['🦐','Crustáceos'],huevo:['🥚','Huevo'],pescado:['🐟','Pescado'],cacahuete:['🥜','Cacahuetes'],soja:['🌱','Soja'],lacteos:['🥛','Lácteos'],frutoscascara:['🌰','Frutos de cáscara'],apio:['🥬','Apio'],mostaza:['🟡','Mostaza'],sesamo:['⚪','Sésamo'],sulfitos:['🍷','Sulfitos'],altramuces:['🫘','Altramuces'],moluscos:['🐚','Moluscos']};
+function alergHTML(a){
+  if(!Array.isArray(a)||!a.length) return '';
+  return '<div class="pl-alerg">'+a.filter(k=>ALERG_ICO[k]).map(k=>`<span title="${ALERG_ICO[k][1]}">${ALERG_ICO[k][0]}</span>`).join('')+'</div>';
+}
+// Leyenda: solo muestra los alérgenos que se usan de verdad en la carta
+function leyendaAlergHTML(c){
+  const usados=new Set();
+  (c.secciones||[]).forEach(s=>(s.platos||[]).forEach(p=>(Array.isArray(p.alergenos)?p.alergenos:[]).forEach(k=>usados.add(k))));
+  if(!usados.size) return '';
+  const items=Object.keys(ALERG_ICO).filter(k=>usados.has(k)).map(k=>ALERG_ICO[k][0]+' '+ALERG_ICO[k][1]);
+  return '<div class="leyenda-alerg"><b>Alérgenos:</b> '+items.join(' · ')+'</div>';
 }
 function seccionHTML(s){
   const clase = s.estilo==='premium'?'seccion premium':(s.estilo==='kids'?'seccion kids':'seccion');
@@ -433,6 +449,7 @@ function pintar(c){
         ${c.contacto&&c.contacto.web?'<span>🌐 <b>'+esc(c.contacto.web)+'</b></span>':''}</div>
       ${redesHTML(c.contacto&&c.contacto.redes)}
       <button class="avisos-btn no-print" id="btn-avisos">🔔 Avísame de las promociones</button>
+      ${leyendaAlergHTML(c)}
       <p class="alerg">Si tienes alguna alergia o intolerancia alimentaria, pregunta a nuestro personal. · Please inform our staff of any food allergy or intolerance. IVA incluido.</p>
       <div class="grx">El Paraíso · Desde ${esc(c.desde||'1968')}</div>
     </footer>`;
