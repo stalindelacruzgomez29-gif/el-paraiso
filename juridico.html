@@ -113,6 +113,14 @@
     ⚠️ <b>Asistente para abogados y estudiantes.</b> Cita solo textos legales reales cargados (leyes y códigos dominicanos vigentes). Verifica siempre la fuente oficial. <b>No sustituye el criterio de un abogado colegiado.</b>
   </div>
 
+  <div id="instalarBanner" class="aviso-top" style="display:none;background:#eaf2fb;border-color:#cfe0f4;color:#1b3c5e">
+    📲 <b>Instala esta app en tu teléfono</b> para abrirla con un toque, como una aplicación. <span id="instalarPasos"></span>
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+      <button id="btnInstalar" class="btn-oro" style="display:none">Instalar ahora</button>
+      <button class="btn-sec" onclick="cerrarInstalar()">Ahora no</button>
+    </div>
+  </div>
+
   <!-- INICIO -->
   <div id="inicio">
     <div class="intro">
@@ -698,6 +706,25 @@ function copiar(btn){
   if(navigator.clipboard){ navigator.clipboard.writeText(txt).then(()=>alert('Copiado ✅')); }
   else { const r=document.createRange(); r.selectNode(el); getSelection().removeAllRanges(); getSelection().addRange(r); } }
 pintarContadorExp();
+
+// ── Ayudante para instalar la app (iPhone y Android) ──
+let promptInstalar=null;
+function esStandalone(){ return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone===true; }
+function mostrarInstalar(tipo){
+  if(esStandalone() || localStorage.getItem('juridico_instalar_no')==='1') return;
+  const b=document.getElementById('instalarBanner'); if(!b) return;
+  if(tipo==='android'){ document.getElementById('instalarPasos').textContent='Pulsa «Instalar ahora».'; document.getElementById('btnInstalar').style.display='inline-block'; }
+  else { document.getElementById('instalarPasos').innerHTML='En iPhone: toca <b>Compartir ⬆️</b> (abajo) y luego <b>«Añadir a pantalla de inicio»</b>.'; }
+  b.style.display='block';
+}
+function cerrarInstalar(){ const b=document.getElementById('instalarBanner'); if(b) b.style.display='none'; localStorage.setItem('juridico_instalar_no','1'); }
+window.addEventListener('beforeinstallprompt', e=>{ e.preventDefault(); promptInstalar=e; mostrarInstalar('android'); });
+(function(){
+  const bi=document.getElementById('btnInstalar');
+  if(bi) bi.onclick=async()=>{ if(!promptInstalar) return; promptInstalar.prompt(); try{ await promptInstalar.userChoice; }catch(e){} promptInstalar=null; cerrarInstalar(); };
+  const iOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  if(iOS && !esStandalone()) setTimeout(()=>mostrarInstalar('ios'), 1200);
+})();
 </script>
 </body>
 </html>
